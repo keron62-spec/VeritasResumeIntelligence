@@ -14,7 +14,8 @@ import ScoreBreakdown from './components/ScoreBreakdown.jsx';
 import MetricQuality from './components/MetricQuality.jsx';
 import EmailCapture from './components/EmailCapture.jsx';
 import LoadingTips from './components/LoadingTips.jsx';
-import { parsePDF, extractDocx, analyzePDFHealth } from './utils/parseHelpers.js';
+import ATSEyeViewWarning from './components/ATSEyeViewWarning.jsx';
+import { extractDocx } from './utils/parseHelpers.js';
 import { createSafeResult } from './utils/helpers.js';
 
 export default function App() {
@@ -32,6 +33,11 @@ export default function App() {
     // Debug State
     const [showDebug, setShowDebug] = useState(false);
     const [rawApiResponse, setRawApiResponse] = useState(null);
+    
+    // ATS Eye View State
+    const [pdfIssues, setPdfIssues] = useState(null);
+    const [pdfFile, setPdfFile] = useState(null);
+    const [showWarning, setShowWarning] = useState(true);
     
     // Resume State
     const [resumeText, setResumeText] = useState('');
@@ -61,8 +67,13 @@ export default function App() {
 
     // Debug toggle
     const toggleDebug = () => setShowDebug(!showDebug);
+    
+    // Dismiss ATS warning
+    const dismissWarning = () => {
+        setShowWarning(false);
+    };
 
-    // File Upload Handlers
+    // SINGLE CALL FILE UPLOAD HANDLER - ONE Azure call for both text AND issues
     const handleResumeFileUpload = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -70,6 +81,11 @@ export default function App() {
             setResumeParseError('File too large (Max 10MB)');
             return;
         }
+        
+        // Store file for ATS Eye View
+        setPdfFile(file);
+        setShowWarning(true);
+        
         setResumeFileName(file.name);
         setResumeParseError(null);
         setLoading(true);
@@ -79,25 +95,65 @@ export default function App() {
         try {
             let extractedText = '';
             let pdfHealth = null;
+            let pdfIssuesData = null;
+            
             if (file.name.endsWith('.txt')) {
                 setAnalysisStage('📄 Reading text file...');
                 extractedText = await file.text();
             } else if (file.name.endsWith('.pdf')) {
                 setAnalysisStage('📄 Processing PDF with Azure Document Intelligence...');
-                const { pdf, fullText } = await parsePDF(file);
-                extractedText = fullText;
-                pdfHealth = await analyzePDFHealth(pdf, file.size);
+                
+                // ONE CALL to Azure - gets BOTH text AND issues
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch('https://ats-parser.keron62.workers.dev/azure', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'PDF processing failed');
+                }
+                
+                // Get both from the same response
+                extractedText = data.text || '';
+                pdfIssuesData = data.issues || null;
+                
+                // Create pdfHealth from the response data
+                pdfHealth = {
+                    issues: pdfIssuesData || [],
+                    pageCount: data.pages || 1,
+                    textLength: extractedText.length,
+                    fileSize: file.size,
+                    pdf_health_score: data.pdf_health_score,
+                    pdf_health_label: data.pdf_health_label
+                };
+                
+                // Set issues for ATS Eye View warning (only if critical issues exist)
+                if (pdfIssuesData && pdfIssuesData.length > 0) {
+                    const hasCriticalIssues = pdfIssuesData.some(i => i.severity === 'critical');
+                    if (hasCriticalIssues) {
+                        setPdfIssues(pdfIssuesData);
+                    }
+                }
+                
             } else if (file.name.endsWith('.docx')) {
                 setAnalysisStage('📄 Extracting text from Word document...');
                 extractedText = await extractDocx(file);
             }
+            
             if (!extractedText || extractedText.trim().length < 50) {
                 throw new Error('Not enough text found in file.');
             }
+            
             setResumeText(extractedText);
             setResumePdfHealth(pdfHealth);
             setAnalysisStage('✅ Text extracted successfully! Ready to analyze.');
             setTimeout(() => setExtractionStage(false), 1000);
+            
         } catch (err) {
             setResumeParseError(err.message);
             setExtractionStage(false);
@@ -124,8 +180,20 @@ export default function App() {
             if (file.name.endsWith('.txt')) {
                 extractedText = await file.text();
             } else if (file.name.endsWith('.pdf')) {
-                const { fullText } = await parsePDF(file);
-                extractedText = fullText;
+                // For JD, we still need PDF parsing
+                const formData = new FormData();
+                formData.append('file', file);
+                
+                const response = await fetch('https://ats-parser.keron62.workers.dev/azure', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                if (!data.success) {
+                    throw new Error(data.error || 'PDF processing failed');
+                }
+                extractedText = data.text || '';
             } else if (file.name.endsWith('.docx')) {
                 extractedText = await extractDocx(file);
             }
@@ -216,6 +284,9 @@ export default function App() {
         setEmailSent(false);
         setRawApiResponse(null);
         setShowDebug(false);
+        setPdfIssues(null);
+        setPdfFile(null);
+        setShowWarning(true);
     };
 
     // Helper to check if data exists in raw response
@@ -246,6 +317,9 @@ export default function App() {
                     jobDescriptionParseError={jobDescriptionParseError}
                     analyzeResume={analyzeResume} 
                     isAnalyzing={isAnalyzing}
+                    pdfIssues={showWarning ? pdfIssues : null}
+                    pdfFile={pdfFile}
+                    onDismissWarning={dismissWarning}
                 />
             )}
 
@@ -258,6 +332,15 @@ export default function App() {
 
             {result && !loading && (
                 <div className="results-container card">
+                    {/* ATS Eye View Warning - shows at top of results if critical issues exist */}
+                    {pdfIssues && pdfIssues.length > 0 && showWarning && (
+                        <ATSEyeViewWarning 
+                            pdfIssues={pdfIssues}
+                            pdfFile={pdfFile}
+                            onDismiss={dismissWarning}
+                        />
+                    )}
+                    
                     <ScoreDashboard result={result} isComparisonMode={isComparisonMode} />
                     
                     <RiasecSection riasec={result.riasec} isComparisonMode={isComparisonMode} />

@@ -4,8 +4,7 @@ import mammoth from 'mammoth';
 // Set the worker source BEFORE any PDF operations
 // Using a hardcoded version that is confirmed to work
 const PDFJS_VERSION = '4.0.379';
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;
-
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;
 export const analyzePDFHealth = async (pdf, fileSize) => {
     try {
         const metadata = await pdf.getMetadata();

@@ -1,9 +1,8 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
-// We tell the PDF reader to use the internet to get its helper tool (worker) so it doesn't crash your app
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
-
+// Use a hardcoded known-good version instead of dynamic
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/build/pdf.worker.min.js`;
 export const analyzePDFHealth = async (pdf, fileSize) => {
     try {
         const metadata = await pdf.getMetadata();

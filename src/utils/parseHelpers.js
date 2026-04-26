@@ -1,8 +1,11 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
-// Use a hardcoded known-good version instead of dynamic
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@4.8.69/build/pdf.worker.min.js`;
+// Set the worker source BEFORE any PDF operations
+// Using a hardcoded version that is confirmed to work
+const PDFJS_VERSION = '4.0.379';
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;
+
 export const analyzePDFHealth = async (pdf, fileSize) => {
     try {
         const metadata = await pdf.getMetadata();
@@ -23,6 +26,7 @@ export const analyzePDFHealth = async (pdf, fileSize) => {
         
         return { pageCount: numPages, issues, textLength: totalTextLength, fileSize };
     } catch (error) {
+        console.warn("PDF Health analysis failed:", error);
         return { pageCount: 0, issues: [], textLength: 0, fileSize: fileSize };
     }
 };
@@ -33,7 +37,12 @@ export const parsePDF = async (file) => {
         reader.onload = async function(e) {
             try {
                 const typedarray = new Uint8Array(e.target.result);
-                const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
+                const pdf = await pdfjsLib.getDocument({ 
+                    data: typedarray,
+                    // Add this to help with worker loading
+                    useSystemFonts: true,
+                    standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/standard_fonts/`
+                }).promise;
                 let fullText = '';
                 for (let i = 1; i <= pdf.numPages; i++) {
                     const page = await pdf.getPage(i);
@@ -42,6 +51,7 @@ export const parsePDF = async (file) => {
                 }
                 resolve({ pdf, fullText });
             } catch (error) {
+                console.error('PDF parse error:', error);
                 reject(new Error('Failed to parse PDF: ' + error.message));
             }
         };

@@ -1,8 +1,7 @@
 import mammoth from 'mammoth';
 
-// Use your existing Azure Document Intelligence worker
-// Try different endpoints if needed
-const AZURE_PARSER_URL = 'https://ats-parser.keron62.workers.dev/extract';
+// Your Azure Document Intelligence worker
+const AZURE_PARSER_URL = 'https://ats-parser.keron62.workers.dev/azure';
 
 export const analyzePDFHealth = async (file, fileSize) => {
     return { 
@@ -15,55 +14,43 @@ export const analyzePDFHealth = async (file, fileSize) => {
 };
 
 export const parsePDF = async (file) => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = async function(e) {
-            try {
-                // Convert to base64
-                const bytes = new Uint8Array(e.target.result);
-                let binary = '';
-                for (let i = 0; i < bytes.length; i++) {
-                    binary += String.fromCharCode(bytes[i]);
-                }
-                const base64 = btoa(binary);
-                
-                console.log('Calling Azure worker...');
-                
-                // Call your Azure worker
-                const response = await fetch(AZURE_PARSER_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        file: base64,
-                        filename: file.name
-                    })
-                });
-                
-                console.log('Response status:', response.status);
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                }
-                
-                const data = await response.json();
-                console.log('Response data:', data);
-                
-                // Try different possible field names
-                const fullText = data.text || data.content || data.extractedText || data.result || '';
-                
-                if (!fullText || fullText.trim().length < 50) {
-                    reject(new Error('Could not extract enough text from PDF'));
-                }
-                
-                resolve({ pdf: null, fullText });
-            } catch (error) {
-                console.error('PDF parse error:', error);
-                reject(new Error('Failed to parse PDF: ' + error.message));
-            }
-        };
-        reader.onerror = () => reject(new Error('Failed to read file'));
-        reader.readAsArrayBuffer(file);
-    });
+    try {
+        console.log('Sending PDF to Azure worker:', file.name);
+        
+        // Create FormData - your worker expects multipart/form-data
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        // Call your Azure worker
+        const response = await fetch(AZURE_PARSER_URL, {
+            method: 'POST',
+            body: formData
+        });
+        
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Azure response:', data);
+        
+        if (!data.success) {
+            throw new Error(data.error || 'Azure extraction failed');
+        }
+        
+        const fullText = data.text || '';
+        
+        if (!fullText || fullText.trim().length < 50) {
+            throw new Error('Could not extract enough text from PDF');
+        }
+        
+        return { pdf: null, fullText };
+    } catch (error) {
+        console.error('PDF parse error:', error);
+        throw new Error('Failed to parse PDF: ' + error.message);
+    }
 };
 
 export const extractDocx = async (file) => {

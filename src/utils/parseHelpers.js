@@ -1,11 +1,10 @@
 import mammoth from 'mammoth';
 
-// Use your existing Azure Document Intelligence worker for PDFs
-const AZURE_PARSER_URL = 'https://ats-parser.keron62.workers.dev/';
+// Use your existing Azure Document Intelligence worker
+// Try different endpoints if needed
+const AZURE_PARSER_URL = 'https://ats-parser.keron62.workers.dev/extract';
 
 export const analyzePDFHealth = async (file, fileSize) => {
-    // Since Azure handles the parsing, we don't need complex PDF health analysis
-    // Return basic info
     return { 
         pageCount: null, 
         issues: [], 
@@ -20,12 +19,15 @@ export const parsePDF = async (file) => {
         const reader = new FileReader();
         reader.onload = async function(e) {
             try {
-                const base64 = btoa(
-                    new Uint8Array(e.target.result).reduce(
-                        (data, byte) => data + String.fromCharCode(byte),
-                        ''
-                    )
-                );
+                // Convert to base64
+                const bytes = new Uint8Array(e.target.result);
+                let binary = '';
+                for (let i = 0; i < bytes.length; i++) {
+                    binary += String.fromCharCode(bytes[i]);
+                }
+                const base64 = btoa(binary);
+                
+                console.log('Calling Azure worker...');
                 
                 // Call your Azure worker
                 const response = await fetch(AZURE_PARSER_URL, {
@@ -37,14 +39,17 @@ export const parsePDF = async (file) => {
                     })
                 });
                 
-                const data = await response.json();
+                console.log('Response status:', response.status);
                 
-                if (data.error) {
-                    throw new Error(data.error);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
                 
-                // Extract text from your worker's response
-                const fullText = data.text || data.content || data.extractedText || '';
+                const data = await response.json();
+                console.log('Response data:', data);
+                
+                // Try different possible field names
+                const fullText = data.text || data.content || data.extractedText || data.result || '';
                 
                 if (!fullText || fullText.trim().length < 50) {
                     reject(new Error('Could not extract enough text from PDF'));

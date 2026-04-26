@@ -13,6 +13,7 @@ import RoleMatches from './components/RoleMatches.jsx';
 import ScoreBreakdown from './components/ScoreBreakdown.jsx';
 import MetricQuality from './components/MetricQuality.jsx';
 import EmailCapture from './components/EmailCapture.jsx';
+import LoadingTips from './components/LoadingTips.jsx';
 import { parsePDF, extractDocx, analyzePDFHealth } from './utils/parseHelpers.js';
 import { createSafeResult } from './utils/helpers.js';
 
@@ -25,6 +26,7 @@ export default function App() {
     const [loading, setLoading] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisStage, setAnalysisStage] = useState('');
+    const [extractionStage, setExtractionStage] = useState(false); // NEW: track if we're extracting PDF
     const [result, setResult] = useState(null);
     
     // Resume State
@@ -53,7 +55,7 @@ export default function App() {
         }
     }, [darkMode]);
 
-    // File Upload Handlers
+    // File Upload Handlers - UPDATED with extraction stage
     const handleResumeFileUpload = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -64,16 +66,22 @@ export default function App() {
         setResumeFileName(file.name);
         setResumeParseError(null);
         setLoading(true);
+        setExtractionStage(true);
+        setAnalysisStage('📄 Extracting text from your document...');
+        
         try {
             let extractedText = '';
             let pdfHealth = null;
             if (file.name.endsWith('.txt')) {
+                setAnalysisStage('📄 Reading text file...');
                 extractedText = await file.text();
             } else if (file.name.endsWith('.pdf')) {
+                setAnalysisStage('📄 Processing PDF with Azure Document Intelligence...');
                 const { pdf, fullText } = await parsePDF(file);
                 extractedText = fullText;
                 pdfHealth = await analyzePDFHealth(pdf, file.size);
             } else if (file.name.endsWith('.docx')) {
+                setAnalysisStage('📄 Extracting text from Word document...');
                 extractedText = await extractDocx(file);
             }
             if (!extractedText || extractedText.trim().length < 50) {
@@ -81,8 +89,11 @@ export default function App() {
             }
             setResumeText(extractedText);
             setResumePdfHealth(pdfHealth);
+            setAnalysisStage('✅ Text extracted successfully! Ready to analyze.');
+            setTimeout(() => setExtractionStage(false), 1000);
         } catch (err) {
             setResumeParseError(err.message);
+            setExtractionStage(false);
         } finally {
             setLoading(false);
         }
@@ -98,6 +109,9 @@ export default function App() {
         setJobDescriptionFileName(file.name);
         setJobDescriptionParseError(null);
         setLoading(true);
+        setExtractionStage(true);
+        setAnalysisStage('📄 Extracting text from job description...');
+        
         try {
             let extractedText = '';
             if (file.name.endsWith('.txt')) {
@@ -112,14 +126,17 @@ export default function App() {
                 throw new Error('Not enough text found in file.');
             }
             setJobDescriptionText(extractedText);
+            setAnalysisStage('✅ Job description extracted! Ready to analyze.');
+            setTimeout(() => setExtractionStage(false), 1000);
         } catch (err) {
             setJobDescriptionParseError(err.message);
+            setExtractionStage(false);
         } finally {
             setLoading(false);
         }
     };
 
-    // Analysis Function
+    // Analysis Function - UPDATED with better stage tracking
     const analyzeResume = async () => {
         if (isAnalyzing) return;
         if (!resumeText.trim()) {
@@ -133,7 +150,7 @@ export default function App() {
         
         setIsAnalyzing(true);
         setLoading(true);
-        setAnalysisStage('Connecting to AI...');
+        setAnalysisStage('🤖 Connecting to AI...');
         
         try {
             const workerUrl = isComparisonMode 
@@ -143,7 +160,7 @@ export default function App() {
             const payload = { resumeText };
             if (isComparisonMode) payload.jobDescriptionText = jobDescriptionText;
             
-            setAnalysisStage('Analyzing with AI (this takes 20-30 seconds)...');
+            setAnalysisStage('🧠 AI is analyzing your resume (20-30 seconds)...');
             const response = await fetch(workerUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -153,6 +170,7 @@ export default function App() {
             const data = await response.json();
             if (data.error) throw new Error(data.error);
             
+            setAnalysisStage('📊 Processing your results...');
             const safeResult = createSafeResult(data.result || data, resumePdfHealth);
             setResult(safeResult);
             
@@ -212,11 +230,10 @@ export default function App() {
             )}
 
             {loading && (
-                <div className="loading card" style={{ textAlign: 'center', padding: '60px' }}>
-                    <div className="spinner"></div>
-                    <h2>{analysisStage}</h2>
-                    <p style={{ color: 'var(--text-muted)' }}>Our multiple LLMs are evaluating your resume...</p>
-                </div>
+                <LoadingTips 
+                    analysisStage={analysisStage} 
+                    extractionStage={extractionStage}
+                />
             )}
 
             {result && !loading && (

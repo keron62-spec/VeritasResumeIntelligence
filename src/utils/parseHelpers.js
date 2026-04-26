@@ -1,11 +1,9 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
-// Use the local worker from node_modules (requires Vite config)
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.js',
-  import.meta.url
-).href;
+// Use the version matching your installed pdfjs-dist (5.6.205)
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.6.205/pdf.worker.min.js`;
+
 export const analyzePDFHealth = async (pdf, fileSize) => {
     try {
         const metadata = await pdf.getMetadata();
@@ -37,12 +35,7 @@ export const parsePDF = async (file) => {
         reader.onload = async function(e) {
             try {
                 const typedarray = new Uint8Array(e.target.result);
-                const pdf = await pdfjsLib.getDocument({ 
-                    data: typedarray,
-                    // Add this to help with worker loading
-                    useSystemFonts: true,
-                    standardFontDataUrl: `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/standard_fonts/`
-                }).promise;
+                const pdf = await pdfjsLib.getDocument({ data: typedarray }).promise;
                 let fullText = '';
                 for (let i = 1; i <= pdf.numPages; i++) {
                     const page = await pdf.getPage(i);

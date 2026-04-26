@@ -4,9 +4,34 @@ export const filterEmptyObjects = (arr) => {
   return arr.filter(item => {
       if (!item) return false;
       if (typeof item !== 'object') return true;
-      return Object.values(item).some(val => 
-          val !== undefined && val !== null && val !== '' && !(Array.isArray(val) && val.length === 0)
+      
+      // Check if object has ANY meaningful property with a value
+      const hasContent = Object.values(item).some(val => 
+          val !== undefined && 
+          val !== null && 
+          val !== '' && 
+          !(Array.isArray(val) && val.length === 0)
       );
+      
+      // Also filter out empty objects {} with no keys
+      const hasKeys = Object.keys(item).length > 0;
+      
+      // For issues specifically, check if there's an actual issue message
+      const hasIssueText = (item.issue && item.issue.length > 0) || 
+                           (item.fix && item.fix.length > 0) ||
+                           (item.suggestion && item.suggestion.length > 0) ||
+                           (item.priority && item.priority.length > 0) ||
+                           (item.location && item.location.length > 0);
+      
+      // If this is an issue/flag type object, require actual content
+      const isIssueType = item.issue !== undefined || item.fix !== undefined || 
+                         item.suggestion !== undefined || item.priority !== undefined;
+      
+      if (isIssueType) {
+          return hasIssueText;
+      }
+      
+      return hasContent && hasKeys;
   });
 };
 
@@ -34,9 +59,9 @@ export const createSafeResult = (result, resumePdfHealth) => {
       role_match: Array.isArray(result.role_match) ? result.role_match : [],
       missing_keywords: Array.isArray(result.missing_keywords) ? result.missing_keywords : [],
       missing_tools: Array.isArray(result.missing_tools) ? filterEmptyObjects(result.missing_tools) : [],
-      grammar_issues: Array.isArray(result.grammar_issues) ? result.grammar_issues : [],
-      weak_metrics_details: Array.isArray(result.weak_metrics_details) ? result.weak_metrics_details : [],
-      suggested_rewrites: Array.isArray(result.suggested_rewrites) ? result.suggested_rewrites : [],
+      grammar_issues: Array.isArray(result.grammar_issues) ? filterEmptyObjects(result.grammar_issues) : [],
+      weak_metrics_details: Array.isArray(result.weak_metrics_details) ? filterEmptyObjects(result.weak_metrics_details) : [],
+      suggested_rewrites: Array.isArray(result.suggested_rewrites) ? filterEmptyObjects(result.suggested_rewrites) : [],
       buzzwords_detected: Array.isArray(result.buzzwords_detected) ? result.buzzwords_detected : [],
       semantic_analysis: {
           position_score: result.semantic_analysis?.position_score ?? 0,
@@ -100,7 +125,8 @@ export const getInterviewLabel = (score, isPerfect = false) => {
   if (score >= 12) return { text: "Very Good Match - Strongly Recommended to Apply", color: "#22c55e", bgColor: "#dcfce7", emoji: "😊" };
   if (score >= 7) return { text: "Good Match - Send the Application", color: "#86efac", bgColor: "#f0fdf4", emoji: "" };
   if (score >= 3) return { text: "Okay Match - Apply if Interested", color: "#f97316", bgColor: "#fff7ed", emoji: "" };
-  return { text: "Consider other roles", color: "#ef4444", bgColor: "#fef2f2", emoji: "" };
+  if (score >= 1) return { text: "Low Match - Consider other roles or adjust resume", color: "#ea580c", bgColor: "#fff7ed", emoji: "⚠️" };
+  return { text: "Very Low Match - Not recommended for this role", color: "#ef4444", bgColor: "#fef2f2", emoji: "❌" };
 };
 
 export const getScoreColor = (score) => {

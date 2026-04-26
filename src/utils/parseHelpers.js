@@ -1,10 +1,11 @@
 import * as pdfjsLib from 'pdfjs-dist';
 import mammoth from 'mammoth';
 
-// Set the worker source BEFORE any PDF operations
-// Using a hardcoded version that is confirmed to work
-const PDFJS_VERSION = '4.0.379';
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${PDFJS_VERSION}/build/pdf.worker.min.js`;
+// Use the local worker from node_modules (requires Vite config)
+pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.js',
+  import.meta.url
+).href;
 export const analyzePDFHealth = async (pdf, fileSize) => {
     try {
         const metadata = await pdf.getMetadata();

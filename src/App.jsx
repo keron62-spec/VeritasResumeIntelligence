@@ -26,8 +26,12 @@ export default function App() {
     const [loading, setLoading] = useState(false);
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [analysisStage, setAnalysisStage] = useState('');
-    const [extractionStage, setExtractionStage] = useState(false); // NEW: track if we're extracting PDF
+    const [extractionStage, setExtractionStage] = useState(false);
     const [result, setResult] = useState(null);
+    
+    // Debug State
+    const [showDebug, setShowDebug] = useState(false);
+    const [rawApiResponse, setRawApiResponse] = useState(null);
     
     // Resume State
     const [resumeText, setResumeText] = useState('');
@@ -55,7 +59,10 @@ export default function App() {
         }
     }, [darkMode]);
 
-    // File Upload Handlers - UPDATED with extraction stage
+    // Debug toggle
+    const toggleDebug = () => setShowDebug(!showDebug);
+
+    // File Upload Handlers
     const handleResumeFileUpload = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -136,7 +143,7 @@ export default function App() {
         }
     };
 
-    // Analysis Function - UPDATED with better stage tracking
+    // Analysis Function
     const analyzeResume = async () => {
         if (isAnalyzing) return;
         if (!resumeText.trim()) {
@@ -169,6 +176,9 @@ export default function App() {
             
             const data = await response.json();
             if (data.error) throw new Error(data.error);
+            
+            // Store raw response for debugging
+            setRawApiResponse(data);
             
             setAnalysisStage('📊 Processing your results...');
             const safeResult = createSafeResult(data.result || data, resumePdfHealth);
@@ -204,6 +214,16 @@ export default function App() {
         setJobDescriptionParseError(null);
         setEmail('');
         setEmailSent(false);
+        setRawApiResponse(null);
+        setShowDebug(false);
+    };
+
+    // Helper to check if data exists in raw response
+    const debugFieldCheck = (field) => {
+        if (!rawApiResponse) return 'No data';
+        if (rawApiResponse[field]) return `${rawApiResponse[field].length} items`;
+        if (rawApiResponse.result?.[field]) return `${rawApiResponse.result[field].length} items`;
+        return 'MISSING';
     };
 
     return (
@@ -290,10 +310,85 @@ export default function App() {
                         handleEmailSubmit={handleEmailSubmit}
                     />
                     
+                    {/* Debug Button and Panel */}
+                    <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
+                        <button 
+                            onClick={toggleDebug}
+                            style={{
+                                background: 'transparent',
+                                border: '1px solid var(--text-muted)',
+                                color: 'var(--text-muted)',
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                cursor: 'pointer',
+                                marginRight: '10px'
+                            }}
+                        >
+                            {showDebug ? 'Hide Debug Info' : '🐛 Show Debug Info'}
+                        </button>
+                        
+                        {showDebug && rawApiResponse && (
+                            <div style={{
+                                marginTop: '15px',
+                                padding: '15px',
+                                backgroundColor: 'var(--bg-tertiary)',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border-light)',
+                                textAlign: 'left',
+                                overflowX: 'auto'
+                            }}>
+                                <h4 style={{ marginBottom: '10px', fontSize: '14px', color: 'var(--text-primary)' }}>
+                                    🔍 Raw API Response
+                                </h4>
+                                <pre style={{
+                                    fontSize: '11px',
+                                    fontFamily: 'monospace',
+                                    whiteSpace: 'pre-wrap',
+                                    wordWrap: 'break-word',
+                                    maxHeight: '400px',
+                                    overflowY: 'auto',
+                                    backgroundColor: 'var(--bg-secondary)',
+                                    padding: '10px',
+                                    borderRadius: '4px',
+                                    color: 'var(--text-secondary)'
+                                }}>
+                                    {JSON.stringify(rawApiResponse, null, 2)}
+                                </pre>
+                                
+                                <div style={{ marginTop: '15px' }}>
+                                    <h5 style={{ marginBottom: '8px', fontSize: '12px', color: 'var(--text-primary)' }}>
+                                        📋 Key Fields Check:
+                                    </h5>
+                                    <ul style={{ fontSize: '11px', listStyle: 'none', paddingLeft: '0' }}>
+                                        <li>📌 all_issues: {debugFieldCheck('all_issues')}</li>
+                                        <li>📌 immediate_fixes: {debugFieldCheck('immediate_fixes')}</li>
+                                        <li>📌 strengths: {debugFieldCheck('strengths')}</li>
+                                        <li>📌 missing_tools: {debugFieldCheck('missing_tools')}</li>
+                                        <li>📌 grammar_issues: {debugFieldCheck('grammar_issues')}</li>
+                                        <li>📌 weak_metrics_details: {debugFieldCheck('weak_metrics_details')}</li>
+                                        <li>📌 suggested_rewrites: {debugFieldCheck('suggested_rewrites')}</li>
+                                    </ul>
+                                </div>
+                                
+                                <div style={{ marginTop: '15px' }}>
+                                    <h5 style={{ marginBottom: '8px', fontSize: '12px', color: 'var(--text-primary)' }}>
+                                        🔧 Next Steps:
+                                    </h5>
+                                    <ul style={{ fontSize: '11px', listStyle: 'none', paddingLeft: '0' }}>
+                                        <li>• If field shows "MISSING" → Data is not in the response</li>
+                                        <li>• If field shows "X items" but not displaying → Check component mapping</li>
+                                        <li>• Take a screenshot of the raw JSON and share it</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                    
                     <button 
                         onClick={resetApp} 
                         className="analyze-btn" 
-                        style={{ backgroundColor: 'var(--text-muted)', marginTop: '24px' }}
+                        style={{ backgroundColor: 'var(--text-muted)', marginTop: '16px' }}
                     >
                         Scan Another Resume
                     </button>

@@ -1,26 +1,18 @@
 import mammoth from 'mammoth';
-import pdfParse from 'pdf-parse';
 
-// pdf-parse doesn't need a worker - it just works!
+// Use your existing Azure Document Intelligence worker for PDFs
+const AZURE_PARSER_URL = 'https://ats-parser.keron62.workers.dev/';
 
-export const analyzePDFHealth = async (pdfBuffer, fileSize) => {
-    try {
-        // Get basic info from the PDF buffer
-        const data = await pdfParse(pdfBuffer);
-        const numPages = data.numpages;
-        const textLength = data.text.length;
-        const issues = [];
-        
-        const isScanned = textLength < 200 && fileSize > 200000;
-        
-        if (numPages > 2) issues.push({ type: "page_count", severity: "low", message: `${numPages} pages detected`, fix: "Consider condensing to 2 pages" });
-        if (isScanned) issues.push({ type: "scanned_pdf", severity: "high", message: "No selectable text found - appears scanned", fix: "Use OCR or recreate as text-based PDF" });
-        
-        return { pageCount: numPages, issues, textLength: textLength, fileSize };
-    } catch (error) {
-        console.warn("PDF Health analysis failed:", error);
-        return { pageCount: 0, issues: [], textLength: 0, fileSize: fileSize };
-    }
+export const analyzePDFHealth = async (file, fileSize) => {
+    // Since Azure handles the parsing, we don't need complex PDF health analysis
+    // Return basic info
+    return { 
+        pageCount: null, 
+        issues: [], 
+        textLength: 0, 
+        fileSize: fileSize,
+        note: "PDF processed by Azure Document Intelligence"
+    };
 };
 
 export const parsePDF = async (file) => {
@@ -28,9 +20,31 @@ export const parsePDF = async (file) => {
         const reader = new FileReader();
         reader.onload = async function(e) {
             try {
-                const buffer = e.target.result;
-                const data = await pdfParse(buffer);
-                const fullText = data.text;
+                const base64 = btoa(
+                    new Uint8Array(e.target.result).reduce(
+                        (data, byte) => data + String.fromCharCode(byte),
+                        ''
+                    )
+                );
+                
+                // Call your Azure worker
+                const response = await fetch(AZURE_PARSER_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        file: base64,
+                        filename: file.name
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Extract text from your worker's response
+                const fullText = data.text || data.content || data.extractedText || '';
                 
                 if (!fullText || fullText.trim().length < 50) {
                     reject(new Error('Could not extract enough text from PDF'));

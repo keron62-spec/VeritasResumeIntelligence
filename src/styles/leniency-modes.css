@@ -1,0 +1,214 @@
+/* ============================================================ */
+/* RECRUITER LENIENCY MODE STYLES                               */
+/* ============================================================ */
+
+/* LENIENT MODE - Warm, Encouraging */
+body.lenient-mode {
+    --bg-primary: #fefaf5;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #fdf6ed;
+    --text-primary: #3b2a1f;
+    --text-secondary: #6b4c2c;
+    --text-muted: #a88b6f;
+    --border-light: #f0e4d4;
+    --accent-primary: #f59e0b;
+    --accent-secondary: #10b981;
+    --card-radius: 20px;
+    --card-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
+}
+
+body.lenient-mode .score-card {
+    border-radius: 20px;
+    box-shadow: var(--card-shadow);
+}
+
+body.lenient-mode .analyze-btn {
+    background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+/* STRICT MODE - Sharp, Clean, Efficient */
+body.strict-mode {
+    --bg-primary: #f0f4f8;
+    --bg-secondary: #ffffff;
+    --bg-tertiary: #f8fafc;
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --border-light: #e2e8f0;
+    --accent-primary: #2563eb;
+    --accent-secondary: #10b981;
+    --card-radius: 12px;
+    --card-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+body.strict-mode .score-card {
+    border-radius: 8px;
+}
+
+body.strict-mode .score-value {
+    font-size: 34px;
+}
+
+body.strict-mode .analyze-btn {
+    background: #2563eb;
+}
+
+/* VERY STRICT MODE - Elite, Corporate, Minimalist */
+body.very-strict-mode {
+    --bg-primary: #0a0a0a;
+    --bg-secondary: #fdfbf7;
+    --bg-tertiary: #f5f3ef;
+    --text-primary: #1a1a1a;
+    --text-secondary: #4a4a4a;
+    --text-muted: #6b6b6b;
+    --border-light: #d1d1d1;
+    --accent-primary: #000000;
+    --accent-secondary: #d4af37;
+    --accent-rose: #c41e3a;
+    --card-radius: 8px;
+    --card-shadow: none;
+}
+
+/* Very Strict Mode - Typography */
+body.very-strict-mode {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+body.very-strict-mode h1,
+body.very-strict-mode h2,
+body.very-strict-mode h3,
+body.very-strict-mode .section-title,
+body.very-strict-mode .credibility-title,
+body.very-strict-mode .semantic-title,
+body.very-strict-mode .riasec-title {
+    font-family: 'Playfair Display', 'Times New Roman', serif;
+    letter-spacing: 0.01em;
+}
+
+body.very-strict-mode h1 {
+    font-size: 32px;
+    font-weight: 600;
+}
+
+body.very-strict-mode h3,
+body.very-strict-mode .results-section h3 {
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border-light);
+}
+
+body.very-strict-mode .header h1 {
+    font-size: 28px;
+}
+
+body.very-strict-mode .header p {
+    font-size: 13px;
+    color: var(--text-muted);
+}
+
+/* Very Strict Mode - Cards */
+body.very-strict-mode .card,
+body.very-strict-mode .score-card,
+body.very-strict-mode .credibility-container,
+body.very-strict-mode .semantic-container,
+body.very-strict-mode .riasec-container,
+body.very-strict-mode .results-section {
+    border-radius: 4px;
+    box-shadow: none;
+    border: 1px solid var(--border-light);
+}
+
+body.very-strict-mode .score-card {
+    padding: 16px;
+}
+
+body.very-strict-mode .score-card h4 {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+    color: var(--text-muted);
+}
+
+body.very-strict-mode .score-value {
+    font-size: 32px;
+    font-weight: 500;
+    letter-spacing: -0.02em;
+}
+
+body.very-strict-mode .score-label {
+    font-size: 10px;
+    text-transform: uppercase;
+}
+
+/* Very Strict Mode - Analyze Button */
+body.very-strict-mode .analyze-btn {
+    background: var(--accent-primary);
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 14px 24px;
+}
+
+body.very-strict-mode .analyze-btn:hover {
+    background: var(--accent-rose);
+}
+
+/* Very Strict Mode - Tables */
+body.very-strict-mode .issues-table th {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+    background: transparent;
+}
+
+body.very-strict-mode .issues-table td {
+    font-size: 12px;
+    padding: 12px 8px;
+}
+
+/* Very Strict Mode - Mode Toggle */
+body.very-strict-mode .leniency-option {
+    border-radius: 4px !important;
+    font-size: 12px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+body.very-strict-mode .leniency-option.active {
+    background: #1a1a1a !important;
+    border-color: #1a1a1a !important;
+}
+
+/* Very Strict Mode - RIASEC Bars */
+body.very-strict-mode .riasec-bar-track {
+    height: 4px;
+    border-radius: 2px;
+}
+
+body.very-strict-mode .riasec-bar-fill {
+    border-radius: 2px;
+}
+
+/* Very Strict Mode - Email Capture */
+body.very-strict-mode .email-capture {
+    border: 1px solid var(--border-light);
+    background: transparent;
+}
+
+body.very-strict-mode .email-input input {
+    border-radius: 4px;
+}
+
+body.very-strict-mode .email-input button {
+    border-radius: 4px;
+    background: var(--accent-primary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-size: 11px;
+}

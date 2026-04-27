@@ -1,11 +1,16 @@
 import React from 'react';
 import { Icons } from '../assets/icons';
+import RecruiterLeniencyToggle from './RecruiterLeniencyToggle.jsx';
 
 export default function FileUploadSection({ 
     isComparisonMode, setIsComparisonMode, 
     resumeText, setResumeText, handleResumeFileUpload, resumeFileName, resumeParseError,
     jobDescriptionText, setJobDescriptionText, handleJobDescriptionFileUpload, jobDescriptionFileName, jobDescriptionParseError,
-    analyzeResume, isAnalyzing 
+    analyzeResume, isAnalyzing,
+    // New props for Recruiter Leniency
+    leniencyMode,
+    setLeniencyMode,
+    showStrictTooltip
 }) {
     return (
         <div className="card">
@@ -15,6 +20,13 @@ export default function FileUploadSection({
                     <button className={`mode-option ${isComparisonMode ? 'active' : ''}`} onClick={() => setIsComparisonMode(true)}>🎯 Compare with Job Description</button>
                 </div>
             </div>
+
+            {/* Recruiter Leniency Toggle - NEW */}
+            <RecruiterLeniencyToggle 
+                mode={leniencyMode}
+                setMode={setLeniencyMode}
+                showStrictTooltip={showStrictTooltip}
+            />
 
             {!isComparisonMode ? (
                 <div>

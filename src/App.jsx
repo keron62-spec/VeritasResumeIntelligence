@@ -15,8 +15,10 @@ import MetricQuality from './components/MetricQuality.jsx';
 import EmailCapture from './components/EmailCapture.jsx';
 import LoadingTips from './components/LoadingTips.jsx';
 import ATSEyeViewWarning from './components/ATSEyeViewWarning.jsx';
+import { useLeniencyMode } from './hooks/useLeniencyMode.js';
 import { extractDocx } from './utils/parseHelpers.js';
 import { createSafeResult } from './utils/helpers.js';
+import './styles/leniency-modes.css';
 
 export default function App() {
     // Dark Mode State
@@ -53,6 +55,21 @@ export default function App() {
     // Email State
     const [email, setEmail] = useState('');
     const [emailSent, setEmailSent] = useState(false);
+    
+    // Recruiter Leniency Mode
+    const { 
+        mode: leniencyMode,
+        setMode: setLeniencyMode,
+        showStrictTooltip,
+        showVeryStrictModal,
+        acknowledgeVeryStrict,
+        dismissVeryStrictModal,
+        resetAcknowledgment,
+        isVeryStrict,
+        isStrict,
+        isLenient,
+        isNormal
+    } = useLeniencyMode();
 
     // Dark Mode Effect
     useEffect(() => {
@@ -211,7 +228,7 @@ export default function App() {
         }
     };
 
-    // Analysis Function
+    // Analysis Function - Updated to use Recruiter Leniency Worker
     const analyzeResume = async () => {
         if (isAnalyzing) return;
         if (!resumeText.trim()) {
@@ -228,11 +245,14 @@ export default function App() {
         setAnalysisStage('🤖 Connecting to AI...');
         
         try {
-            const workerUrl = isComparisonMode 
-                ? "https://orchestrator.keron62.workers.dev" 
-                : "https://ats-resume-only.keron62.workers.dev";
+            // Use the Recruiter Leniency Worker for all modes (including Normal)
+            // This worker handles both resume-only and comparison mode
+            const workerUrl = "https://recruiter-leniency.keron62.workers.dev";
             
-            const payload = { resumeText };
+            const payload = { 
+                resumeText,
+                leniency_mode: leniencyMode  // Send the selected mode
+            };
             if (isComparisonMode) payload.jobDescriptionText = jobDescriptionText;
             
             setAnalysisStage('🧠 AI is analyzing your resume (20-30 seconds)...');
@@ -320,6 +340,9 @@ export default function App() {
                     pdfIssues={showWarning ? pdfIssues : null}
                     pdfFile={pdfFile}
                     onDismissWarning={dismissWarning}
+                    leniencyMode={leniencyMode}
+                    setLeniencyMode={setLeniencyMode}
+                    showStrictTooltip={showStrictTooltip}
                 />
             )}
 
@@ -339,6 +362,55 @@ export default function App() {
                             pdfFile={pdfFile}
                             onDismiss={dismissWarning}
                         />
+                    )}
+                    
+                    {/* Leniency Mode Indicator - shows which mode was used */}
+                    {leniencyMode !== 'normal' && (
+                        <div style={{
+                            marginBottom: '20px',
+                            padding: '12px 16px',
+                            backgroundColor: leniencyMode === 'very_strict' ? 'rgba(196, 30, 58, 0.1)' : 
+                                         leniencyMode === 'strict' ? 'rgba(245, 158, 11, 0.1)' :
+                                         'rgba(16, 185, 129, 0.1)',
+                            borderLeft: `4px solid ${leniencyMode === 'very_strict' ? '#c41e3a' : 
+                                                       leniencyMode === 'strict' ? '#f59e0b' : '#10b981'}`,
+                            borderRadius: '4px'
+                        }}>
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                flexWrap: 'wrap'
+                            }}>
+                                <span style={{
+                                    fontSize: '20px'
+                                }}>
+                                    {leniencyMode === 'very_strict' ? '👑' : leniencyMode === 'strict' ? '⚡' : '🌱'}
+                                </span>
+                                <div>
+                                    <div style={{
+                                        fontWeight: '600',
+                                        fontSize: '13px',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: '0.5px',
+                                        color: leniencyMode === 'very_strict' ? '#c41e3a' : 
+                                               leniencyMode === 'strict' ? '#f59e0b' : '#10b981'
+                                    }}>
+                                        {leniencyMode === 'very_strict' ? 'VERY STRICT MODE' : 
+                                         leniencyMode === 'strict' ? 'STRICT MODE' : 'LENIENT MODE'}
+                                    </div>
+                                    <div style={{
+                                        fontSize: '12px',
+                                        color: 'var(--text-muted)',
+                                        marginTop: '2px'
+                                    }}>
+                                        {leniencyMode === 'very_strict' ? 'Elite recruiting simulation • Scores adjusted downward' : 
+                                         leniencyMode === 'strict' ? 'Competitive industry standards • Scores adjusted downward' : 
+                                         'Startup/NGO friendly • Scores adjusted upward'}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     )}
                     
                     <ScoreDashboard result={result} isComparisonMode={isComparisonMode} />
@@ -411,6 +483,22 @@ export default function App() {
                             {showDebug ? 'Hide Debug Info' : '🐛 Show Debug Info'}
                         </button>
                         
+                        {/* Reset Leniency Acknowledgment Button */}
+                        <button 
+                            onClick={resetAcknowledgment}
+                            style={{
+                                background: 'transparent',
+                                border: '1px solid var(--text-muted)',
+                                color: 'var(--text-muted)',
+                                padding: '6px 12px',
+                                borderRadius: '6px',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Reset Leniency Acknowledgment
+                        </button>
+                        
                         {showDebug && rawApiResponse && (
                             <div style={{
                                 marginTop: '15px',
@@ -475,6 +563,167 @@ export default function App() {
                     >
                         Scan Another Resume
                     </button>
+                </div>
+            )}
+            
+            {/* Very Strict Modal - shown when mode selected */}
+            {showVeryStrictModal && (
+                <div className="modal-overlay" style={{
+                    position: 'fixed',
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    zIndex: 2000,
+                    padding: '20px'
+                }}>
+                    <div style={{
+                        backgroundColor: '#fdfbf7',
+                        borderRadius: '8px',
+                        maxWidth: '560px',
+                        width: '100%',
+                        border: '1px solid #d1d1d1',
+                        fontFamily: "'Playfair Display', 'Times New Roman', serif"
+                    }}>
+                        <div style={{
+                            padding: '32px 32px 24px',
+                            borderBottom: '1px solid #d1d1d1'
+                        }}>
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                marginBottom: '16px'
+                            }}>
+                                <span style={{ fontSize: '32px' }}>👑</span>
+                                <h2 style={{
+                                    fontSize: '24px',
+                                    fontWeight: '600',
+                                    color: '#1a1a1a',
+                                    letterSpacing: '-0.01em',
+                                    margin: 0,
+                                    fontFamily: "inherit"
+                                }}>
+                                    Very Strict Mode
+                                </h2>
+                            </div>
+                            <p style={{
+                                fontSize: '14px',
+                                color: '#4a4a4a',
+                                lineHeight: '1.5',
+                                marginBottom: '8px'
+                            }}>
+                                Elite Recruiting Simulation
+                            </p>
+                        </div>
+                        
+                        <div style={{ padding: '24px 32px' }}>
+                            <p style={{
+                                fontSize: '13px',
+                                color: '#1a1a1a',
+                                lineHeight: '1.6',
+                                marginBottom: '20px'
+                            }}>
+                                This mode simulates hiring practices at <strong>Fortune 500 companies</strong>, 
+                                top-tier consulting firms (<strong>McKinsey, BCG, Bain</strong>), investment banks 
+                                (<strong>Goldman Sachs, JPMorgan</strong>), and elite law firms.
+                            </p>
+                            
+                            <div style={{
+                                backgroundColor: '#f5f3ef',
+                                padding: '20px',
+                                marginBottom: '20px',
+                                borderLeft: '3px solid #c41e3a'
+                            }}>
+                                <p style={{
+                                    fontSize: '12px',
+                                    fontWeight: '600',
+                                    color: '#c41e3a',
+                                    marginBottom: '12px',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '1px'
+                                }}>
+                                    What to expect:
+                                </p>
+                                <ul style={{
+                                    fontSize: '12px',
+                                    color: '#4a4a4a',
+                                    lineHeight: '1.8',
+                                    paddingLeft: '20px',
+                                    margin: 0
+                                }}>
+                                    <li>Scores will be <strong>20-30% LOWER</strong> than Normal mode</li>
+                                    <li>Feedback will be <strong>direct, harsh, and uncompromising</strong></li>
+                                    <li>Minor gaps and missing keywords will be <strong>heavily penalized</strong></li>
+                                    <li>Elite university credentials provide scoring offsets</li>
+                                    <li>Executive-level candidates (9+ years) receive exceptions</li>
+                                </ul>
+                            </div>
+                            
+                            <div style={{
+                                backgroundColor: '#fdfbf7',
+                                padding: '16px',
+                                border: '1px solid #e8e5df',
+                                marginBottom: '24px'
+                            }}>
+                                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                                    <span style={{ fontSize: '20px' }}>⚠️</span>
+                                    <p style={{
+                                        fontSize: '11px',
+                                        color: '#6b6b6b',
+                                        lineHeight: '1.4',
+                                        margin: 0
+                                    }}>
+                                        <strong>This is not a bug.</strong> This is an accurate simulation of 
+                                        elite recruiting practices. Only use this mode if you are targeting 
+                                        top-tier employers.
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <button
+                                onClick={acknowledgeVeryStrict}
+                                style={{
+                                    width: '100%',
+                                    padding: '14px',
+                                    backgroundColor: '#1a1a1a',
+                                    color: '#fdfbf7',
+                                    border: 'none',
+                                    fontSize: '13px',
+                                    fontWeight: '600',
+                                    letterSpacing: '0.5px',
+                                    cursor: 'pointer',
+                                    textTransform: 'uppercase',
+                                    marginBottom: '12px',
+                                    fontFamily: 'inherit'
+                                }}
+                                onMouseEnter={(e) => e.target.style.backgroundColor = '#c41e3a'}
+                                onMouseLeave={(e) => e.target.style.backgroundColor = '#1a1a1a'}
+                            >
+                                I Understand - Proceed
+                            </button>
+                            
+                            <button
+                                onClick={dismissVeryStrictModal}
+                                style={{
+                                    width: '100%',
+                                    padding: '12px',
+                                    backgroundColor: 'transparent',
+                                    color: '#6b6b6b',
+                                    border: '1px solid #d1d1d1',
+                                    fontSize: '12px',
+                                    cursor: 'pointer',
+                                    fontFamily: 'inherit'
+                                }}
+                            >
+                                Cancel - Return to Normal Mode
+                            </button>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>

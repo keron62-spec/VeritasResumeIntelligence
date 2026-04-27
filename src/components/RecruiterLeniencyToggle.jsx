@@ -2,7 +2,7 @@ import React from 'react';
 import LeniencyDisclaimerModal from './LeniencyDisclaimerModal.jsx';
 
 export default function RecruiterLeniencyToggle({ mode, setMode, showStrictTooltip }) {
-    const [showDisclaimer, setShowDisclaimer] = React.useState(false);
+    const [localShowDisclaimer, setLocalShowDisclaimer] = React.useState(false);
     
     const modes = [
         { 
@@ -33,15 +33,23 @@ export default function RecruiterLeniencyToggle({ mode, setMode, showStrictToolt
     
     const handleModeClick = (value) => {
         if (value === 'very_strict') {
-            setShowDisclaimer(true);
+            // Show the disclaimer modal
+            setLocalShowDisclaimer(true);
         } else {
+            // For other modes, just call setMode directly
             setMode(value);
         }
     };
     
     const handleConfirmVeryStrict = () => {
-        setShowDisclaimer(false);
+        setLocalShowDisclaimer(false);
+        // Call setMode with acknowledged=true flag
         setMode('very_strict', true);
+    };
+    
+    const handleCancelVeryStrict = () => {
+        setLocalShowDisclaimer(false);
+        // Don't change mode - keep current mode
     };
     
     return (
@@ -137,7 +145,6 @@ export default function RecruiterLeniencyToggle({ mode, setMode, showStrictToolt
                 {/* Strict Mode Tooltip */}
                 {showStrictTooltip && (
                     <div style={{
-                        position: 'absolute',
                         marginTop: '8px',
                         padding: '10px 14px',
                         backgroundColor: 'var(--bg-secondary)',
@@ -155,11 +162,13 @@ export default function RecruiterLeniencyToggle({ mode, setMode, showStrictToolt
                 )}
             </div>
             
-            <LeniencyDisclaimerModal 
-                mode="very_strict"
-                onConfirm={handleConfirmVeryStrict}
-                onCancel={() => setShowDisclaimer(false)}
-            />
+            {/* Disclaimer Modal */}
+            {localShowDisclaimer && (
+                <LeniencyDisclaimerModal 
+                    onConfirm={handleConfirmVeryStrict}
+                    onCancel={handleCancelVeryStrict}
+                />
+            )}
         </>
     );
 }

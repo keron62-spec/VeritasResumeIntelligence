@@ -1,8 +1,6 @@
 import React from 'react';
 
-export default function LeniencyDisclaimerModal({ mode, onConfirm, onCancel }) {
-    if (mode !== 'very_strict') return null;
-    
+export default function LeniencyDisclaimerModal({ onConfirm, onCancel }) {
     return (
         <div className="modal-overlay" style={{
             position: 'fixed',
@@ -157,7 +155,7 @@ export default function LeniencyDisclaimerModal({ mode, onConfirm, onCancel }) {
                             fontFamily: 'inherit'
                         }}
                     >
-                        Cancel - Return to Normal Mode
+                        Cancel - Stay in Normal Mode
                     </button>
                 </div>
             </div>

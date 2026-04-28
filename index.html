@@ -12,6 +12,41 @@
     
     <!-- Google Fonts - Inter (default, with variable weight support) -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet" />
+    
+    <!-- Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-L3589N2B7D"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-L3589N2B7D');
+      
+      // Log that GA is initialized
+      console.log('Google Analytics initialized');
+    </script>
+
+    <!-- Amplitude SDK -->
+    <script src="https://cdn.amplitude.com/script/61a7757800aeb4ea0e6f5471d9af5704.js"></script>
+    <script>
+      window.amplitude.init('61a7757800aeb4ea0e6f5471d9af5704', {
+        fetchRemoteConfig: true,
+        autocapture: {
+          pageViews: true,
+          sessions: true,
+          elementInteractions: true
+        }
+      });
+      
+      // Log that Amplitude is initialized
+      console.log('Amplitude initialized');
+    </script>
+
+    <!-- Contentsquare (Hotjar alternative) Tracking -->
+    <script src="https://t.contentsquare.net/uxa/5f94e8837c5a5.js"></script>
+    <script>
+      // Log that Contentsquare is initialized
+      console.log('Contentsquare initialized');
+    </script>
   </head>
   <body>
     <div id="root"></div>

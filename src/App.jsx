@@ -15,7 +15,6 @@ import MetricQuality from './components/MetricQuality.jsx';
 import EmailCapture from './components/EmailCapture.jsx';
 import LoadingTips from './components/LoadingTips.jsx';
 import ATSEyeViewWarning from './components/ATSEyeViewWarning.jsx';
-import ModelToggle from './components/ModelToggle.jsx';
 import { useLeniencyMode } from './hooks/useLeniencyMode.js';
 import { extractDocx } from './utils/parseHelpers.js';
 import { createSafeResult } from './utils/helpers.js';
@@ -367,6 +366,8 @@ export default function App() {
                     leniencyMode={leniencyMode}
                     setLeniencyMode={setLeniencyMode}
                     showStrictTooltip={showStrictTooltip}
+                    modelType={modelType}
+                    setModelType={setModelType}
                 />
             )}
 
@@ -489,46 +490,39 @@ export default function App() {
                         handleEmailSubmit={handleEmailSubmit}
                     />
                     
-                    {/* Debug Button and Model Toggle */}
+                    {/* Debug Button Panel (Model Toggle removed from here - now in FileUploadSection) */}
                     <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-                            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                                <button 
-                                    onClick={toggleDebug}
-                                    style={{
-                                        background: 'transparent',
-                                        border: '1px solid var(--text-muted)',
-                                        color: 'var(--text-muted)',
-                                        padding: '6px 12px',
-                                        borderRadius: '6px',
-                                        fontSize: '12px',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    {showDebug ? 'Hide Debug Info' : '🐛 Show Debug Info'}
-                                </button>
-                                
-                                {/* Reset Leniency Acknowledgment Button */}
-                                <button 
-                                    onClick={resetAcknowledgment}
-                                    style={{
-                                        background: 'transparent',
-                                        border: '1px solid var(--text-muted)',
-                                        color: 'var(--text-muted)',
-                                        padding: '6px 12px',
-                                        borderRadius: '6px',
-                                        fontSize: '12px',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    Reset Leniency
-                                </button>
-                            </div>
+                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                            <button 
+                                onClick={toggleDebug}
+                                style={{
+                                    background: 'transparent',
+                                    border: '1px solid var(--text-muted)',
+                                    color: 'var(--text-muted)',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    fontSize: '12px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                {showDebug ? 'Hide Debug Info' : '🐛 Show Debug Info'}
+                            </button>
                             
-                            {/* Model Toggle - Only show in Normal mode */}
-                            {leniencyMode === 'normal' && (
-                                <ModelToggle modelType={modelType} setModelType={setModelType} />
-                            )}
+                            {/* Reset Leniency Acknowledgment Button */}
+                            <button 
+                                onClick={resetAcknowledgment}
+                                style={{
+                                    background: 'transparent',
+                                    border: '1px solid var(--text-muted)',
+                                    color: 'var(--text-muted)',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    fontSize: '12px',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                Reset Leniency
+                            </button>
                         </div>
                         
                         {showDebug && rawApiResponse && (

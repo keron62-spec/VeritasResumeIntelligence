@@ -1,6 +1,7 @@
 import React from 'react';
 import { Icons } from '../assets/icons';
 import RecruiterLeniencyToggle from './RecruiterLeniencyToggle.jsx';
+import ModelToggle from './ModelToggle.jsx';
 
 export default function FileUploadSection({ 
     isComparisonMode, setIsComparisonMode, 
@@ -10,7 +11,10 @@ export default function FileUploadSection({
     // New props for Recruiter Leniency
     leniencyMode,
     setLeniencyMode,
-    showStrictTooltip
+    showStrictTooltip,
+    // New props for Model Toggle
+    modelType,
+    setModelType
 }) {
     return (
         <div className="card">
@@ -21,12 +25,17 @@ export default function FileUploadSection({
                 </div>
             </div>
 
-            {/* Recruiter Leniency Toggle - NEW */}
+            {/* Recruiter Leniency Toggle */}
             <RecruiterLeniencyToggle 
                 mode={leniencyMode}
                 setMode={setLeniencyMode}
                 showStrictTooltip={showStrictTooltip}
             />
+
+            {/* Model Toggle - Only show in Normal mode (not Strict/Very Strict/Lenient) */}
+            {leniencyMode === 'normal' && (
+                <ModelToggle modelType={modelType} setModelType={setModelType} />
+            )}
 
             {!isComparisonMode ? (
                 <div>

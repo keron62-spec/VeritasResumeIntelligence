@@ -15,6 +15,7 @@ import MetricQuality from './components/MetricQuality.jsx';
 import EmailCapture from './components/EmailCapture.jsx';
 import LoadingTips from './components/LoadingTips.jsx';
 import ATSEyeViewWarning from './components/ATSEyeViewWarning.jsx';
+import ModelToggle from './components/ModelToggle.jsx';
 import { useLeniencyMode } from './hooks/useLeniencyMode.js';
 import { extractDocx } from './utils/parseHelpers.js';
 import { createSafeResult } from './utils/helpers.js';
@@ -40,6 +41,11 @@ export default function App() {
     const [pdfIssues, setPdfIssues] = useState(null);
     const [pdfFile, setPdfFile] = useState(null);
     const [showWarning, setShowWarning] = useState(true);
+    
+    // Model Type State (Gemini vs Dual-Optimized)
+    const [modelType, setModelType] = useState(() => {
+        return localStorage.getItem('veritas_model_type') || 'gemini';
+    });
     
     // Resume State
     const [resumeText, setResumeText] = useState('');
@@ -81,6 +87,11 @@ export default function App() {
             localStorage.setItem('veritas-dark-mode', 'false');
         }
     }, [darkMode]);
+
+    // Save model type preference
+    useEffect(() => {
+        localStorage.setItem('veritas_model_type', modelType);
+    }, [modelType]);
 
     // Debug toggle
     const toggleDebug = () => setShowDebug(!showDebug);
@@ -228,7 +239,7 @@ export default function App() {
         }
     };
 
-    // Analysis Function - Updated to use Recruiter Leniency Worker
+    // Analysis Function - Routes based on modelType (only for Normal mode)
     const analyzeResume = async () => {
         if (isAnalyzing) return;
         if (!resumeText.trim()) {
@@ -245,13 +256,26 @@ export default function App() {
         setAnalysisStage('🤖 Connecting to AI...');
         
         try {
-            // Use the Recruiter Leniency Worker for all modes (including Normal)
-            // This worker handles both resume-only and comparison mode
-            const workerUrl = "https://recruiter-leniency.keron62.workers.dev";
+            // Determine which worker to use based on modelType and leniencyMode
+            // Model toggle only applies to Normal mode (not Strict/Very Strict/Lenient)
+            let workerUrl;
+            
+            if (leniencyMode !== 'normal') {
+                // Use Recruiter Leniency Worker for Strict/Very Strict/Lenient modes
+                workerUrl = "https://recruiter-leniency.keron62.workers.dev";
+            } else if (modelType === 'dual') {
+                // Use Dual-Optimized worker (GPT-OSS + Minimax) for Normal mode
+                workerUrl = "https://groq-bloom.keron62.workers.dev";
+            } else {
+                // Use Gemini orchestrator for Normal mode (default)
+                workerUrl = isComparisonMode 
+                    ? "https://orchestrator.keron62.workers.dev" 
+                    : "https://ats-resume-only.keron62.workers.dev";
+            }
             
             const payload = { 
                 resumeText,
-                leniency_mode: leniencyMode  // Send the selected mode
+                leniency_mode: leniencyMode
             };
             if (isComparisonMode) payload.jobDescriptionText = jobDescriptionText;
             
@@ -465,39 +489,47 @@ export default function App() {
                         handleEmailSubmit={handleEmailSubmit}
                     />
                     
-                    {/* Debug Button and Panel */}
+                    {/* Debug Button and Model Toggle */}
                     <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
-                        <button 
-                            onClick={toggleDebug}
-                            style={{
-                                background: 'transparent',
-                                border: '1px solid var(--text-muted)',
-                                color: 'var(--text-muted)',
-                                padding: '6px 12px',
-                                borderRadius: '6px',
-                                fontSize: '12px',
-                                cursor: 'pointer',
-                                marginRight: '10px'
-                            }}
-                        >
-                            {showDebug ? 'Hide Debug Info' : '🐛 Show Debug Info'}
-                        </button>
-                        
-                        {/* Reset Leniency Acknowledgment Button */}
-                        <button 
-                            onClick={resetAcknowledgment}
-                            style={{
-                                background: 'transparent',
-                                border: '1px solid var(--text-muted)',
-                                color: 'var(--text-muted)',
-                                padding: '6px 12px',
-                                borderRadius: '6px',
-                                fontSize: '12px',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            Reset Leniency Acknowledgment
-                        </button>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+                            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                <button 
+                                    onClick={toggleDebug}
+                                    style={{
+                                        background: 'transparent',
+                                        border: '1px solid var(--text-muted)',
+                                        color: 'var(--text-muted)',
+                                        padding: '6px 12px',
+                                        borderRadius: '6px',
+                                        fontSize: '12px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    {showDebug ? 'Hide Debug Info' : '🐛 Show Debug Info'}
+                                </button>
+                                
+                                {/* Reset Leniency Acknowledgment Button */}
+                                <button 
+                                    onClick={resetAcknowledgment}
+                                    style={{
+                                        background: 'transparent',
+                                        border: '1px solid var(--text-muted)',
+                                        color: 'var(--text-muted)',
+                                        padding: '6px 12px',
+                                        borderRadius: '6px',
+                                        fontSize: '12px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Reset Leniency
+                                </button>
+                            </div>
+                            
+                            {/* Model Toggle - Only show in Normal mode */}
+                            {leniencyMode === 'normal' && (
+                                <ModelToggle modelType={modelType} setModelType={setModelType} />
+                            )}
+                        </div>
                         
                         {showDebug && rawApiResponse && (
                             <div style={{

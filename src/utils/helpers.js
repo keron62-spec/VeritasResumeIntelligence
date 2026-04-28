@@ -35,9 +35,50 @@ export const filterEmptyObjects = (arr) => {
   });
 };
 
+// Normalize PDF health to ensure score and label are preserved
+const normalizePdfHealth = (pdfHealth) => {
+  if (!pdfHealth) return null;
+  
+  return {
+    issues: pdfHealth.issues || [],
+    pageCount: pdfHealth.pageCount || pdfHealth.pages || 1,
+    textLength: pdfHealth.textLength || 0,
+    fileSize: pdfHealth.fileSize || 0,
+    pdf_health_score: pdfHealth.pdf_health_score ?? calculatePdfHealthScoreFromIssues(pdfHealth.issues),
+    pdf_health_label: pdfHealth.pdf_health_label || getPdfHealthLabelFromScore(pdfHealth.pdf_health_score ?? calculatePdfHealthScoreFromIssues(pdfHealth.issues))
+  };
+};
+
+// Helper to calculate PDF health score from issues (fallback)
+const calculatePdfHealthScoreFromIssues = (issues) => {
+  if (!issues || issues.length === 0) return 100;
+  let score = 100;
+  for (const issue of issues) {
+    if (issue.severity === 'critical') score -= 25;
+    else if (issue.severity === 'high') score -= 15;
+    else if (issue.severity === 'medium') score -= 8;
+    else if (issue.severity === 'low') score -= 3;
+    else if (issue.severity === 'good') score += 5;
+  }
+  return Math.max(0, Math.min(100, score));
+};
+
+// Helper to get label from score (fallback)
+const getPdfHealthLabelFromScore = (score) => {
+  if (score === null || score === undefined) return 'Unknown';
+  if (score >= 90) return 'Excellent';
+  if (score >= 80) return 'Good';
+  if (score >= 70) return 'Moderate';
+  if (score >= 60) return 'Poor';
+  return 'Critical';
+};
+
 // Safe defaults if the AI misses something
 export const createSafeResult = (result, resumePdfHealth) => {
   if (!result) return {};
+  
+  // Normalize PDF health to preserve Azure's score and label
+  const normalizedPdfHealth = normalizePdfHealth(resumePdfHealth);
   
   return {
       total_ats_score: result.total_ats_score ?? 0,
@@ -51,7 +92,7 @@ export const createSafeResult = (result, resumePdfHealth) => {
       role_type_detected: result.role_type_detected ?? '',
       role_adjustment_note: result.role_adjustment_note ?? '',
       recruiter_scan_verdict: result.recruiter_scan_verdict ?? '',
-      pdf_health: resumePdfHealth ?? null,
+      pdf_health: normalizedPdfHealth,
       riasec: result.riasec ?? null,
       strengths: Array.isArray(result.strengths) ? result.strengths : [],
       all_issues: Array.isArray(result.all_issues) ? filterEmptyObjects(result.all_issues) : [],
@@ -116,6 +157,42 @@ export const createSafeResult = (result, resumePdfHealth) => {
           buzzword_repetition_penalty: result.breakdown?.buzzword_repetition_penalty ?? 0
       }
   };
+};
+
+// Helper to get PDF health score from result (for ScoreDashboard)
+export const getPdfHealthScore = (result) => {
+  // First, try to use Azure's calculated score
+  if (result?.pdf_health?.pdf_health_score !== undefined) {
+    return result.pdf_health.pdf_health_score;
+  }
+  // Fallback: calculate from issues
+  if (!result?.pdf_health?.issues) return null;
+  const issues = result.pdf_health.issues;
+  let score = 100;
+  for (const issue of issues) {
+    if (issue.severity === 'critical') score -= 25;
+    else if (issue.severity === 'high') score -= 15;
+    else if (issue.severity === 'medium') score -= 8;
+    else if (issue.severity === 'low') score -= 3;
+    else if (issue.severity === 'good') score += 5;
+  }
+  return Math.max(0, Math.min(100, score));
+};
+
+// Helper to get PDF health label from result
+export const getPdfHealthLabel = (result) => {
+  // First, try to use Azure's label
+  if (result?.pdf_health?.pdf_health_label) {
+    return result.pdf_health.pdf_health_label;
+  }
+  // Fallback: calculate from score
+  const score = getPdfHealthScore(result);
+  if (score === null) return null;
+  if (score >= 90) return 'Excellent';
+  if (score >= 80) return 'Good';
+  if (score >= 70) return 'Moderate';
+  if (score >= 60) return 'Poor';
+  return 'Critical';
 };
 
 export const getInterviewLabel = (score, isPerfect = false) => {

@@ -3,96 +3,71 @@ import React from 'react';
 export default function AllIssuesTable({ all_issues }) {
     if (!all_issues?.length) return null;
 
-    // Pattern detection and badge mapping
+    // Pattern detection and badge mapping - matches actual issue text from your worker
     const getPatternBadge = (issueText) => {
         const text = issueText.toLowerCase();
         
-        // Quantification patterns
-        if (text.includes('quantified scale') || text.includes('missing quantified')) {
-            return { label: '📊 QUANTIFIED SCALE', color: '#2563eb', bgColor: 'rgba(37, 99, 235, 0.1)' };
+        // Formatting & Style patterns
+        if (text.includes('bullet style') || text.includes('inconsistent bullet') || text.includes('formatting')) {
+            return { label: '📝 FORMATTING', color: '#64748b', bgColor: 'rgba(100, 116, 139, 0.1)' };
         }
-        if (text.includes('percentage') || text.includes('%')) {
-            return { label: '📈 PERCENTAGE', color: '#2563eb', bgColor: 'rgba(37, 99, 235, 0.1)' };
+        if (text.includes('date format') || text.includes('date formatting')) {
+            return { label: '📅 DATE FORMAT', color: '#64748b', bgColor: 'rgba(100, 116, 139, 0.1)' };
         }
-        if (text.includes('dollar') || text.includes('$') || text.includes('budget')) {
-            return { label: '💰 DOLLAR VALUE', color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.1)' };
-        }
-        if (text.includes('volume') || text.includes('user volume')) {
-            return { label: '📊 VOLUME METRIC', color: '#2563eb', bgColor: 'rgba(37, 99, 235, 0.1)' };
-        }
-        if (text.includes('timeline') || text.includes('before/after')) {
-            return { label: '⏱️ TIMELINE BEAT', color: '#06b6d4', bgColor: 'rgba(6, 182, 212, 0.1)' };
-        }
-        
-        // Verb strength patterns
-        if (text.includes('weak verb') || text.includes('weak verb pattern')) {
-            return { label: '⚡ WEAK VERB', color: '#f97316', bgColor: 'rgba(249, 115, 22, 0.1)' };
-        }
-        if (text.includes('passive voice')) {
-            return { label: '📝 PASSIVE VOICE', color: '#f97316', bgColor: 'rgba(249, 115, 22, 0.1)' };
-        }
-        if (text.includes('weak opening')) {
-            return { label: '🚪 WEAK OPENING', color: '#f97316', bgColor: 'rgba(249, 115, 22, 0.1)' };
-        }
-        
-        // Outcome patterns
-        if (text.includes('measurable outcome') || text.includes('no result')) {
-            return { label: '🎯 MEASURABLE OUTCOME', color: '#10b981', bgColor: 'rgba(16, 185, 129, 0.1)' };
-        }
-        if (text.includes('vague attribution')) {
-            return { label: '🎭 VAGUE ATTRIBUTION', color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)' };
-        }
-        
-        // Scope patterns
-        if (text.includes('team scale')) {
-            return { label: '👥 TEAM SCALE', color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.1)' };
-        }
-        if (text.includes('geographic scope')) {
-            return { label: '🌍 GEOGRAPHIC SCOPE', color: '#14b8a6', bgColor: 'rgba(20, 184, 166, 0.1)' };
-        }
-        if (text.includes('user volume')) {
-            return { label: '👤 USER VOLUME', color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.1)' };
-        }
-        
-        // Technical patterns
-        if (text.includes('named technology') || text.includes('vague technology')) {
-            return { label: '💻 NAMED TECHNOLOGY', color: '#6b7280', bgColor: 'rgba(107, 114, 128, 0.1)' };
-        }
-        if (text.includes('methodology')) {
-            return { label: '📐 METHODOLOGY', color: '#6b7280', bgColor: 'rgba(107, 114, 128, 0.1)' };
-        }
-        if (text.includes('automation')) {
-            return { label: '🤖 AUTOMATION', color: '#6b7280', bgColor: 'rgba(107, 114, 128, 0.1)' };
-        }
-        
-        // Leadership patterns
-        if (text.includes('strategic initiative')) {
-            return { label: '🎯 STRATEGIC INITIATIVE', color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)' };
-        }
-        if (text.includes('cross-functional')) {
-            return { label: '🔄 CROSS-FUNCTIONAL', color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)' };
-        }
-        if (text.includes('budget ownership')) {
-            return { label: '💰 BUDGET OWNERSHIP', color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.1)' };
-        }
-        
-        // Compliance patterns
-        if (text.includes('security') || text.includes('compliance') || text.includes('regulatory')) {
-            return { label: '🔒 SECURITY/COMPLIANCE', color: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.1)' };
-        }
-        if (text.includes('certification')) {
-            return { label: '📜 CERTIFICATION', color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)' };
-        }
-        
-        // Formatting patterns
-        if (text.includes('header formatting') || text.includes('contact issue')) {
+        if (text.includes('header') || text.includes('contact')) {
             return { label: '📋 HEADER ISSUE', color: '#64748b', bgColor: 'rgba(100, 116, 139, 0.1)' };
         }
-        if (text.includes('section header')) {
-            return { label: '📑 SECTION HEADER', color: '#64748b', bgColor: 'rgba(100, 116, 139, 0.1)' };
+        
+        // Verb & Language patterns
+        if (text.includes('buzzword repetition') || text.includes('verb repetition') || text.includes('repetitive')) {
+            return { label: '🔄 WORD REPETITION', color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.1)' };
         }
-        if (text.includes('bullet style') || text.includes('formatting')) {
-            return { label: '📝 FORMATTING', color: '#64748b', bgColor: 'rgba(100, 116, 139, 0.1)' };
+        if (text.includes('weak verb') || text.includes('passive')) {
+            return { label: '⚡ WEAK VERB', color: '#f97316', bgColor: 'rgba(249, 115, 22, 0.1)' };
+        }
+        if (text.includes('action verb')) {
+            return { label: '⚡ ACTION VERB', color: '#f97316', bgColor: 'rgba(249, 115, 22, 0.1)' };
+        }
+        
+        // Metric & Quantification patterns
+        if (text.includes('missing baseline')) {
+            return { label: '📊 MISSING BASELINE', color: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.1)' };
+        }
+        if (text.includes('missing context') || text.includes('missing scale')) {
+            return { label: '📊 MISSING CONTEXT', color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.1)' };
+        }
+        if (text.includes('quantified') || text.includes('metric')) {
+            return { label: '📊 QUANTIFICATION', color: '#2563eb', bgColor: 'rgba(37, 99, 235, 0.1)' };
+        }
+        if (text.includes('percentage')) {
+            return { label: '📈 PERCENTAGE', color: '#2563eb', bgColor: 'rgba(37, 99, 235, 0.1)' };
+        }
+        if (text.includes('dollar') || text.includes('$') || text.includes('currency')) {
+            return { label: '💰 CURRENCY', color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.1)' };
+        }
+        
+        // Grammar & Spelling patterns
+        if (text.includes('typo') || text.includes('spelling')) {
+            return { label: '🔤 TYPO', color: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.1)' };
+        }
+        if (text.includes('grammar') || text.includes('article') || text.includes('preposition')) {
+            return { label: '📝 GRAMMAR', color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)' };
+        }
+        if (text.includes('punctuation')) {
+            return { label: '🔤 PUNCTUATION', color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)' };
+        }
+        if (text.includes('capitalization')) {
+            return { label: '🔠 CAPITALIZATION', color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)' };
+        }
+        
+        // Keyword patterns
+        if (text.includes('keyword')) {
+            return { label: '🔍 KEYWORD', color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.1)' };
+        }
+        
+        // Skills Section patterns
+        if (text.includes('skills section')) {
+            return { label: '🛠️ SKILLS SECTION', color: '#64748b', bgColor: 'rgba(100, 116, 139, 0.1)' };
         }
         
         // Default for unmapped patterns
@@ -115,10 +90,10 @@ export default function AllIssuesTable({ all_issues }) {
 
     return (
         <div className="results-section" style={{ marginTop: '20px' }}>
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 📋 All Identified Issues ({all_issues.length})
                 <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)' }}>
-                    • Pattern badges show improvement type
+                    • Prioritized by impact
                 </span>
             </h3>
             
@@ -127,7 +102,7 @@ export default function AllIssuesTable({ all_issues }) {
                     <thead>
                         <tr>
                             <th style={{ width: '80px' }}>Priority</th>
-                            <th style={{ width: '100px' }}>Pattern</th>
+                            <th style={{ width: '100px' }}>Category</th>
                             <th>Issue</th>
                             <th style={{ width: '120px' }}>Location</th>
                             <th style={{ width: '200px' }}>How to Fix</th>
@@ -216,18 +191,18 @@ export default function AllIssuesTable({ all_issues }) {
                     gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
                     gap: '8px'
                 }}>
-                    <div><span style={{ color: '#2563eb' }}>📊 QUANTIFIED SCALE</span> - Add numbers (%, $, volume)</div>
+                    <div><span style={{ color: '#64748b' }}>📝 FORMATTING</span> - Fix bullet style, dates, or headers</div>
+                    <div><span style={{ color: '#f59e0b' }}>🔄 WORD REPETITION</span> - Vary your action verbs</div>
                     <div><span style={{ color: '#f97316' }}>⚡ WEAK VERB</span> - Use stronger action verbs</div>
-                    <div><span style={{ color: '#10b981' }}>🎯 MEASURABLE OUTCOME</span> - Show results/impact</div>
-                    <div><span style={{ color: '#8b5cf6' }}>🎭 VAGUE ATTRIBUTION</span> - Clarify your specific role</div>
-                    <div><span style={{ color: '#3b82f6' }}>👥 TEAM SCALE</span> - Specify team size</div>
-                    <div><span style={{ color: '#14b8a6' }}>🌍 GEOGRAPHIC SCOPE</span> - Add location scale</div>
-                    <div><span style={{ color: '#6b7280' }}>💻 NAMED TECHNOLOGY</span> - Name specific tools/systems</div>
-                    <div><span style={{ color: '#f59e0b' }}>💰 BUDGET OWNERSHIP</span> - Add dollar amounts</div>
-                    <div><span style={{ color: '#ef4444' }}>🔒 SECURITY/COMPLIANCE</span> - Add compliance context</div>
-                    <div><span style={{ color: '#06b6d4' }}>⏱️ TIMELINE BEAT</span> - Add before/after comparison</div>
-                    <div><span style={{ color: '#64748b' }}>📋 HEADER ISSUE</span> - Fix contact/formatting</div>
-                    <div><span style={{ color: '#8b5cf6' }}>🎯 STRATEGIC INITIATIVE</span> - Show strategic context</div>
+                    <div><span style={{ color: '#ef4444' }}>📊 MISSING BASELINE</span> - Add starting point for metrics</div>
+                    <div><span style={{ color: '#f59e0b' }}>📊 MISSING CONTEXT</span> - Add scale or comparison</div>
+                    <div><span style={{ color: '#2563eb' }}>📊 QUANTIFICATION</span> - Add numbers, %, or $ values</div>
+                    <div><span style={{ color: '#f59e0b' }}>💰 CURRENCY</span> - Fix dollar amount formatting</div>
+                    <div><span style={{ color: '#ef4444' }}>🔤 TYPO</span> - Correct spelling errors</div>
+                    <div><span style={{ color: '#8b5cf6' }}>📝 GRAMMAR</span> - Fix grammar issues</div>
+                    <div><span style={{ color: '#8b5cf6' }}>🔤 PUNCTUATION</span> - Fix punctuation errors</div>
+                    <div><span style={{ color: '#64748b' }}>📋 HEADER ISSUE</span> - Fix contact or header formatting</div>
+                    <div><span style={{ color: '#3b82f6' }}>🔍 KEYWORD</span> - Add missing keywords</div>
                 </div>
             </details>
         </div>

@@ -104,6 +104,12 @@ export const createSafeResult = (result, resumePdfHealth) => {
       weak_metrics_details: Array.isArray(result.weak_metrics_details) ? filterEmptyObjects(result.weak_metrics_details) : [],
       suggested_rewrites: Array.isArray(result.suggested_rewrites) ? filterEmptyObjects(result.suggested_rewrites) : [],
       buzzwords_detected: Array.isArray(result.buzzwords_detected) ? result.buzzwords_detected : [],
+      
+      // ============================================================
+      // SUMMARY ANALYSIS - ADDED FOR V8.5
+      // ============================================================
+      summary_analysis: result.summary_analysis || null,
+      
       semantic_analysis: {
           position_score: result.semantic_analysis?.position_score ?? 0,
           alignment_score: result.semantic_analysis?.alignment_score ?? 5,
@@ -196,7 +202,7 @@ export const getPdfHealthLabel = (result) => {
 };
 
 export const getInterviewLabel = (score, isPerfect = false) => {
-  if (isPerfect || score >= 25) return { text: "🤖 ERROR: Resume perfection exceeds human limits. AI suspects you're a robot.", color: "#166534", bgColor: "#ecfdf5", emoji: "🤖" };
+  if (isPerfect || score >= 25) return { text: "🤖 ERROR: Resume perfection exceeds human limits. Our AI suspects you're a robot.", color: "#166534", bgColor: "#ecfdf5", emoji: "🤖" };
   if (score >= 23) return { text: "You technically already have the job. Apply yesterday.", color: "#166534", bgColor: "#ecfdf5", emoji: "🎯" };
   if (score >= 16) return { text: "Exceptional Match - Apply with confidence", color: "#166534", bgColor: "#ecfdf5", emoji: "🔥🔥" };
   if (score >= 12) return { text: "Very Good Match - Strongly Recommended to Apply", color: "#22c55e", bgColor: "#dcfce7", emoji: "😊" };

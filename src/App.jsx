@@ -16,6 +16,7 @@ import EmailCapture from './components/EmailCapture.jsx';
 import LoadingTips from './components/LoadingTips.jsx';
 import ATSEyeViewWarning from './components/ATSEyeViewWarning.jsx';
 import SummaryAnalyzer from './components/SummaryAnalyzer.jsx';
+import BulletAnalyzer from './components/BulletAnalyzer.jsx';
 import { useLeniencyMode } from './hooks/useLeniencyMode.js';
 import { extractDocx } from './utils/parseHelpers.js';
 import { createSafeResult } from './utils/helpers.js';
@@ -441,7 +442,7 @@ export default function App() {
                     
                     <ScoreDashboard result={result} isComparisonMode={isComparisonMode} />
                     
-                    {/* Summary Analyzer - NEW COMPONENT */}
+                    {/* Summary Analyzer */}
                     {result.summary_analysis && (
                         <SummaryAnalyzer summaryAnalysis={result.summary_analysis} />
                     )}
@@ -467,6 +468,14 @@ export default function App() {
                         weak_metrics_details={result.weak_metrics_details}
                         suggested_rewrites={result.suggested_rewrites}
                     />
+                    
+                    {/* Bullet Analyzer - NEW COMPONENT */}
+                    {result.bullet_analysis && (
+                        <BulletAnalyzer 
+                            bulletAnalysis={result.bullet_analysis} 
+                            isComparisonMode={isComparisonMode}
+                        />
+                    )}
                     
                     <div className="results-grid">
                         <StrengthsAndKeywords 

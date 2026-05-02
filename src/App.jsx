@@ -15,6 +15,7 @@ import MetricQuality from './components/MetricQuality.jsx';
 import EmailCapture from './components/EmailCapture.jsx';
 import LoadingTips from './components/LoadingTips.jsx';
 import ATSEyeViewWarning from './components/ATSEyeViewWarning.jsx';
+import SummaryAnalyzer from './components/SummaryAnalyzer.jsx';
 import { useLeniencyMode } from './hooks/useLeniencyMode.js';
 import { extractDocx } from './utils/parseHelpers.js';
 import { createSafeResult } from './utils/helpers.js';
@@ -439,6 +440,11 @@ export default function App() {
                     )}
                     
                     <ScoreDashboard result={result} isComparisonMode={isComparisonMode} />
+                    
+                    {/* Summary Analyzer - NEW COMPONENT */}
+                    {result.summary_analysis && (
+                        <SummaryAnalyzer summaryAnalysis={result.summary_analysis} />
+                    )}
                     
                     <RiasecSection riasec={result.riasec} isComparisonMode={isComparisonMode} />
                     

@@ -24,6 +24,31 @@ export default function SummaryAnalyzer({ summaryAnalysis }) {
         return '#ef4444';
     };
     
+    const getSemanticLabel = (score) => {
+        if (score < -2) return 'Under-positioned';
+        if (score <= 2) return 'Perfectly positioned';
+        return 'Over-positioned';
+    };
+    
+    const getBloomLabel = (level) => {
+        if (level >= 5.5) return 'Strategic/Creative';
+        if (level >= 4) return 'Analytical/Evaluative';
+        if (level >= 2.5) return 'Applicative';
+        return 'Basic/Foundational';
+    };
+    
+    const getRiasecLabel = (code) => {
+        const labels = {
+            R: 'Realistic (Hands-on, practical)',
+            I: 'Investigative (Analytical, research)',
+            A: 'Artistic (Creative, design)',
+            S: 'Social (Helping, teaching)',
+            E: 'Enterprising (Leading, persuading)',
+            C: 'Conventional (Organized, process-driven)'
+        };
+        return labels[code] || 'Mixed';
+    };
+    
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
         setCopied(true);
@@ -40,7 +65,7 @@ export default function SummaryAnalyzer({ summaryAnalysis }) {
             marginBottom: '20px',
             border: '1px solid var(--border-light)'
         }}>
-            <h3 style={{ fontSize: '16px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h3 style={{ fontSize: '16px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                 <span>📝</span> Summary Analyzer
                 <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)' }}>
                     AI-powered analysis of your professional summary
@@ -58,48 +83,71 @@ export default function SummaryAnalyzer({ summaryAnalysis }) {
                 <div style={{ fontSize: '13px', lineHeight: '1.5' }}>{originalText}</div>
             </div>
             
-            {/* Score Grid - Simple version that definitely works */}
+            {/* Score Grid */}
             <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: '12px',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+                gap: '10px',
                 marginBottom: '16px'
             }}>
-                <div style={{ textAlign: 'center', padding: '10px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Semantic Position</div>
-                    <div style={{ fontSize: '20px', fontWeight: '600', color: getScoreColor((scores.semantic_positioning || 0) * 20 + 50) }}>
+                <div style={{ textAlign: 'center', padding: '8px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Semantic</div>
+                    <div style={{ fontSize: '18px', fontWeight: '600', color: getScoreColor((scores.semantic_positioning || 0) * 20 + 50) }}>
                         {scores.semantic_positioning > 0 ? '+' : ''}{scores.semantic_positioning || 0}
                     </div>
+                    <div style={{ fontSize: '8px', color: 'var(--text-muted)' }}>{getSemanticLabel(scores.semantic_positioning)}</div>
                 </div>
-                <div style={{ textAlign: 'center', padding: '10px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Bloom Level</div>
-                    <div style={{ fontSize: '20px', fontWeight: '600', color: getScoreColor((scores.bloom_level || 0) * 20) }}>
+                <div style={{ textAlign: 'center', padding: '8px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Bloom</div>
+                    <div style={{ fontSize: '18px', fontWeight: '600', color: getScoreColor((scores.bloom_level || 0) * 20) }}>
                         {scores.bloom_level || 0}
                     </div>
+                    <div style={{ fontSize: '8px', color: 'var(--text-muted)' }}>{getBloomLabel(scores.bloom_level)}</div>
                 </div>
-                <div style={{ textAlign: 'center', padding: '10px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>RIASEC</div>
-                    <div style={{ fontSize: '20px', fontWeight: '600' }}>{scores.riasec_signal || 'N/A'}</div>
+                <div style={{ textAlign: 'center', padding: '8px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>RIASEC</div>
+                    <div style={{ fontSize: '18px', fontWeight: '600' }}>{scores.riasec_signal || 'N/A'}</div>
+                    <div style={{ fontSize: '8px', color: 'var(--text-muted)' }}>{getRiasecLabel(scores.riasec_signal)}</div>
                 </div>
-                <div style={{ textAlign: 'center', padding: '10px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Credibility</div>
-                    <div style={{ fontSize: '20px', fontWeight: '600', color: getScoreColor(scores.credibility || 0) }}>
+                <div style={{ textAlign: 'center', padding: '8px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Credibility</div>
+                    <div style={{ fontSize: '18px', fontWeight: '600', color: getScoreColor(scores.credibility || 0) }}>
                         {scores.credibility || 0}%
                     </div>
                 </div>
-                <div style={{ textAlign: 'center', padding: '10px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Keywords</div>
-                    <div style={{ fontSize: '20px', fontWeight: '600', color: getScoreColor(scores.keyword_density || 0) }}>
+                <div style={{ textAlign: 'center', padding: '8px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Keywords</div>
+                    <div style={{ fontSize: '18px', fontWeight: '600', color: getScoreColor(scores.keyword_density || 0) }}>
                         {scores.keyword_density || 0}%
                     </div>
                 </div>
-                <div style={{ textAlign: 'center', padding: '10px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Action Verbs</div>
-                    <div style={{ fontSize: '20px', fontWeight: '600', color: getScoreColor(scores.action_verb_strength || 0) }}>
+                <div style={{ textAlign: 'center', padding: '8px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '9px', color: 'var(--text-muted)' }}>Action Verbs</div>
+                    <div style={{ fontSize: '18px', fontWeight: '600', color: getScoreColor(scores.action_verb_strength || 0) }}>
                         {scores.action_verb_strength || 0}%
                     </div>
                 </div>
             </div>
+            
+            {/* What Was Improved Section - NEW */}
+            {activeRewriteData && activeRewriteData.changes_made && activeRewriteData.changes_made.length > 0 && (
+                <div style={{
+                    marginBottom: '16px',
+                    padding: '12px',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderRadius: '8px',
+                    borderLeft: '3px solid #10b981'
+                }}>
+                    <div style={{ fontSize: '11px', fontWeight: '600', color: '#10b981', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span>✨</span> What Was Improved
+                    </div>
+                    <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                        {activeRewriteData.changes_made.map((change, idx) => (
+                            <li key={idx} style={{ marginBottom: '4px' }}>{change}</li>
+                        ))}
+                    </ul>
+                </div>
+            )}
             
             {/* Rewrite Options */}
             {rewrites.length > 0 && (
@@ -137,11 +185,6 @@ export default function SummaryAnalyzer({ summaryAnalysis }) {
                             <div style={{ fontSize: '13px', lineHeight: '1.5', marginBottom: '8px' }}>
                                 {activeRewriteData.text}
                             </div>
-                            {activeRewriteData.changes_made && activeRewriteData.changes_made.length > 0 && (
-                                <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>
-                                    <strong>Changes:</strong> {activeRewriteData.changes_made.join(', ')}
-                                </div>
-                            )}
                             {activeRewriteData.target_roles && activeRewriteData.target_roles.length > 0 && (
                                 <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
                                     <strong>Best for:</strong> {activeRewriteData.target_roles.join(', ')}

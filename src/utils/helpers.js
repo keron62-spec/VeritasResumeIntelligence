@@ -110,6 +110,11 @@ export const createSafeResult = (result, resumePdfHealth) => {
       // ============================================================
       summary_analysis: result.summary_analysis || null,
       
+      // ============================================================
+      // BULLET ANALYSIS - ADDED FOR V8.6
+      // ============================================================
+      bullet_analysis: result.bullet_analysis || null,
+      
       semantic_analysis: {
           position_score: result.semantic_analysis?.position_score ?? 0,
           alignment_score: result.semantic_analysis?.alignment_score ?? 5,

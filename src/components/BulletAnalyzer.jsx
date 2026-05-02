@@ -3,13 +3,77 @@ import React, { useState } from 'react';
 export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
     const [expandedBullet, setExpandedBullet] = useState(null);
     
-    if (!bulletAnalysis || !bulletAnalysis.bullets || bulletAnalysis.bullets.length === 0) {
+    // Check if bulletAnalysis exists and has data
+    if (!bulletAnalysis) {
         return null;
     }
     
-    const isJDComparison = isComparisonMode && bulletAnalysis.jd_context;
+    // Handle case where bullets array is empty but we have summary
+    if (!bulletAnalysis.bullets || bulletAnalysis.bullets.length === 0) {
+        return (
+            <div className="bullet-analyzer" style={{
+                backgroundColor: 'var(--bg-secondary)',
+                borderRadius: '12px',
+                padding: '20px',
+                marginBottom: '20px',
+                border: '1px solid var(--border-light)'
+            }}>
+                <h3 style={{ fontSize: '16px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                    <span>🎯</span> 
+                    {isComparisonMode ? 'JD Alignment Analysis' : 'Bullet Point Analysis'}
+                    <span style={{ fontSize: '11px', fontWeight: 'normal', color: 'var(--text-muted)' }}>
+                        {bulletAnalysis.bullets_assessed || 0} bullets assessed
+                    </span>
+                </h3>
+                
+                {/* Stats Summary */}
+                <div style={{ 
+                    marginBottom: '16px', 
+                    display: 'flex', 
+                    gap: '16px', 
+                    fontSize: '12px',
+                    flexWrap: 'wrap',
+                    paddingBottom: '12px',
+                    borderBottom: '1px solid var(--border-light)'
+                }}>
+                    <span>📊 Average {isComparisonMode ? 'JD Alignment' : 'Score'}: <strong>{bulletAnalysis.average_jd_alignment || bulletAnalysis.average_score}</strong>/100</span>
+                    <span>🔍 Bullets Assessed: <strong>{bulletAnalysis.bullets_assessed || 0}</strong></span>
+                </div>
+                
+                {/* Summary Message */}
+                <div style={{
+                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                    borderLeft: '3px solid #f59e0b',
+                    padding: '12px',
+                    borderRadius: '6px',
+                    marginBottom: '16px'
+                }}>
+                    <p style={{ margin: 0, fontSize: '13px' }}>
+                        {bulletAnalysis.summary || 'Bullet analysis completed.'}
+                    </p>
+                </div>
+                
+                {/* Disclaimer */}
+                {bulletAnalysis.overall_disclaimer && (
+                    <div style={{
+                        backgroundColor: 'rgba(37, 99, 235, 0.05)',
+                        padding: '10px',
+                        borderRadius: '6px',
+                        fontSize: '11px',
+                        color: 'var(--text-muted)'
+                    }}>
+                        {bulletAnalysis.overall_disclaimer}
+                    </div>
+                )}
+            </div>
+        );
+    }
     
-    // Get score color based on score and mode
+    // Regular rendering when bullets array has data
+    const isJDComparison = isComparisonMode && bulletAnalysis.jd_context;
+    const scoreKey = isJDComparison ? 'jd_alignment_score' : 'score';
+    const sortedBullets = [...bulletAnalysis.bullets].sort((a, b) => a[scoreKey] - b[scoreKey]);
+    
     const getScoreColor = (score) => {
         if (score >= 80) return '#10b981';
         if (score >= 60) return '#86efac';
@@ -31,7 +95,6 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
         }
     };
     
-    // Get sentiment badge (resume-only mode)
     const getSentimentBadge = (sentimentLabel) => {
         const colors = {
             'Highly Confident': { bg: 'rgba(16, 185, 129, 0.1)', color: '#10b981' },
@@ -42,10 +105,6 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
         };
         return colors[sentimentLabel] || colors['Neutral'];
     };
-    
-    // Sort bullets by score (weakest first)
-    const scoreKey = isJDComparison ? 'jd_alignment_score' : 'score';
-    const sortedBullets = [...bulletAnalysis.bullets].sort((a, b) => a[scoreKey] - b[scoreKey]);
     
     return (
         <div className="bullet-analyzer" style={{
@@ -63,7 +122,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                 </span>
             </h3>
             
-            {/* JD Context Panel (Comparison Mode Only) */}
+            {/* JD Context Panel */}
             {isJDComparison && bulletAnalysis.jd_context && (
                 <div style={{
                     backgroundColor: 'var(--bg-tertiary)',
@@ -81,7 +140,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                 </div>
             )}
             
-            {/* Disclaimer (Comparison Mode Only) */}
+            {/* Disclaimer */}
             {isJDComparison && bulletAnalysis.overall_disclaimer && (
                 <div style={{
                     backgroundColor: 'rgba(245, 158, 11, 0.1)',
@@ -134,7 +193,6 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                     const score = isJDComparison ? bullet.jd_alignment_score : bullet.score;
                     const scoreColor = getScoreColor(score);
                     const scoreLabel = getScoreLabel(score, isJDComparison ? 'jd' : 'standard');
-                    const scoreKey = isJDComparison ? 'jd_alignment_score' : 'score';
                     const isPoorMatch = isJDComparison && score < 60;
                     const isWeak = !isJDComparison && score < 50;
                     
@@ -151,7 +209,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                                         {bullet.original_text || bullet.text}
                                     </div>
                                     
-                                    {/* Keywords Found/Missing (Comparison Mode) */}
+                                    {/* Keywords Found/Missing */}
                                     {isJDComparison && bullet.jd_keywords_found && (
                                         <div style={{ marginBottom: '6px' }}>
                                             {bullet.jd_keywords_found.length > 0 && (
@@ -168,7 +226,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                                         </div>
                                     )}
                                     
-                                    {/* Patterns (Resume Mode) */}
+                                    {/* Patterns */}
                                     {!isJDComparison && bullet.patterns_detected && bullet.patterns_detected.length > 0 && (
                                         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '6px' }}>
                                             {bullet.patterns_detected.slice(0, 3).map((pattern, i) => (
@@ -196,7 +254,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                                 </div>
                             </div>
                             
-                            {/* Sentiment & Credibility (Resume Mode Only) */}
+                            {/* Sentiment & Credibility */}
                             {!isJDComparison && bullet.sentiment_label && (
                                 <div style={{ display: 'flex', gap: '12px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid var(--border-light)' }}>
                                     <div style={{ fontSize: '10px' }}>
@@ -239,7 +297,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                                 </div>
                             )}
                             
-                            {/* Expandable Score Breakdown */}
+                            {/* Score Breakdown */}
                             <details style={{ marginTop: '8px' }}>
                                 <summary style={{ fontSize: '10px', cursor: 'pointer', color: 'var(--text-muted)' }}>
                                     Show score breakdown

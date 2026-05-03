@@ -59,7 +59,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                     <span>📊 Average Score: <strong>{bulletAnalysis.average_original_score || bulletAnalysis.average_score}</strong>/100</span>
                     <span>🔍 Bullets Assessed: <strong>{bulletAnalysis.bullets_assessed || 0}</strong></span>
                     {bulletAnalysis.average_transformed_score && (
-                        <span style={{ color: '#10b981' }}>🚀 Potential Avg: <strong>{bulletAnalysis.average_transformed_score}</strong>/100 (+{bulletAnalysis.average_transformed_score - (bulletAnalysis.average_original_score || bulletAnalysis.average_score)})</span>
+                        <span style={{ color: '#10b981' }}>🚀 Potential Avg: <strong>{bulletAnalysis.average_transformed_score}</strong>/100 (+{Math.round(bulletAnalysis.average_transformed_score - (bulletAnalysis.average_original_score || bulletAnalysis.average_score))})</span>
                     )}
                 </div>
                 
@@ -75,15 +75,21 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                     </p>
                 </div>
                 
+                {/* DISCLAIMER - Show in ALL modes, not just comparison */}
                 {bulletAnalysis.overall_disclaimer && (
                     <div style={{
-                        backgroundColor: 'rgba(37, 99, 235, 0.05)',
-                        padding: '10px',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        borderLeft: '3px solid #f59e0b',
+                        padding: '10px 12px',
                         borderRadius: '6px',
                         fontSize: '11px',
-                        color: 'var(--text-muted)'
+                        color: 'var(--text-secondary)'
                     }}>
-                        {bulletAnalysis.overall_disclaimer}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                            <span>⚠️</span>
+                            <strong>AI-Generated Suggestions</strong>
+                        </div>
+                        <p style={{ margin: 0 }}>{bulletAnalysis.overall_disclaimer}</p>
                     </div>
                 )}
             </div>
@@ -92,15 +98,6 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
     
     // Determine if we're in JD Comparison mode (has jd_context)
     const isJDComparison = isComparisonMode && bulletAnalysis.jd_context;
-    
-    // Get the appropriate score key
-    const getScoreKey = (bullet) => {
-        // Use transformed_score if available, otherwise original_score
-        if (bullet.transformed_score && bullet.transformed_score !== bullet.original_score) {
-            return { score: bullet.transformed_score, label: 'Optimized Score' };
-        }
-        return { score: bullet.original_score, label: 'Score' };
-    };
     
     // Sort bullets by original score (weakest first)
     const sortedBullets = [...bulletAnalysis.bullets].sort((a, b) => a.original_score - b.original_score);
@@ -144,8 +141,8 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                 </div>
             )}
             
-            {/* Disclaimer (Comparison Mode Only) */}
-            {isJDComparison && bulletAnalysis.overall_disclaimer && (
+            {/* DISCLAIMER - Show in ALL modes (fixed) */}
+            {bulletAnalysis.overall_disclaimer && (
                 <div style={{
                     backgroundColor: 'rgba(245, 158, 11, 0.1)',
                     borderLeft: '3px solid #f59e0b',
@@ -157,7 +154,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
                         <span>⚠️</span>
-                        <strong>JD Alignment Suggestions</strong>
+                        <strong>AI-Generated Suggestions</strong>
                     </div>
                     <p style={{ margin: 0 }}>{bulletAnalysis.overall_disclaimer}</p>
                 </div>
@@ -252,7 +249,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                                 </div>
                             )}
                             
-                            {/* JD-TARGETED TRANSFORMATION SECTION - Shows for ALL bullets with transformed_text */}
+                            {/* TRANSFORMATION SECTION - Shows for ALL bullets with transformed_text */}
                             {hasTransformation && (
                                 <div style={{
                                     marginTop: '10px',
@@ -328,26 +325,6 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                                             </span>
                                         )}
                                     </div>
-                                </div>
-                            )}
-                            
-                            {/* Legacy Suggested Rewrite (Fallback) */}
-                            {!hasTransformation && bullet.suggested_rewrite && (
-                                <div style={{
-                                    marginTop: '10px',
-                                    padding: '10px',
-                                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                                    borderRadius: '6px',
-                                    fontSize: '12px',
-                                    borderLeft: '3px solid #10b981'
-                                }}>
-                                    <strong>✏️ Suggested Rewrite:</strong>
-                                    <div style={{ marginTop: '4px' }}>{bullet.suggested_rewrite}</div>
-                                    {bullet.confidence && (
-                                        <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '4px' }}>
-                                            AI Confidence: {Math.round(bullet.confidence * 100)}%
-                                        </div>
-                                    )}
                                 </div>
                             )}
                             

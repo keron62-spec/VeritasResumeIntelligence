@@ -73,99 +73,169 @@ const getPdfHealthLabelFromScore = (score) => {
   return 'Critical';
 };
 
+// ============================================================
+// COMPATIBILITY LAYER: TRANSFORMS NEW WORKER FORMAT TO OLD FORMAT
+// This ensures both old and new workers work with the same frontend
+// ============================================================
+
+const transformNewFormatToOld = (result) => {
+  const transformed = { ...result };
+  
+  // Transform bloom_bullet_analysis → bloom_analysis
+  if (result.bloom_bullet_analysis) {
+    const bba = result.bloom_bullet_analysis;
+    
+    transformed.bloom_analysis = {
+      average_bloom_level: bba.average_bloom_level ?? 3.5,
+      expected_bloom_level: bba.expected_bloom_level ?? 3.5,
+      jd_bloom_score: bba.jd_bloom_level ?? null,
+      bloom_gap: bba.bloom_gap ?? 0,
+      bloom_multiplier: bba.bloom_multiplier ?? 1.0,
+      bloom_assessment: bba.bloom_assessment ?? 'Not enough data',
+      bloom_position_adjustment: bba.bloom_position_adjustment ?? 0,
+      bullets_by_level: bba.bullets_by_level_summary || [],
+      flags: bba.flags || []
+    };
+    
+    // Transform metric_quality → metric_quality_breakdown
+    if (bba.metric_quality) {
+      transformed.metric_quality_breakdown = bba.metric_quality;
+    }
+    
+    // Extract weak_metrics_details and suggested_rewrites from bullets
+    if (bba.bullets && Array.isArray(bba.bullets)) {
+      transformed.weak_metrics_details = [];
+      transformed.suggested_rewrites = [];
+      
+      bba.bullets.forEach(bullet => {
+        if (bullet.is_weak_metric) {
+          transformed.weak_metrics_details.push({
+            bullet_text: bullet.text,
+            metric_type: "unknown",
+            quality_tier: "weak",
+            reason: bullet.weak_metric_reason || "Missing context for metric",
+            fix: bullet.changes_made?.[0] || "Add baseline or context to quantify impact"
+          });
+        }
+        if (bullet.needs_rewrite && bullet.transformed_text && bullet.transformed_text !== bullet.text) {
+          transformed.suggested_rewrites.push({
+            original: bullet.text,
+            issue: bullet.weak_metric_reason || "Needs improvement for JD alignment",
+            suggested_rewrite: bullet.transformed_text,
+            reason: bullet.changes_made?.join("; ") || "JD-aligned optimization with keyword integration"
+          });
+        }
+      });
+    }
+  }
+  
+  return transformed;
+};
+
 // Safe defaults if the AI misses something
 export const createSafeResult = (result, resumePdfHealth) => {
   if (!result) return {};
+  
+  // DETECT WHICH FORMAT WE RECEIVED
+  const isNewFormat = result.bloom_bullet_analysis !== undefined;
+  const isOldFormat = result.bloom_analysis !== undefined;
+  
+  // APPLY TRANSFORMATION IF NEW FORMAT
+  let normalizedResult = result;
+  if (isNewFormat && !isOldFormat) {
+    normalizedResult = transformNewFormatToOld(result);
+  }
   
   // Normalize PDF health to preserve Azure's score and label
   const normalizedPdfHealth = normalizePdfHealth(resumePdfHealth);
   
   return {
-      total_ats_score: result.total_ats_score ?? 0,
-      fit_score: result.fit_score ?? null,
-      credibility_score: result.credibility_score ?? 0,
-      risk_level: result.risk_level ?? 'Medium',
-      interview_likelihood_score: result.interview_likelihood_score ?? null,
-      model_used: result.model_used ?? 'Gemini',
-      fallback_used: result.fallback_used ?? false,
-      fallback_note: result.fallback_note ?? '',
-      role_type_detected: result.role_type_detected ?? '',
-      role_adjustment_note: result.role_adjustment_note ?? '',
-      recruiter_scan_verdict: result.recruiter_scan_verdict ?? '',
+      total_ats_score: normalizedResult.total_ats_score ?? 0,
+      fit_score: normalizedResult.fit_score ?? null,
+      credibility_score: normalizedResult.credibility_score ?? 0,
+      risk_level: normalizedResult.risk_level ?? 'Medium',
+      interview_likelihood_score: normalizedResult.interview_likelihood_score ?? null,
+      model_used: normalizedResult.model_used ?? 'Gemini',
+      fallback_used: normalizedResult.fallback_used ?? false,
+      fallback_note: normalizedResult.fallback_note ?? '',
+      role_type_detected: normalizedResult.role_type_detected ?? '',
+      role_adjustment_note: normalizedResult.role_adjustment_note ?? '',
+      recruiter_scan_verdict: normalizedResult.recruiter_scan_verdict ?? '',
       pdf_health: normalizedPdfHealth,
-      riasec: result.riasec ?? null,
-      strengths: Array.isArray(result.strengths) ? result.strengths : [],
-      all_issues: Array.isArray(result.all_issues) ? filterEmptyObjects(result.all_issues) : [],
-      immediate_fixes: Array.isArray(result.immediate_fixes) ? result.immediate_fixes : [],
-      role_match: Array.isArray(result.role_match) ? result.role_match : [],
-      missing_keywords: Array.isArray(result.missing_keywords) ? result.missing_keywords : [],
-      missing_tools: Array.isArray(result.missing_tools) ? filterEmptyObjects(result.missing_tools) : [],
-      grammar_issues: Array.isArray(result.grammar_issues) ? filterEmptyObjects(result.grammar_issues) : [],
-      weak_metrics_details: Array.isArray(result.weak_metrics_details) ? filterEmptyObjects(result.weak_metrics_details) : [],
-      suggested_rewrites: Array.isArray(result.suggested_rewrites) ? filterEmptyObjects(result.suggested_rewrites) : [],
-      buzzwords_detected: Array.isArray(result.buzzwords_detected) ? result.buzzwords_detected : [],
+      riasec: normalizedResult.riasec ?? null,
+      strengths: Array.isArray(normalizedResult.strengths) ? normalizedResult.strengths : [],
+      all_issues: Array.isArray(normalizedResult.all_issues) ? filterEmptyObjects(normalizedResult.all_issues) : [],
+      immediate_fixes: Array.isArray(normalizedResult.immediate_fixes) ? normalizedResult.immediate_fixes : [],
+      role_match: Array.isArray(normalizedResult.role_match) ? normalizedResult.role_match : [],
+      missing_keywords: Array.isArray(normalizedResult.missing_keywords) ? normalizedResult.missing_keywords : [],
+      missing_tools: Array.isArray(normalizedResult.missing_tools) ? filterEmptyObjects(normalizedResult.missing_tools) : [],
+      grammar_issues: Array.isArray(normalizedResult.grammar_issues) ? filterEmptyObjects(normalizedResult.grammar_issues) : [],
+      weak_metrics_details: Array.isArray(normalizedResult.weak_metrics_details) ? filterEmptyObjects(normalizedResult.weak_metrics_details) : [],
+      suggested_rewrites: Array.isArray(normalizedResult.suggested_rewrites) ? filterEmptyObjects(normalizedResult.suggested_rewrites) : [],
+      buzzwords_detected: Array.isArray(normalizedResult.buzzwords_detected) ? normalizedResult.buzzwords_detected : [],
       
       // ============================================================
       // SUMMARY ANALYSIS - ADDED FOR V8.5
       // ============================================================
-      summary_analysis: result.summary_analysis || null,
+      summary_analysis: normalizedResult.summary_analysis || null,
       
       // ============================================================
       // BULLET ANALYSIS - ADDED FOR V8.6
       // ============================================================
-      bullet_analysis: result.bullet_analysis || null,
+      bullet_analysis: normalizedResult.bullet_analysis || null,
       
       semantic_analysis: {
-          position_score: result.semantic_analysis?.position_score ?? 0,
-          alignment_score: result.semantic_analysis?.alignment_score ?? 5,
-          position_label: result.semantic_analysis?.position_label ?? 'Not enough data',
-          severity: result.semantic_analysis?.severity ?? 'none',
-          color: result.semantic_analysis?.color ?? 'green',
-          confidence: result.semantic_analysis?.confidence ?? 85,
-          detected_level: result.semantic_analysis?.detected_level ?? 'Unknown',
-          flags: Array.isArray(result.semantic_analysis?.flags) ? filterEmptyObjects(result.semantic_analysis.flags) : [],
-          recommendations: Array.isArray(result.semantic_analysis?.recommendations) ? result.semantic_analysis.recommendations : []
+          position_score: normalizedResult.semantic_analysis?.position_score ?? 0,
+          alignment_score: normalizedResult.semantic_analysis?.alignment_score ?? 5,
+          position_label: normalizedResult.semantic_analysis?.position_label ?? 'Not enough data',
+          severity: normalizedResult.semantic_analysis?.severity ?? 'none',
+          color: normalizedResult.semantic_analysis?.color ?? 'green',
+          confidence: normalizedResult.semantic_analysis?.confidence ?? 85,
+          detected_level: normalizedResult.semantic_analysis?.detected_level ?? 'Unknown',
+          flags: Array.isArray(normalizedResult.semantic_analysis?.flags) ? filterEmptyObjects(normalizedResult.semantic_analysis.flags) : [],
+          recommendations: Array.isArray(normalizedResult.semantic_analysis?.recommendations) ? normalizedResult.semantic_analysis.recommendations : []
       },
-      bloom_analysis: {
-          average_bloom_level: result.bloom_analysis?.average_bloom_level ?? 3,
-          expected_bloom_level: result.bloom_analysis?.expected_bloom_level ?? 3,
-          jd_bloom_score: result.bloom_analysis?.jd_bloom_level ?? result.bloom_analysis?.jd_bloom_score ?? null,
-          bloom_gap: result.bloom_analysis?.bloom_gap ?? 0,
-          bloom_assessment: result.bloom_analysis?.bloom_assessment ?? 'Not enough data',
-          bullets_by_level: Array.isArray(result.bloom_analysis?.bullets_by_level) ? result.bloom_analysis.bullets_by_level : [],
-          flags: Array.isArray(result.bloom_analysis?.flags) ? result.bloom_analysis.flags : []
+      bloom_analysis: normalizedResult.bloom_analysis || {
+          average_bloom_level: 3,
+          expected_bloom_level: 3,
+          jd_bloom_score: null,
+          bloom_gap: 0,
+          bloom_assessment: 'Not enough data',
+          bloom_position_adjustment: 0,
+          bullets_by_level: [],
+          flags: []
       },
       credibility_analysis: {
-          career_plausibility_flags: Array.isArray(result.credibility_analysis?.career_plausibility_flags) ? filterEmptyObjects(result.credibility_analysis.career_plausibility_flags) : [],
-          education_title_flags: Array.isArray(result.credibility_analysis?.education_title_flags) ? filterEmptyObjects(result.credibility_analysis.education_title_flags) : [],
-          metric_plausibility_flags: Array.isArray(result.credibility_analysis?.metric_plausibility_flags) ? filterEmptyObjects(result.credibility_analysis.metric_plausibility_flags) : [],
-          acting_title_flags: Array.isArray(result.credibility_analysis?.acting_title_flags) ? result.credibility_analysis.acting_title_flags : [],
-          promotion_signals: Array.isArray(result.credibility_analysis?.promotion_signals) ? result.credibility_analysis.promotion_signals : [],
-          recency_note: result.credibility_analysis?.recency_note ?? ''
+          career_plausibility_flags: Array.isArray(normalizedResult.credibility_analysis?.career_plausibility_flags) ? filterEmptyObjects(normalizedResult.credibility_analysis.career_plausibility_flags) : [],
+          education_title_flags: Array.isArray(normalizedResult.credibility_analysis?.education_title_flags) ? filterEmptyObjects(normalizedResult.credibility_analysis.education_title_flags) : [],
+          metric_plausibility_flags: Array.isArray(normalizedResult.credibility_analysis?.metric_plausibility_flags) ? filterEmptyObjects(normalizedResult.credibility_analysis.metric_plausibility_flags) : [],
+          acting_title_flags: Array.isArray(normalizedResult.credibility_analysis?.acting_title_flags) ? normalizedResult.credibility_analysis.acting_title_flags : [],
+          promotion_signals: Array.isArray(normalizedResult.credibility_analysis?.promotion_signals) ? normalizedResult.credibility_analysis.promotion_signals : [],
+          recency_note: normalizedResult.credibility_analysis?.recency_note ?? ''
       },
-      metric_quality_breakdown: {
-          overall_score: result.metric_quality_breakdown?.overall_score ?? 0,
-          bullets_assessed: result.metric_quality_breakdown?.bullets_assessed ?? 0,
-          weak_count: result.metric_quality_breakdown?.weak_count ?? 0,
-          good_count: result.metric_quality_breakdown?.good_count ?? 0,
-          strong_count: result.metric_quality_breakdown?.strong_count ?? 0
+      metric_quality_breakdown: normalizedResult.metric_quality_breakdown || {
+          overall_score: 0,
+          bullets_assessed: 0,
+          weak_count: 0,
+          good_count: 0,
+          strong_count: 0
       },
       market_positioning: {
-          level: result.market_positioning?.level ?? 'Not enough data',
-          assessment: result.market_positioning?.assessment ?? '',
-          seniority_detected: result.market_positioning?.seniority_detected ?? 'Unknown'
+          level: normalizedResult.market_positioning?.level ?? 'Not enough data',
+          assessment: normalizedResult.market_positioning?.assessment ?? '',
+          seniority_detected: normalizedResult.market_positioning?.seniority_detected ?? 'Unknown'
       },
       breakdown: {
-          header_contact: result.breakdown?.header_contact ?? 0,
-          keyword_density: result.breakdown?.keyword_density ?? 0,
-          quantified_results: result.breakdown?.quantified_results ?? 0,
-          action_verbs: result.breakdown?.action_verbs ?? 0,
-          formatting_structure: result.breakdown?.formatting_structure ?? 0,
-          skills_section: result.breakdown?.skills_section ?? 0,
-          length_brevity: result.breakdown?.length_brevity ?? 0,
-          publications_projects: result.breakdown?.publications_projects ?? 0,
-          recruiter_scan_penalty: result.breakdown?.recruiter_scan_penalty ?? 0,
-          buzzword_repetition_penalty: result.breakdown?.buzzword_repetition_penalty ?? 0
+          header_contact: normalizedResult.breakdown?.header_contact ?? 0,
+          keyword_density: normalizedResult.breakdown?.keyword_density ?? 0,
+          quantified_results: normalizedResult.breakdown?.quantified_results ?? 0,
+          action_verbs: normalizedResult.breakdown?.action_verbs ?? 0,
+          formatting_structure: normalizedResult.breakdown?.formatting_structure ?? 0,
+          skills_section: normalizedResult.breakdown?.skills_section ?? 0,
+          length_brevity: normalizedResult.breakdown?.length_brevity ?? 0,
+          publications_projects: normalizedResult.breakdown?.publications_projects ?? 0,
+          recruiter_scan_penalty: normalizedResult.breakdown?.recruiter_scan_penalty ?? 0,
+          buzzword_repetition_penalty: normalizedResult.breakdown?.buzzword_repetition_penalty ?? 0
       }
   };
 };

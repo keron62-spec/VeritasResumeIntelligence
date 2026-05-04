@@ -49,46 +49,74 @@ export default function ScoreDashboard({ result, isComparisonMode }) {
         : null;
 
     return (
-        <div className="score-grid">
-            <div className="score-card">
-                <h4><Icons.ATS /> ATS Score</h4>
-                <div className="score-value" style={{ color: getScoreColor(result.total_ats_score) }}>{result.total_ats_score}</div>
-                <div className="score-label">/100 ({getScoreGrade(result.total_ats_score)})</div>
+        <>
+            <div className="score-grid">
+                <div className="score-card">
+                    <h4><Icons.ATS /> ATS Score</h4>
+                    <div className="score-value" style={{ color: getScoreColor(result.total_ats_score) }}>{result.total_ats_score}</div>
+                    <div className="score-label">/100 ({getScoreGrade(result.total_ats_score)})</div>
+                </div>
+                
+                {pdfScore !== null && (
+                    <div className="score-card">
+                        <h4>📄 PDF Health</h4>
+                        <div className="score-value" style={{ color: getScoreColor(pdfScore) }}>{pdfScore}</div>
+                        <div className="score-label">/100 ({pdfLabel})</div>
+                    </div>
+                )}
+                
+                {isComparisonMode && result.fit_score !== null && (
+                    <div className="score-card">
+                        <h4><Icons.Fit /> Fit Score</h4>
+                        <div className="score-value" style={{ color: getScoreColor(result.fit_score) }}>{result.fit_score}</div>
+                        <div className="score-label">/100 (Role Match)</div>
+                    </div>
+                )}
+                
+                {interviewLabel && (
+                    <div className="score-card">
+                        <h4><Icons.Interview /> Interview Likelihood</h4>
+                        <div className="score-value">{result.interview_likelihood_score}</div>
+                        <div className="score-label">/100</div>
+                        <div className="interview-label" style={{ backgroundColor: interviewLabel.bgColor, color: interviewLabel.color }}>
+                            {interviewLabel.emoji} {interviewLabel.text}
+                        </div>
+                    </div>
+                )}
+                
+                <div className="score-card">
+                    <h4><Icons.Risk /> Risk Level</h4>
+                    <div className={`risk-badge ${getRiskBadgeClass(result.risk_level)}`}>
+                        {result.risk_level || 'Medium'}
+                    </div>
+                </div>
             </div>
             
-            {pdfScore !== null && (
-                <div className="score-card">
-                    <h4>📄 PDF Health</h4>
-                    <div className="score-value" style={{ color: getScoreColor(pdfScore) }}>{pdfScore}</div>
-                    <div className="score-label">/100 ({pdfLabel})</div>
-                </div>
-            )}
-            
-            {isComparisonMode && result.fit_score !== null && (
-                <div className="score-card">
-                    <h4><Icons.Fit /> Fit Score</h4>
-                    <div className="score-value" style={{ color: getScoreColor(result.fit_score) }}>{result.fit_score}</div>
-                    <div className="score-label">/100 (Role Match)</div>
-                </div>
-            )}
-            
-            {interviewLabel && (
-                <div className="score-card">
-                    <h4><Icons.Interview /> Interview Likelihood</h4>
-                    <div className="score-value">{result.interview_likelihood_score}</div>
-                    <div className="score-label">/100</div>
-                    <div className="interview-label" style={{ backgroundColor: interviewLabel.bgColor, color: interviewLabel.color }}>
-                        {interviewLabel.emoji} {interviewLabel.text}
+            {/* Recruiter Scan Verdict Banner */}
+            {result.recruiter_scan_verdict && (
+                <div style={{
+                    marginTop: '16px',
+                    marginBottom: '0',
+                    padding: '12px 16px',
+                    backgroundColor: 'rgba(37, 99, 235, 0.08)',
+                    borderLeft: '4px solid #2563eb',
+                    borderRadius: '8px',
+                    fontSize: '13px',
+                    lineHeight: '1.5'
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+                        <span style={{ fontSize: '18px' }}>👁️</span>
+                        <div>
+                            <strong style={{ fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px', color: '#2563eb' }}>
+                                Recruiter 6-Second Scan Verdict
+                            </strong>
+                            <div style={{ marginTop: '4px', color: 'var(--text-primary)' }}>
+                                {result.recruiter_scan_verdict}
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
-            
-            <div className="score-card">
-                <h4><Icons.Risk /> Risk Level</h4>
-                <div className={`risk-badge ${getRiskBadgeClass(result.risk_level)}`}>
-                    {result.risk_level || 'Medium'}
-                </div>
-            </div>
-        </div>
+        </>
     );
 }

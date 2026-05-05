@@ -184,6 +184,17 @@ export const createSafeResult = (result, resumePdfHealth) => {
       // ============================================================
       bullet_analysis: normalizedResult.bullet_analysis || null,
       
+      // ============================================================
+      // EXECUTIVE MODIFIER - ADDED FOR V8.5
+      // ============================================================
+      executive_modifier_active: normalizedResult.executive_modifier_active ?? false,
+      executive_evaluation: normalizedResult.executive_evaluation || null,
+      
+      // ============================================================
+      // LENIENCY GATE RESULTS - ADDED FOR V8.5
+      // ============================================================
+      leniency_gate_results: normalizedResult.leniency_gate_results || null,
+      
       semantic_analysis: {
           position_score: normalizedResult.semantic_analysis?.position_score ?? 0,
           alignment_score: normalizedResult.semantic_analysis?.alignment_score ?? 5,

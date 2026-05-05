@@ -476,6 +476,111 @@ body.very-strict-mode::-webkit-scrollbar-thumb:hover {
     background: #d4b34e;
 }
 
+/* ============================================================ */
+/* VERY STRICT MODE - BLOOM SECTION READABILITY FIXES          */
+/* ============================================================ */
+
+/* Bloom Analysis Boxes - Make backgrounds darker for readability */
+body.very-strict-mode .v8-section .results-section {
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(198, 164, 63, 0.2);
+}
+
+/* The three colored info boxes inside Bloom section */
+body.very-strict-mode .v8-section .results-section > div {
+    background: rgba(0, 0, 0, 0.5) !important;
+    border-radius: 8px;
+    padding: 16px;
+    margin-bottom: 16px;
+}
+
+/* Override the default green/blue/yellow backgrounds */
+body.very-strict-mode .v8-section .results-section > div:first-child {
+    background: rgba(0, 0, 0, 0.5) !important;
+    border-left: 3px solid #10b981;
+}
+
+body.very-strict-mode .v8-section .results-section > div:nth-child(2) {
+    background: rgba(0, 0, 0, 0.5) !important;
+    border-left: 3px solid #c6a43f;
+}
+
+body.very-strict-mode .v8-section .results-section > div:nth-child(3) {
+    background: rgba(0, 0, 0, 0.5) !important;
+    border-left: 3px solid #f59e0b;
+}
+
+/* Bloom section text colors */
+body.very-strict-mode .v8-section .results-section div div {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+body.very-strict-mode .v8-section .results-section strong {
+    color: #ffffff;
+}
+
+/* Bloom Gap value colors */
+body.very-strict-mode .v8-section .results-section div div strong {
+    color: #c6a43f;
+}
+
+/* Bloom flags (warning messages) */
+body.very-strict-mode .v8-section .results-section ul li,
+body.very-strict-mode .v8-section .results-section .bloom-flags {
+    color: rgba(255, 255, 255, 0.8);
+    background: rgba(0, 0, 0, 0.3);
+    padding: 6px 10px;
+    border-radius: 6px;
+    margin-bottom: 6px;
+    list-style: none;
+}
+
+/* Bullet distribution details */
+body.very-strict-mode .v8-section details {
+    background: rgba(0, 0, 0, 0.3);
+    padding: 12px;
+    border-radius: 8px;
+    margin-top: 12px;
+}
+
+body.very-strict-mode .v8-section details summary {
+    color: rgba(255, 255, 255, 0.7);
+}
+
+body.very-strict-mode .v8-section details summary:hover {
+    color: #c6a43f;
+}
+
+/* Bloom level color tags - ensure text is readable */
+body.very-strict-mode .bloom-level-1,
+body.very-strict-mode .bloom-level-2,
+body.very-strict-mode .bloom-level-3,
+body.very-strict-mode .bloom-level-4,
+body.very-strict-mode .bloom-level-5,
+body.very-strict-mode .bloom-level-6 {
+    color: #ffffff !important;
+    text-shadow: 0 0 2px rgba(0, 0, 0, 0.5);
+}
+
+/* Cognitive complexity flags section */
+body.very-strict-mode .v8-section .results-section .bloom-flags-container {
+    background: rgba(0, 0, 0, 0.4);
+    border-left: 3px solid #f59e0b;
+    padding: 12px;
+    border-radius: 8px;
+    margin: 12px 0;
+}
+
+body.very-strict-mode .v8-section .results-section .bloom-flags-container strong {
+    color: #f59e0b;
+}
+
+/* Bloom assessment text */
+body.very-strict-mode .v8-section .results-section .bloom-assessment {
+    color: rgba(255, 255, 255, 0.85);
+    line-height: 1.5;
+}
+
 /* Responsive Adjustments for Very Strict Mode */
 @media (max-width: 768px) {
     body.very-strict-mode .grade-banner {

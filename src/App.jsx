@@ -17,6 +17,7 @@ import LoadingTips from './components/LoadingTips.jsx';
 import ATSEyeViewWarning from './components/ATSEyeViewWarning.jsx';
 import SummaryAnalyzer from './components/SummaryAnalyzer.jsx';
 import BulletAnalyzer from './components/BulletAnalyzer.jsx';
+import ExecutiveEvaluation from './components/ExecutiveEvaluation.jsx';
 import { useLeniencyMode } from './hooks/useLeniencyMode.js';
 import { extractDocx } from './utils/parseHelpers.js';
 import { createSafeResult } from './utils/helpers.js';
@@ -437,6 +438,42 @@ export default function App() {
                                     </div>
                                 </div>
                             </div>
+                            
+                            {/* Leniency Gate Results - shows banner message if gate failures exist */}
+                            {result.leniency_gate_results?.banner_message && (
+                                <div style={{
+                                    marginTop: '12px',
+                                    padding: '8px 12px',
+                                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                    borderRadius: '6px',
+                                    fontSize: '12px',
+                                    color: '#ef4444'
+                                }}>
+                                    ⚠️ {result.leniency_gate_results.banner_message}
+                                </div>
+                            )}
+                            
+                            {/* Leniency Gate Results - shows which gates failed */}
+                            {result.leniency_gate_results?.failures_detected && result.leniency_gate_results.failures_detected.length > 0 && (
+                                <div style={{
+                                    marginTop: '8px',
+                                    display: 'flex',
+                                    gap: '8px',
+                                    flexWrap: 'wrap'
+                                }}>
+                                    {result.leniency_gate_results.failures_detected.map((failure, idx) => (
+                                        <span key={idx} style={{
+                                            fontSize: '10px',
+                                            padding: '2px 8px',
+                                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                            borderRadius: '12px',
+                                            color: '#ef4444'
+                                        }}>
+                                            ❌ {failure.replace(/_/g, ' ').toUpperCase()}
+                                        </span>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
                     
@@ -458,6 +495,12 @@ export default function App() {
                     <CredibilitySection 
                         credibility_score={result.credibility_score} 
                         credibility_analysis={result.credibility_analysis} 
+                    />
+                    
+                    {/* Executive Evaluation - shows only when executive modifier is active */}
+                    <ExecutiveEvaluation 
+                        executiveEvaluation={result.executive_evaluation} 
+                        executiveActive={result.executive_modifier_active} 
                     />
                     
                     <BloomSection bloom_analysis={result.bloom_analysis} isComparisonMode={isComparisonMode} />

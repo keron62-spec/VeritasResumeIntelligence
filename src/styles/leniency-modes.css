@@ -53,20 +53,61 @@ body.strict-mode .analyze-btn {
     background: #2563eb;
 }
 
-/* VERY STRICT MODE - Elite, Corporate, Minimalist */
+/* ============================================================ */
+/* VERY STRICT MODE - BAIN INSPIRED ELITE THEME                */
+/* ============================================================ */
+
 body.very-strict-mode {
-    --bg-primary: #0a0a0a;
-    --bg-secondary: #fdfbf7;
-    --bg-tertiary: #f5f3ef;
-    --text-primary: #1a1a1a;
-    --text-secondary: #4a4a4a;
-    --text-muted: #6b6b6b;
-    --border-light: #d1d1d1;
-    --accent-primary: #000000;
+    --bg-primary: #0a1628;
+    --bg-secondary: rgba(255, 255, 255, 0.03);
+    --bg-tertiary: rgba(0, 0, 0, 0.3);
+    --text-primary: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --text-muted: rgba(255, 255, 255, 0.5);
+    --border-light: rgba(198, 164, 63, 0.15);
+    --accent-primary: #c6a43f;
     --accent-secondary: #d4af37;
-    --accent-rose: #c41e3a;
-    --card-radius: 8px;
-    --card-shadow: none;
+    --accent-rose: #e11d48;
+    --card-radius: 12px;
+    --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+/* Background with Leonardo Image */
+body.very-strict-mode {
+    background: linear-gradient(135deg, #0a1628 0%, #061020 50%, #0a0e1a 100%);
+    position: relative;
+}
+
+body.very-strict-mode::before {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url('/images/lucid-origin_Abstract_technology_background_for_a_resume_intelligence_platform_called_Veritas-0.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    opacity: 0.12;
+    pointer-events: none;
+    z-index: -1;
+}
+
+/* Subtle gold grid overlay (optional pattern) */
+body.very-strict-mode::after {
+    content: '';
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1000 1000' opacity='0.03'%3E%3Cpath fill='none' stroke='%23c6a43f' stroke-width='0.5' d='M0 500 L1000 500 M500 0 L500 1000 M250 0 L250 1000 M750 0 L750 1000 M0 250 L1000 250 M0 750 L1000 750'/%3E%3Ccircle cx='500' cy='500' r='200' fill='none' stroke='%23c6a43f' stroke-width='0.5'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 200px 200px;
+    pointer-events: none;
+    z-index: -1;
+    opacity: 0.5;
 }
 
 /* Very Strict Mode - Typography */
@@ -80,114 +121,165 @@ body.very-strict-mode h3,
 body.very-strict-mode .section-title,
 body.very-strict-mode .credibility-title,
 body.very-strict-mode .semantic-title,
-body.very-strict-mode .riasec-title {
+body.very-strict-mode .riasec-title,
+body.very-strict-mode .executive-evaluation h2 {
     font-family: 'Playfair Display', 'Times New Roman', serif;
-    letter-spacing: 0.01em;
+    letter-spacing: -0.01em;
 }
 
 body.very-strict-mode h1 {
-    font-size: 32px;
-    font-weight: 600;
-}
-
-body.very-strict-mode h3,
-body.very-strict-mode .results-section h3 {
-    font-size: 14px;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    font-weight: 600;
-    border-bottom: 1px solid var(--border-light);
-}
-
-body.very-strict-mode .header h1 {
     font-size: 28px;
+    font-weight: 600;
+    background: linear-gradient(135deg, #ffffff 70%, #c6a43f 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
 }
 
 body.very-strict-mode .header p {
     font-size: 13px;
-    color: var(--text-muted);
+    color: rgba(255, 255, 255, 0.5);
 }
 
-/* Very Strict Mode - Cards */
+/* Very Strict Mode - Cards (Glassmorphism) */
 body.very-strict-mode .card,
 body.very-strict-mode .score-card,
 body.very-strict-mode .credibility-container,
 body.very-strict-mode .semantic-container,
 body.very-strict-mode .riasec-container,
-body.very-strict-mode .results-section {
-    border-radius: 4px;
-    box-shadow: none;
-    border: 1px solid var(--border-light);
+body.very-strict-mode .results-section,
+body.very-strict-mode .summary-analyzer,
+body.very-strict-mode .bullet-analyzer,
+body.very-strict-mode .executive-evaluation,
+body.very-strict-mode .email-capture {
+    background: rgba(255, 255, 255, 0.03);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(198, 164, 63, 0.15);
+    border-radius: 12px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    transition: all 0.2s ease;
 }
 
+body.very-strict-mode .card:hover,
+body.very-strict-mode .score-card:hover {
+    border-color: rgba(198, 164, 63, 0.4);
+    transform: translateY(-2px);
+}
+
+/* Score Cards */
 body.very-strict-mode .score-card {
-    padding: 16px;
+    padding: 20px;
+    text-align: center;
 }
 
 body.very-strict-mode .score-card h4 {
     font-size: 10px;
     text-transform: uppercase;
-    letter-spacing: 1px;
-    font-weight: 600;
-    color: var(--text-muted);
+    letter-spacing: 1.5px;
+    color: rgba(255, 255, 255, 0.5);
+    margin-bottom: 12px;
 }
 
 body.very-strict-mode .score-value {
-    font-size: 32px;
-    font-weight: 500;
+    font-size: 38px;
+    font-weight: 700;
+    color: #ffffff;
     letter-spacing: -0.02em;
 }
 
 body.very-strict-mode .score-label {
     font-size: 10px;
-    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.4);
+    margin-top: 8px;
 }
 
-/* Very Strict Mode - Analyze Button */
+/* Section Headers */
+body.very-strict-mode .results-section h3,
+body.very-strict-mode .credibility-title,
+body.very-strict-mode .semantic-title,
+body.very-strict-mode .riasec-title,
+body.very-strict-mode .summary-analyzer h3,
+body.very-strict-mode .bullet-analyzer h3 {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #c6a43f;
+    border-bottom: none;
+    margin-bottom: 16px;
+}
+
+/* Analyze Button */
 body.very-strict-mode .analyze-btn {
-    background: var(--accent-primary);
+    background: #c6a43f;
+    border: none;
     border-radius: 4px;
     text-transform: uppercase;
     letter-spacing: 1px;
     font-size: 12px;
     font-weight: 600;
     padding: 14px 24px;
+    color: #0a1628;
+    transition: all 0.2s ease;
 }
 
 body.very-strict-mode .analyze-btn:hover {
-    background: var(--accent-rose);
+    background: #d4b34e;
+    transform: translateY(-1px);
 }
 
-/* Very Strict Mode - Tables */
+body.very-strict-mode .analyze-btn:disabled {
+    opacity: 0.5;
+    background: #c6a43f;
+}
+
+/* Secondary Buttons */
+body.very-strict-mode .btn-secondary,
+body.very-strict-mode .leniency-option {
+    background: transparent;
+    border: 1px solid rgba(198, 164, 63, 0.3);
+    color: #c6a43f;
+    border-radius: 4px;
+}
+
+body.very-strict-mode .btn-secondary:hover,
+body.very-strict-mode .leniency-option:hover {
+    border-color: #c6a43f;
+    background: rgba(198, 164, 63, 0.1);
+}
+
+body.very-strict-mode .leniency-option.active {
+    background: #c6a43f;
+    border-color: #c6a43f;
+    color: #0a1628;
+}
+
+/* Tables */
 body.very-strict-mode .issues-table th {
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 1px;
     font-weight: 600;
+    color: rgba(255, 255, 255, 0.5);
     background: transparent;
+    border-bottom: 1px solid rgba(198, 164, 63, 0.2);
 }
 
 body.very-strict-mode .issues-table td {
     font-size: 12px;
     padding: 12px 8px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.8);
 }
 
-/* Very Strict Mode - Mode Toggle */
-body.very-strict-mode .leniency-option {
-    border-radius: 4px !important;
-    font-size: 12px !important;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-}
+/* Priority Colors */
+body.very-strict-mode .priority-high { color: #ef4444; }
+body.very-strict-mode .priority-medium { color: #f59e0b; }
+body.very-strict-mode .priority-low { color: #10b981; }
 
-body.very-strict-mode .leniency-option.active {
-    background: #1a1a1a !important;
-    border-color: #1a1a1a !important;
-}
-
-/* Very Strict Mode - RIASEC Bars */
+/* RIASEC Bars */
 body.very-strict-mode .riasec-bar-track {
     height: 4px;
+    background: rgba(255, 255, 255, 0.1);
     border-radius: 2px;
 }
 
@@ -195,20 +287,210 @@ body.very-strict-mode .riasec-bar-fill {
     border-radius: 2px;
 }
 
-/* Very Strict Mode - Email Capture */
+body.very-strict-mode .riasec-bar-label,
+body.very-strict-mode .riasec-bar-value {
+    color: #ffffff;
+}
+
+/* Email Capture */
 body.very-strict-mode .email-capture {
-    border: 1px solid var(--border-light);
-    background: transparent;
+    border: 1px solid rgba(198, 164, 63, 0.15);
+    background: rgba(255, 255, 255, 0.03);
 }
 
 body.very-strict-mode .email-input input {
+    background: rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(198, 164, 63, 0.2);
     border-radius: 4px;
+    color: #ffffff;
+}
+
+body.very-strict-mode .email-input input:focus {
+    border-color: #c6a43f;
+    outline: none;
 }
 
 body.very-strict-mode .email-input button {
     border-radius: 4px;
-    background: var(--accent-primary);
+    background: #c6a43f;
     text-transform: uppercase;
     letter-spacing: 1px;
     font-size: 11px;
+    color: #0a1628;
+    font-weight: 600;
+}
+
+/* Leniency Option Toggle */
+body.very-strict-mode .leniency-option {
+    border-radius: 4px !important;
+    font-size: 12px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Header Border */
+body.very-strict-mode .header {
+    border-bottom: 1px solid rgba(198, 164, 63, 0.3);
+    padding-bottom: 16px;
+}
+
+/* Mode Badge (add this class to your header if desired) */
+body.very-strict-mode .mode-badge {
+    background: rgba(198, 164, 63, 0.15);
+    border: 1px solid rgba(198, 164, 63, 0.3);
+    border-radius: 40px;
+    padding: 6px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: #c6a43f;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Executive Evaluation Specific Styles */
+body.very-strict-mode .executive-evaluation {
+    position: relative;
+    overflow: hidden;
+}
+
+body.very-strict-mode .executive-badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: rgba(198, 164, 63, 0.15);
+    padding: 6px 16px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: #c6a43f;
+    border-bottom-left-radius: 8px;
+    text-transform: uppercase;
+}
+
+body.very-strict-mode .grade-banner {
+    background: rgba(198, 164, 63, 0.1);
+    border-radius: 8px;
+    padding: 16px 20px;
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+body.very-strict-mode .grade {
+    font-size: 28px;
+    font-weight: 700;
+    color: #c6a43f;
+    font-family: 'Playfair Display', serif;
+}
+
+body.very-strict-mode .metric-card {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+body.very-strict-mode .metric-name {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+body.very-strict-mode .metric-score {
+    color: #c6a43f;
+    font-weight: 700;
+}
+
+body.very-strict-mode .progress-bar {
+    height: 4px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+    overflow: hidden;
+    margin: 8px 0;
+}
+
+body.very-strict-mode .progress-fill {
+    background: #c6a43f;
+    border-radius: 2px;
+    height: 100%;
+}
+
+body.very-strict-mode .legacy-signals {
+    background: rgba(16, 185, 129, 0.1);
+    border-left: 3px solid #10b981;
+    padding: 12px 16px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+}
+
+body.very-strict-mode .concern-signals {
+    background: rgba(239, 68, 68, 0.05);
+    border-left: 3px solid #ef4444;
+    padding: 12px 16px;
+    border-radius: 4px;
+}
+
+body.very-strict-mode .signal-tag {
+    background: rgba(16, 185, 129, 0.15);
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 11px;
+    color: #10b981;
+    display: inline-block;
+}
+
+body.very-strict-mode .concern-tag {
+    background: rgba(239, 68, 68, 0.15);
+    color: #ef4444;
+}
+
+body.very-strict-mode .bullet-suggestion {
+    background: rgba(198, 164, 63, 0.1);
+    border-left: 2px solid #c6a43f;
+    padding: 8px 12px;
+    border-radius: 4px;
+    margin-top: 8px;
+}
+
+/* Scrollbar */
+body.very-strict-mode::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+body.very-strict-mode::-webkit-scrollbar-track {
+    background: #0a1628;
+}
+
+body.very-strict-mode::-webkit-scrollbar-thumb {
+    background: #c6a43f;
+    border-radius: 4px;
+}
+
+body.very-strict-mode::-webkit-scrollbar-thumb:hover {
+    background: #d4b34e;
+}
+
+/* Responsive Adjustments for Very Strict Mode */
+@media (max-width: 768px) {
+    body.very-strict-mode .grade-banner {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    body.very-strict-mode .executive-badge {
+        position: relative;
+        display: inline-block;
+        margin-bottom: 16px;
+        border-radius: 4px;
+    }
+
+    body.very-strict-mode .metric-card {
+        margin-bottom: 12px;
+    }
 }

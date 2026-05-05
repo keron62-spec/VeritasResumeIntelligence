@@ -18,6 +18,7 @@ import ATSEyeViewWarning from './components/ATSEyeViewWarning.jsx';
 import SummaryAnalyzer from './components/SummaryAnalyzer.jsx';
 import BulletAnalyzer from './components/BulletAnalyzer.jsx';
 import ExecutiveEvaluation from './components/ExecutiveEvaluation.jsx';
+import SkillExtractor from './components/SkillExtractor.jsx';
 import { useLeniencyMode } from './hooks/useLeniencyMode.js';
 import { extractDocx } from './utils/parseHelpers.js';
 import { createSafeResult } from './utils/helpers.js';
@@ -526,6 +527,11 @@ export default function App() {
                             bulletAnalysis={result.bullet_analysis} 
                             isComparisonMode={isComparisonMode}
                         />
+                    )}
+                    
+                    {/* Skill Extractor - NEW COMPONENT */}
+                    {result.skill_extractor && (
+                        <SkillExtractor skillExtractor={result.skill_extractor} />
                     )}
                     
                     <div className="results-grid">

@@ -477,7 +477,11 @@ export default function App() {
                         </div>
                     )}
                     
-                    <ScoreDashboard result={result} isComparisonMode={isComparisonMode} />
+                    <ScoreDashboard 
+                        result={result} 
+                        isComparisonMode={isComparisonMode}
+                        recruiterVerdict={result.recruiter_scan_verdict}
+                    />
                     
                     {/* Summary Analyzer */}
                     {result.summary_analysis && (
@@ -503,7 +507,11 @@ export default function App() {
                         executiveActive={result.executive_modifier_active} 
                     />
                     
-                    <BloomSection bloom_analysis={result.bloom_analysis} isComparisonMode={isComparisonMode} />
+                    <BloomSection 
+                        bloom_analysis={result.bloom_analysis} 
+                        isComparisonMode={isComparisonMode}
+                        bloomFlags={result.bloom_analysis?.flags}
+                    />
                     
                     <IssuesList 
                         grammar_issues={result.grammar_issues}
@@ -539,7 +547,10 @@ export default function App() {
                     
                     <MetricQuality metric_quality_breakdown={result.metric_quality_breakdown} />
                     
-                    <ScoreBreakdown breakdown={result.breakdown} />
+                    <ScoreBreakdown 
+                        breakdown={result.breakdown}
+                        buzzwordsDetected={result.buzzwords_detected}
+                    />
                     
                     <EmailCapture 
                         email={email}

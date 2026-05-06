@@ -29,6 +29,21 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
         return 'Weak';
     };
     
+    // Helper to get section icon
+    const getSectionIcon = (section) => {
+        const icons = {
+            'Work Experience': '💼',
+            'Projects': '🚀',
+            'Volunteer Experience': '🤝',
+            'Internships': '🎓',
+            'Leadership': '👔',
+            'Education': '📚',
+            'Skills': '⚙️',
+            'Other': '📄'
+        };
+        return icons[section] || '📄';
+    };
+    
     // Handle case where bullets array is empty but we have summary
     if (!bulletAnalysis.bullets || bulletAnalysis.bullets.length === 0) {
         return (
@@ -141,7 +156,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                 </div>
             )}
             
-            {/* DISCLAIMER - Show in ALL modes (fixed) */}
+            {/* DISCLAIMER - Show in ALL modes */}
             {bulletAnalysis.overall_disclaimer && (
                 <div style={{
                     backgroundColor: 'rgba(245, 158, 11, 0.1)',
@@ -194,7 +209,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                             padding: '12px',
                             backgroundColor: originalScore < 50 ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-tertiary)'
                         }}>
-                            {/* Header with Score */}
+                            {/* Header with ID and Score */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
                                 <div style={{ fontWeight: '600', fontSize: '12px', color: 'var(--text-muted)' }}>
                                     {bullet.id}
@@ -208,6 +223,37 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                                     </div>
                                 </div>
                             </div>
+                            
+                            {/* SECTION CONTEXT - NEW: Company, Role, Section Display */}
+                            {(bullet.company || bullet.role || bullet.section) && (
+                                <div style={{
+                                    display: 'flex',
+                                    flexWrap: 'wrap',
+                                    gap: '12px',
+                                    marginBottom: '10px',
+                                    padding: '6px 8px',
+                                    backgroundColor: 'var(--bg-primary)',
+                                    borderRadius: '6px',
+                                    fontSize: '10px',
+                                    color: 'var(--text-muted)'
+                                }}>
+                                    {bullet.company && (
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <span>🏢</span> {bullet.company}
+                                        </span>
+                                    )}
+                                    {bullet.role && (
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <span>💼</span> {bullet.role}
+                                        </span>
+                                    )}
+                                    {bullet.section && (
+                                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                            <span>{getSectionIcon(bullet.section)}</span> {bullet.section}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                             
                             {/* Original Bullet Text */}
                             <div style={{ fontSize: '13px', lineHeight: '1.4', marginBottom: '8px', color: 'var(--text-primary)' }}>
@@ -238,7 +284,9 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                                     gap: '12px', 
                                     marginBottom: '10px',
                                     padding: '6px 0',
-                                    fontSize: '11px'
+                                    fontSize: '11px',
+                                    borderTop: '1px dashed var(--border-light)',
+                                    borderBottom: '1px dashed var(--border-light)'
                                 }}>
                                     <span style={{ color: 'var(--text-muted)' }}>Original Score: <strong style={{ color: getScoreColor(originalScore) }}>{originalScore}</strong></span>
                                     <span style={{ color: 'var(--text-muted)' }}>→</span>

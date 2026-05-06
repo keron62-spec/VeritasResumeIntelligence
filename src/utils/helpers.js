@@ -185,6 +185,11 @@ export const createSafeResult = (result, resumePdfHealth) => {
       bullet_analysis: normalizedResult.bullet_analysis || null,
       
       // ============================================================
+      // SKILL EXTRACTOR - ADDED FOR V8.7
+      // ============================================================
+      skill_extractor: normalizedResult.skill_extractor || null,
+      
+      // ============================================================
       // EXECUTIVE MODIFIER - ADDED FOR V8.5
       // ============================================================
       executive_modifier_active: normalizedResult.executive_modifier_active ?? false,

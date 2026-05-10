@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header.jsx';
 import FileUploadSection from './components/FileUploadSection.jsx';
 import ScoreDashboard from './components/ScoreDashboard.jsx';
@@ -19,7 +19,9 @@ import SummaryAnalyzer from './components/SummaryAnalyzer.jsx';
 import BulletAnalyzer from './components/BulletAnalyzer.jsx';
 import ExecutiveEvaluation from './components/ExecutiveEvaluation.jsx';
 import SkillExtractor from './components/SkillExtractor.jsx';
+import HiddenBriefCard from './components/HiddenBriefCard.jsx';
 import { useLeniencyMode } from './hooks/useLeniencyMode.js';
+import { useHiddenBrief } from './hooks/useHiddenBrief.js';
 import { extractDocx } from './utils/parseHelpers.js';
 import { createSafeResult } from './utils/helpers.js';
 import './styles/leniency-modes.css';
@@ -79,6 +81,118 @@ export default function App() {
         isLenient,
         isNormal
     } = useLeniencyMode();
+
+    // ============================================================
+    // HIDDEN BRIEF INTEGRATION - NEW CODE
+    // ============================================================
+    const {
+        analysis: hiddenBriefAnalysis,
+        loading: hiddenBriefLoading,
+        error: hiddenBriefError,
+        transformingBullets: hbTransformingBullets,
+        transformingSummary: hbTransformingSummary,
+        analyze: analyzeHiddenBrief,
+        transformBullets: transformBulletsWithHB,
+        transformSummary: transformSummaryWithHB
+    } = useHiddenBrief();
+
+    // Track whether hidden brief has been triggered for this JD/resume
+    const [hiddenBriefTriggered, setHiddenBriefTriggered] = useState(false);
+
+    // Trigger hidden brief analysis after main analysis completes
+    useEffect(() => {
+        if (result && isComparisonMode && jobDescriptionText && jobDescriptionText.trim().length >= 500 && !hiddenBriefAnalysis && !hiddenBriefLoading && !hiddenBriefTriggered) {
+            setHiddenBriefTriggered(true);
+            analyzeHiddenBrief(jobDescriptionText, resumeText);
+        }
+    }, [result, isComparisonMode, jobDescriptionText, resumeText, hiddenBriefAnalysis, hiddenBriefLoading, hiddenBriefTriggered, analyzeHiddenBrief]);
+
+    // Handler for applying hidden brief transformations to bullets
+    const handleApplyHiddenBriefToBullets = useCallback(async () => {
+        if (!hiddenBriefAnalysis || !jobDescriptionText || !result?.bullet_analysis?.bullets) {
+            alert('Hidden brief analysis not available. Please ensure both JD and resume are loaded.');
+            return;
+        }
+        
+        const bullets = result.bullet_analysis.bullets.map(b => ({
+            id: b.id,
+            original_text: b.original_text,
+            context: {
+                role: b.role || null,
+                company: b.company || null,
+                section: b.section || null
+            }
+        }));
+        
+        const transformedBullets = await transformBulletsWithHB(
+            jobDescriptionText,
+            hiddenBriefAnalysis,
+            bullets
+        );
+        
+        if (transformedBullets) {
+            setResult(prev => {
+                if (!prev) return prev;
+                
+                const updatedBullets = prev.bullet_analysis.bullets.map(originalBullet => {
+                    const matching = transformedBullets.find(tb => tb.id === originalBullet.id);
+                    if (matching) {
+                        return {
+                            ...originalBullet,
+                            hb_transformed_text: matching.transformed_text
+                        };
+                    }
+                    return originalBullet;
+                });
+                
+                return {
+                    ...prev,
+                    bullet_analysis: {
+                        ...prev.bullet_analysis,
+                        bullets: updatedBullets
+                    }
+                };
+            });
+        }
+    }, [hiddenBriefAnalysis, jobDescriptionText, result, transformBulletsWithHB]);
+
+    // Handler for applying hidden brief transformations to summary
+    const handleApplyHiddenBriefToSummary = useCallback(async () => {
+        if (!hiddenBriefAnalysis || !jobDescriptionText) {
+            alert('Hidden brief analysis not available. Please ensure both JD and resume are loaded.');
+            return;
+        }
+        
+        const originalSummary = result?.summary_analysis?.original_text || '';
+        
+        const transformedSummary = await transformSummaryWithHB(
+            jobDescriptionText,
+            hiddenBriefAnalysis,
+            originalSummary
+        );
+        
+        if (transformedSummary) {
+            setResult(prev => {
+                if (!prev) return prev;
+                
+                return {
+                    ...prev,
+                    summary_analysis: {
+                        ...prev.summary_analysis,
+                        hb_transformed_summary: transformedSummary
+                    }
+                };
+            });
+        }
+    }, [hiddenBriefAnalysis, jobDescriptionText, result, transformSummaryWithHB]);
+
+    // Reset hidden brief trigger when JD changes or analysis resets
+    useEffect(() => {
+        setHiddenBriefTriggered(false);
+    }, [jobDescriptionText, resumeText]);
+    // ============================================================
+    // END HIDDEN BRIEF INTEGRATION
+    // ============================================================
 
     // Dark Mode Effect
     useEffect(() => {
@@ -254,6 +368,9 @@ export default function App() {
             return;
         }
         
+        // Reset hidden brief trigger for new analysis
+        setHiddenBriefTriggered(false);
+        
         setIsAnalyzing(true);
         setLoading(true);
         setAnalysisStage('🤖 Connecting to AI...');
@@ -334,6 +451,8 @@ export default function App() {
         setPdfIssues(null);
         setPdfFile(null);
         setShowWarning(true);
+        // Reset hidden brief state
+        setHiddenBriefTriggered(false);
     };
 
     // Helper to check if data exists in raw response
@@ -343,6 +462,9 @@ export default function App() {
         if (rawApiResponse.result?.[field]) return `${rawApiResponse.result[field].length} items`;
         return 'MISSING';
     };
+
+    // Helper to check if JD is long enough for hidden brief
+    const isJDlongEnough = jobDescriptionText && jobDescriptionText.trim().length >= 500;
 
     return (
         <div className="container">
@@ -483,6 +605,71 @@ export default function App() {
                         isComparisonMode={isComparisonMode}
                         recruiterVerdict={result.recruiter_scan_verdict}
                     />
+                    
+                    {/* ============================================================ */}
+                    {/* HIDDEN BRIEF INTELLIGENCE CARD - NEW SECTION */}
+                    {/* ============================================================ */}
+                    {isComparisonMode && isJDlongEnough && (
+                        <>
+                            {hiddenBriefLoading && (
+                                <div style={{
+                                    backgroundColor: 'var(--bg-secondary)',
+                                    borderRadius: '12px',
+                                    padding: '20px',
+                                    marginBottom: '20px',
+                                    textAlign: 'center',
+                                    border: '1px solid var(--border-light)'
+                                }}>
+                                    <div className="spinner" style={{ width: '24px', height: '24px', margin: '0 auto 12px' }}></div>
+                                    <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                                        🕵️ Analyzing job description for hidden insights...
+                                    </p>
+                                </div>
+                            )}
+                            
+                            {hiddenBriefError && (
+                                <div style={{
+                                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                    borderRadius: '12px',
+                                    padding: '16px',
+                                    marginBottom: '20px',
+                                    border: '1px solid #ef4444'
+                                }}>
+                                    <p style={{ fontSize: '13px', color: '#ef4444', margin: 0 }}>
+                                        ⚠️ Hidden brief analysis failed: {hiddenBriefError}
+                                    </p>
+                                </div>
+                            )}
+                            
+                            {hiddenBriefAnalysis && (
+                                <HiddenBriefCard 
+                                    hiddenBrief={hiddenBriefAnalysis}
+                                    onApplyToBullets={handleApplyHiddenBriefToBullets}
+                                    onApplyToSummary={handleApplyHiddenBriefToSummary}
+                                    isApplyingBullets={hbTransformingBullets}
+                                    isApplyingSummary={hbTransformingSummary}
+                                />
+                            )}
+                        </>
+                    )}
+                    
+                    {/* Show note when JD is too short for hidden brief */}
+                    {isComparisonMode && jobDescriptionText && jobDescriptionText.trim().length > 0 && jobDescriptionText.trim().length < 500 && (
+                        <div style={{
+                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                            borderRadius: '12px',
+                            padding: '12px 16px',
+                            marginBottom: '20px',
+                            borderLeft: '3px solid #f59e0b'
+                        }}>
+                            <p style={{ fontSize: '12px', margin: 0, color: 'var(--text-secondary)' }}>
+                                💡 Job description is under 500 words. Hidden brief analysis requires at least 500 words for reliable insights.
+                            </p>
+                        </div>
+                    )}
+                    {/* ============================================================ */}
+                    {/* END HIDDEN BRIEF SECTION */}
+                    {/* ============================================================ */}
                     
                     {/* Summary Analyzer */}
                     {result.summary_analysis && (

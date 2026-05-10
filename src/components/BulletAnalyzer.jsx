@@ -4,6 +4,10 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
     const [expandedBullet, setExpandedBullet] = useState(null);
     const [copiedBulletId, setCopiedBulletId] = useState(null);
     
+    // ADDED: Sort controls state
+    const [sortBy, setSortBy] = useState('score_asc'); // default: weakest first
+    const [scoreVersion, setScoreVersion] = useState('original'); // 'original' | 'veritas' | 'hidden_brief'
+    
     // Check if bulletAnalysis exists and has data
     if (!bulletAnalysis) {
         return null;
@@ -29,6 +33,97 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
         return 'Weak';
     };
     
+    // ADDED: Helper to get score value based on selected version
+    const getScoreValue = (bullet, version) => {
+        switch(version) {
+            case 'original':
+                return bullet.original_score || 0;
+            case 'veritas':
+                return bullet.transformed_score || bullet.original_score || 0;
+            case 'hidden_brief':
+                return bullet.hb_score || bullet.original_score || 0;
+            default:
+                return bullet.original_score || 0;
+        }
+    };
+    
+    // ADDED: Helper to get label based on selected version
+    const getScoreLabelForVersion = (bullet, version) => {
+        const score = getScoreValue(bullet, version);
+        if (version === 'veritas' && bullet.transformed_label) return bullet.transformed_label;
+        if (version === 'hidden_brief' && bullet.hb_label) return bullet.hb_label;
+        return getScoreLabel(score);
+    };
+    
+    // ADDED: Sorting function with multiple sort options
+    const getSortedBullets = (bullets, sortByVal, version) => {
+        const bulletsCopy = [...bullets];
+        
+        switch(sortByVal) {
+            case 'score_asc':
+                return bulletsCopy.sort((a, b) => getScoreValue(a, version) - getScoreValue(b, version));
+            case 'score_desc':
+                return bulletsCopy.sort((a, b) => getScoreValue(b, version) - getScoreValue(a, version));
+            case 'company_asc':
+                return bulletsCopy.sort((a, b) => (a.company || '').localeCompare(b.company || ''));
+            case 'company_desc':
+                return bulletsCopy.sort((a, b) => (b.company || '').localeCompare(a.company || ''));
+            case 'role_asc':
+                return bulletsCopy.sort((a, b) => (a.role || '').localeCompare(b.role || ''));
+            case 'role_desc':
+                return bulletsCopy.sort((a, b) => (b.role || '').localeCompare(a.role || ''));
+            case 'section':
+                const sectionOrder = { 
+                    'Work Experience': 1, 
+                    'Projects': 2, 
+                    'Leadership': 3, 
+                    'Volunteer Experience': 4, 
+                    'Volunteer': 4,
+                    'Internships': 5,
+                    'Education': 6,
+                    'Skills': 7,
+                    'Other': 99 
+                };
+                return bulletsCopy.sort((a, b) => (sectionOrder[a.section] || 99) - (sectionOrder[b.section] || 99));
+            case 'improvement_delta':
+                return bulletsCopy.sort((a, b) => {
+                    const deltaA = (a.transformed_score || a.original_score || 0) - (a.original_score || 0);
+                    const deltaB = (b.transformed_score || b.original_score || 0) - (b.original_score || 0);
+                    return deltaB - deltaA;
+                });
+            case 'hb_improvement':
+                return bulletsCopy.sort((a, b) => {
+                    const deltaA = (a.hb_score || a.original_score || 0) - (a.original_score || 0);
+                    const deltaB = (b.hb_score || b.original_score || 0) - (b.original_score || 0);
+                    return deltaB - deltaA;
+                });
+            case 'original_order':
+            default:
+                return bulletsCopy;
+        }
+    };
+    
+    // ADDED: Sort options array
+    const sortOptions = [
+        { value: 'score_asc', label: 'Weakest First' },
+        { value: 'score_desc', label: 'Strongest First' },
+        { value: 'company_asc', label: 'Company (A-Z)' },
+        { value: 'company_desc', label: 'Company (Z-A)' },
+        { value: 'role_asc', label: 'Role (A-Z)' },
+        { value: 'role_desc', label: 'Role (Z-A)' },
+        { value: 'section', label: 'Section (Work → Projects → Other)' },
+        { value: 'original_order', label: 'Original Order' },
+        { value: 'improvement_delta', label: '✨ Biggest Veritas Gain' },
+        { value: 'hb_improvement', label: '🕵️ Biggest Hidden Brief Gain' }
+    ];
+    
+    // ADDED: Score version options
+    const scoreVersionOptions = [
+        { value: 'original', label: 'Original Score', icon: '📊' },
+        { value: 'veritas', label: 'Veritas Score', icon: '✨' },
+        { value: 'hidden_brief', label: 'Hidden Brief Score', icon: '🕵️' }
+    ];
+    
     // Helper to get section icon
     const getSectionIcon = (section) => {
         const icons = {
@@ -43,6 +138,9 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
         };
         return icons[section] || '📄';
     };
+    
+    // ADDED: Check if hidden brief data exists in any bullet
+    const hasHiddenBriefData = bulletAnalysis.bullets?.some(b => b.hb_score !== undefined || b.hb_transformed_text);
     
     // Handle case where bullets array is empty but we have summary
     if (!bulletAnalysis.bullets || bulletAnalysis.bullets.length === 0) {
@@ -114,8 +212,24 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
     // Determine if we're in JD Comparison mode (has jd_context)
     const isJDComparison = isComparisonMode && bulletAnalysis.jd_context;
     
-    // Sort bullets by original score (weakest first)
-    const sortedBullets = [...bulletAnalysis.bullets].sort((a, b) => a.original_score - b.original_score);
+    // ADDED: Apply sorting to bullets
+    const sortedBullets = getSortedBullets(bulletAnalysis.bullets, sortBy, scoreVersion);
+    
+    // ADDED: Get active sort display text for chip
+    const getSortDisplayText = () => {
+        switch(sortBy) {
+            case 'score_asc': return '📈 Weakest first';
+            case 'score_desc': return '📉 Strongest first';
+            case 'company_asc': return '🏢 A-Z';
+            case 'company_desc': return '🏢 Z-A';
+            case 'role_asc': return '💼 A-Z';
+            case 'role_desc': return '💼 Z-A';
+            case 'section': return '📂 By section';
+            case 'improvement_delta': return '✨ Biggest Veritas gain';
+            case 'hb_improvement': return '🕵️ Biggest HB gain';
+            default: return '📋 Original order';
+        }
+    };
     
     return (
         <div className="bullet-analyzer" style={{
@@ -192,15 +306,123 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                 <span>🔍 Bullets Assessed: <strong>{bulletAnalysis.bullets_assessed}</strong></span>
             </div>
             
+            {/* ADDED: Sort Controls */}
+            <div style={{ 
+                display: 'flex', 
+                justifyContent: 'space-between', 
+                alignItems: 'center',
+                marginBottom: '16px',
+                paddingBottom: '12px',
+                borderBottom: '1px solid var(--border-light)',
+                flexWrap: 'wrap',
+                gap: '12px'
+            }}>
+                <div style={{ fontSize: '12px', fontWeight: '500', color: 'var(--text-muted)' }}>
+                    📋 {sortedBullets.length} bullets
+                    {scoreVersion !== 'original' && (
+                        <span style={{ 
+                            marginLeft: '8px', 
+                            fontSize: '10px', 
+                            padding: '2px 6px', 
+                            backgroundColor: scoreVersion === 'hidden_brief' ? 'rgba(198, 164, 63, 0.15)' : 'rgba(37, 99, 235, 0.1)',
+                            borderRadius: '12px',
+                            color: scoreVersion === 'hidden_brief' ? '#c9a84c' : '#2563eb'
+                        }}>
+                            {scoreVersion === 'hidden_brief' ? '🕵️ Hidden Brief scores' : '✨ Veritas scores'}
+                        </span>
+                    )}
+                </div>
+                
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+                    {/* Score version selector - only show if hidden brief data exists */}
+                    {hasHiddenBriefData && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                            <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Score:</span>
+                            <div style={{ display: 'flex', gap: '2px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '6px', padding: '2px' }}>
+                                {scoreVersionOptions.map(opt => (
+                                    <button
+                                        key={opt.value}
+                                        onClick={() => setScoreVersion(opt.value)}
+                                        style={{
+                                            padding: '4px 10px',
+                                            fontSize: '11px',
+                                            borderRadius: '4px',
+                                            border: 'none',
+                                            backgroundColor: scoreVersion === opt.value ? 
+                                                (opt.value === 'hidden_brief' ? '#c9a84c' : '#2563eb') : 
+                                                'transparent',
+                                            color: scoreVersion === opt.value ? '#fff' : 'var(--text-muted)',
+                                            cursor: 'pointer',
+                                            transition: 'all 0.2s'
+                                        }}
+                                    >
+                                        {opt.icon} {opt.value === 'hidden_brief' ? 'HB' : opt.value === 'veritas' ? 'VT' : 'OG'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                    
+                    {/* Sort by selector */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Sort by:</span>
+                        <select 
+                            value={sortBy}
+                            onChange={(e) => setSortBy(e.target.value)}
+                            style={{
+                                padding: '6px 10px',
+                                borderRadius: '6px',
+                                border: '1px solid var(--border-light)',
+                                background: 'var(--bg-secondary)',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            {sortOptions.map(opt => {
+                                // Show HB-specific options only if HB data exists
+                                if ((opt.value === 'hb_improvement') && !hasHiddenBriefData) {
+                                    return null;
+                                }
+                                return (
+                                    <option key={opt.value} value={opt.value}>
+                                        {opt.label}
+                                    </option>
+                                );
+                            })}
+                        </select>
+                    </div>
+                    
+                    {/* Active sort chip */}
+                    <div style={{
+                        fontSize: '10px',
+                        padding: '2px 8px',
+                        backgroundColor: 'var(--bg-tertiary)',
+                        borderRadius: '12px',
+                        color: 'var(--text-muted)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px'
+                    }}>
+                        {getSortDisplayText()}
+                    </div>
+                </div>
+            </div>
+            
             {/* Bullet List */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {sortedBullets.map((bullet, idx) => {
+                    // ADDED: Get score based on selected version
+                    const currentScore = getScoreValue(bullet, scoreVersion);
+                    const currentLabel = getScoreLabelForVersion(bullet, scoreVersion);
+                    const scoreColor = getScoreColor(currentScore);
+                    
+                    // Original values for comparison
                     const originalScore = bullet.original_score;
                     const transformedScore = bullet.transformed_score;
-                    const hasTransformation = bullet.transformed_text && bullet.transformed_text !== bullet.original_text;
+                    const hbScore = bullet.hb_score;
+                    const hasVeritasTransformation = bullet.transformed_text && bullet.transformed_text !== bullet.original_text;
+                    const hasHBTransformation = bullet.hb_transformed_text && bullet.hb_transformed_text !== bullet.original_text;
                     const improvementDelta = bullet.improvement_delta || (transformedScore - originalScore);
-                    const scoreColor = getScoreColor(hasTransformation ? transformedScore : originalScore);
-                    const scoreLabel = getScoreLabel(hasTransformation ? transformedScore : originalScore);
                     
                     return (
                         <div key={bullet.id} style={{
@@ -209,17 +431,29 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                             padding: '12px',
                             backgroundColor: originalScore < 50 ? 'rgba(239, 68, 68, 0.05)' : 'var(--bg-tertiary)'
                         }}>
-                            {/* Header with ID and Score */}
+                            {/* Header with ID and Score - UPDATED to show current version score */}
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
                                 <div style={{ fontWeight: '600', fontSize: '12px', color: 'var(--text-muted)' }}>
                                     {bullet.id}
+                                    {scoreVersion !== 'original' && (
+                                        <span style={{ 
+                                            marginLeft: '6px', 
+                                            fontSize: '9px', 
+                                            padding: '1px 4px', 
+                                            backgroundColor: scoreVersion === 'hidden_brief' ? 'rgba(198, 164, 63, 0.15)' : 'rgba(37, 99, 235, 0.1)',
+                                            borderRadius: '4px',
+                                            color: scoreVersion === 'hidden_brief' ? '#c9a84c' : '#2563eb'
+                                        }}>
+                                            {scoreVersion === 'hidden_brief' ? 'HB' : 'VT'}
+                                        </span>
+                                    )}
                                 </div>
                                 <div style={{ textAlign: 'center', minWidth: '60px' }}>
                                     <div style={{ fontSize: '24px', fontWeight: '600', color: scoreColor }}>
-                                        {hasTransformation ? transformedScore : originalScore}
+                                        {currentScore}
                                     </div>
                                     <div style={{ fontSize: '10px', color: scoreColor }}>
-                                        {scoreLabel}
+                                        {currentLabel}
                                     </div>
                                 </div>
                             </div>
@@ -277,28 +511,38 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                                 </div>
                             )}
                             
-                            {/* Score Comparison (if transformed) */}
-                            {hasTransformation && originalScore !== transformedScore && (
+                            {/* Score Comparison (if transformed) - UPDATED to show multiple versions */}
+                            {(hasVeritasTransformation || hasHBTransformation) && (
                                 <div style={{ 
                                     display: 'flex', 
-                                    gap: '12px', 
+                                    gap: '16px', 
                                     marginBottom: '10px',
-                                    padding: '6px 0',
+                                    padding: '8px 0',
                                     fontSize: '11px',
                                     borderTop: '1px dashed var(--border-light)',
-                                    borderBottom: '1px dashed var(--border-light)'
+                                    borderBottom: '1px dashed var(--border-light)',
+                                    flexWrap: 'wrap'
                                 }}>
-                                    <span style={{ color: 'var(--text-muted)' }}>Original Score: <strong style={{ color: getScoreColor(originalScore) }}>{originalScore}</strong></span>
-                                    <span style={{ color: 'var(--text-muted)' }}>→</span>
-                                    <span style={{ color: 'var(--text-muted)' }}>Optimized Score: <strong style={{ color: getScoreColor(transformedScore) }}>{transformedScore}</strong></span>
-                                    {improvementDelta > 0 && (
-                                        <span style={{ color: '#10b981' }}>+{improvementDelta} points</span>
+                                    <span style={{ color: 'var(--text-muted)' }}>Original: <strong style={{ color: getScoreColor(originalScore) }}>{originalScore}</strong></span>
+                                    {hasVeritasTransformation && (
+                                        <>
+                                            <span style={{ color: 'var(--text-muted)' }}>→</span>
+                                            <span style={{ color: 'var(--text-muted)' }}>Veritas: <strong style={{ color: getScoreColor(transformedScore) }}>{transformedScore}</strong></span>
+                                            {improvementDelta > 0 && <span style={{ color: '#10b981' }}>+{improvementDelta}</span>}
+                                        </>
+                                    )}
+                                    {hasHBTransformation && bullet.hb_score && (
+                                        <>
+                                            <span style={{ color: 'var(--text-muted)' }}>→</span>
+                                            <span style={{ color: 'var(--text-muted)' }}>HB: <strong style={{ color: getScoreColor(bullet.hb_score) }}>{bullet.hb_score}</strong></span>
+                                            {bullet.hb_improvement_delta > 0 && <span style={{ color: '#c9a84c' }}>+{bullet.hb_improvement_delta}</span>}
+                                        </>
                                     )}
                                 </div>
                             )}
                             
-                            {/* TRANSFORMATION SECTION - Shows for ALL bullets with transformed_text */}
-                            {hasTransformation && (
+                            {/* VERITAS TRANSFORMATION SECTION - Shows for bullets with Veritas transformed_text */}
+                            {hasVeritasTransformation && (
                                 <div style={{
                                     marginTop: '10px',
                                     padding: '12px',
@@ -308,7 +552,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                                 }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
                                         <strong style={{ fontSize: '12px' }}>
-                                            {isJDComparison ? '✏️ JD-Optimized Version' : '✏️ Suggested Rewrite'}
+                                            {isJDComparison ? '✏️ JD-Optimized Version' : '✏️ Suggested Rewrite (Veritas)'}
                                         </strong>
                                         {improvementDelta !== undefined && improvementDelta !== 0 && (
                                             <span style={{ 
@@ -346,7 +590,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                                     {/* Copy Button */}
                                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                                         <button
-                                            onClick={() => copyToClipboard(bullet.transformed_text, bullet.id)}
+                                            onClick={() => copyToClipboard(bullet.transformed_text, `${bullet.id}_vt`)}
                                             style={{
                                                 padding: '4px 10px',
                                                 background: '#10b981',
@@ -360,7 +604,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                                                 gap: '4px'
                                             }}
                                         >
-                                            {copiedBulletId === bullet.id ? '✓ Copied!' : '📋 Copy to Clipboard'}
+                                            {copiedBulletId === `${bullet.id}_vt` ? '✓ Copied!' : '📋 Copy to Clipboard'}
                                         </button>
                                         {bullet.confidence && (
                                             <span style={{ fontSize: '9px', color: 'var(--text-muted)', alignSelf: 'center' }}>
@@ -376,33 +620,164 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                                 </div>
                             )}
                             
-                            {/* Score Breakdown (Expandable) */}
+                            {/* ADDED: HIDDEN BRIEF TRANSFORMATION SECTION - Shows for bullets with HB transformed_text */}
+                            {hasHBTransformation && (
+                                <div style={{
+                                    marginTop: '10px',
+                                    padding: '12px',
+                                    backgroundColor: 'rgba(198, 164, 63, 0.1)',
+                                    borderRadius: '8px',
+                                    borderLeft: '3px solid #c9a84c'
+                                }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                                        <strong style={{ fontSize: '12px' }}>
+                                            🕵️ Hidden Brief Version (Insider Intelligence)
+                                        </strong>
+                                        {bullet.hb_improvement_delta !== undefined && bullet.hb_improvement_delta !== 0 && (
+                                            <span style={{ 
+                                                fontSize: '11px', 
+                                                color: bullet.hb_improvement_delta > 0 ? '#c9a84c' : '#ef4444',
+                                                fontWeight: '600'
+                                            }}>
+                                                {bullet.hb_improvement_delta > 0 ? `+${bullet.hb_improvement_delta}` : bullet.hb_improvement_delta} point improvement
+                                            </span>
+                                        )}
+                                    </div>
+                                    
+                                    {/* HB Transformed Bullet Text */}
+                                    <div style={{ fontSize: '13px', lineHeight: '1.5', marginBottom: '10px', fontWeight: '500' }}>
+                                        {bullet.hb_transformed_text}
+                                    </div>
+                                    
+                                    {/* HB Changes Made */}
+                                    {bullet.hb_changes_made && bullet.hb_changes_made.length > 0 && (
+                                        <div style={{ marginBottom: '8px' }}>
+                                            <div style={{ fontSize: '10px', fontWeight: '600', marginBottom: '4px', color: '#c9a84c' }}>
+                                                What hidden brief changed:
+                                            </div>
+                                            <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '10px', color: 'var(--text-secondary)' }}>
+                                                {bullet.hb_changes_made.slice(0, 4).map((change, i) => (
+                                                    <li key={i} style={{ marginBottom: '2px' }}>{change}</li>
+                                                ))}
+                                                {bullet.hb_changes_made.length > 4 && (
+                                                    <li style={{ color: 'var(--text-muted)' }}>+{bullet.hb_changes_made.length - 4} more improvements</li>
+                                                )}
+                                            </ul>
+                                        </div>
+                                    )}
+                                    
+                                    {/* HB Insight Note */}
+                                    {bullet.hb_insight_note && (
+                                        <div style={{ 
+                                            marginBottom: '8px', 
+                                            fontSize: '10px', 
+                                            color: '#c9a84c',
+                                            fontStyle: 'italic',
+                                            padding: '4px 0'
+                                        }}>
+                                            💡 {bullet.hb_insight_note}
+                                        </div>
+                                    )}
+                                    
+                                    {/* HB Copy Button */}
+                                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                                        <button
+                                            onClick={() => copyToClipboard(bullet.hb_transformed_text, `${bullet.id}_hb`)}
+                                            style={{
+                                                padding: '4px 10px',
+                                                background: '#c9a84c',
+                                                color: '#1a1f2e',
+                                                border: 'none',
+                                                borderRadius: '4px',
+                                                fontSize: '10px',
+                                                cursor: 'pointer',
+                                                display: 'inline-flex',
+                                                alignItems: 'center',
+                                                gap: '4px'
+                                            }}
+                                        >
+                                            {copiedBulletId === `${bullet.id}_hb` ? '✓ Copied!' : '📋 Copy Hidden Brief Version'}
+                                        </button>
+                                        {bullet.hb_confidence && (
+                                            <span style={{ fontSize: '9px', color: 'var(--text-muted)', alignSelf: 'center' }}>
+                                                HB Confidence: {Math.round(bullet.hb_confidence * 100)}%
+                                            </span>
+                                        )}
+                                        {bullet.hb_preserves_truth !== false && (
+                                            <span style={{ fontSize: '9px', color: '#c9a84c', alignSelf: 'center' }}>
+                                                ✓ Preserves original truth
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {/* Score Breakdown (Expandable) - UPDATED to show selected version scores */}
                             <details style={{ marginTop: '8px' }}>
                                 <summary style={{ fontSize: '10px', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                                    Show score breakdown
+                                    Show score breakdown {scoreVersion !== 'original' && `(${scoreVersion === 'hidden_brief' ? 'Hidden Brief' : 'Veritas'} scores)`}
                                 </summary>
                                 <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '8px', fontSize: '10px' }}>
-                                    {bullet.scores && Object.entries(bullet.scores).map(([key, value]) => {
-                                        let max = 25;
-                                        if (key === 'keyword_match') max = 35;
-                                        else if (key === 'verb_alignment') max = 20;
-                                        else if (key === 'outcome_relevance') max = 20;
-                                        else if (key === 'level_match') max = 15;
-                                        else if (key === 'industry_match') max = 10;
-                                        
-                                        return (
-                                            <div key={key} style={{ 
-                                                backgroundColor: 'var(--bg-secondary)', 
-                                                padding: '2px 6px', 
-                                                borderRadius: '4px' 
-                                            }}>
-                                                {key.replace(/_/g, ' ')}: {value}/{max}
-                                            </div>
-                                        );
-                                    })}
-                                    {!bullet.scores && (
+                                    {scoreVersion === 'hidden_brief' && bullet.hb_scores ? (
+                                        Object.entries(bullet.hb_scores).map(([key, value]) => {
+                                            let max = 25;
+                                            if (key === 'keyword_match') max = 35;
+                                            else if (key === 'verb_alignment') max = 20;
+                                            else if (key === 'outcome_relevance') max = 20;
+                                            else if (key === 'level_match') max = 15;
+                                            else if (key === 'industry_match') max = 10;
+                                            
+                                            return (
+                                                <div key={key} style={{ 
+                                                    backgroundColor: 'rgba(198, 164, 63, 0.1)', 
+                                                    padding: '2px 6px', 
+                                                    borderRadius: '4px' 
+                                                }}>
+                                                    {key.replace(/_/g, ' ')}: {value}/{max}
+                                                </div>
+                                            );
+                                        })
+                                    ) : scoreVersion === 'veritas' && bullet.scores ? (
+                                        Object.entries(bullet.scores).map(([key, value]) => {
+                                            let max = 25;
+                                            if (key === 'keyword_match') max = 35;
+                                            else if (key === 'verb_alignment') max = 20;
+                                            else if (key === 'outcome_relevance') max = 20;
+                                            else if (key === 'level_match') max = 15;
+                                            else if (key === 'industry_match') max = 10;
+                                            
+                                            return (
+                                                <div key={key} style={{ 
+                                                    backgroundColor: 'var(--bg-secondary)', 
+                                                    padding: '2px 6px', 
+                                                    borderRadius: '4px' 
+                                                }}>
+                                                    {key.replace(/_/g, ' ')}: {value}/{max}
+                                                </div>
+                                            );
+                                        })
+                                    ) : bullet.scores ? (
+                                        Object.entries(bullet.scores).map(([key, value]) => {
+                                            let max = 25;
+                                            if (key === 'keyword_match') max = 35;
+                                            else if (key === 'verb_alignment') max = 20;
+                                            else if (key === 'outcome_relevance') max = 20;
+                                            else if (key === 'level_match') max = 15;
+                                            else if (key === 'industry_match') max = 10;
+                                            
+                                            return (
+                                                <div key={key} style={{ 
+                                                    backgroundColor: 'var(--bg-secondary)', 
+                                                    padding: '2px 6px', 
+                                                    borderRadius: '4px' 
+                                                }}>
+                                                    {key.replace(/_/g, ' ')}: {value}/{max}
+                                                </div>
+                                            );
+                                        })
+                                    ) : (
                                         <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
-                                            Score details not available
+                                            Score details not available for this version
                                         </div>
                                     )}
                                 </div>
@@ -412,8 +787,8 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                 })}
             </div>
             
-            {/* Weakest First Note */}
-            {bulletAnalysis.weakest_first && bulletAnalysis.weakest_first.length > 0 && (
+            {/* Weakest First Note - UPDATED to reflect current sort */}
+            {sortBy === 'score_asc' && bulletAnalysis.weakest_first && bulletAnalysis.weakest_first.length > 0 && (
                 <div style={{
                     marginTop: '16px',
                     padding: '8px',
@@ -423,7 +798,7 @@ export default function BulletAnalyzer({ bulletAnalysis, isComparisonMode }) {
                     textAlign: 'center',
                     color: 'var(--text-muted)'
                 }}>
-                    💡 Weakest bullets shown first. Focus on improving the ones at the top.
+                    💡 Weakest bullets shown first (based on {scoreVersion === 'hidden_brief' ? 'Hidden Brief scores' : scoreVersion === 'veritas' ? 'Veritas scores' : 'original scores'}). Focus on improving the ones at the top.
                 </div>
             )}
         </div>

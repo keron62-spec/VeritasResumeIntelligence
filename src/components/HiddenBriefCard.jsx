@@ -13,7 +13,8 @@ export default function HiddenBriefCard({
     requirements: true,
     bottlenecks: true,
     contradictions: false,
-    repetitions: false
+    repetitions: false,
+    unicorn: true  // ADDED - new section state
   });
 
   const toggleSection = (section) => {
@@ -35,7 +36,8 @@ export default function HiddenBriefCard({
     repetition_signals,
     stakeholder_complexity,
     recommendation_summary,
-    analysis_limitations
+    analysis_limitations,
+    unicorn_detection  // ADDED - new field
   } = hiddenBrief;
 
   // Helper to get risk color
@@ -61,6 +63,21 @@ export default function HiddenBriefCard({
       default: return '#64748b';
     }
   };
+
+  // Helper to get unicorn banner color based on severity
+  const getUnicornColor = (severity) => {
+    switch(severity) {
+      case 'critical': return { bg: 'rgba(239, 68, 68, 0.15)', border: '#ef4444', text: '#ef4444', icon: '🦄⚠️' };
+      case 'warning': return { bg: 'rgba(245, 158, 11, 0.15)', border: '#f59e0b', text: '#f59e0b', icon: '🦄' };
+      case 'info': return { bg: 'rgba(59, 130, 246, 0.1)', border: '#3b82f6', text: '#3b82f6', icon: 'ℹ️🦄' };
+      default: return { bg: 'rgba(100, 116, 139, 0.1)', border: '#64748b', text: '#64748b', icon: '🦄' };
+    }
+  };
+
+  // Determine unicorn placement
+  const isCritical = unicorn_detection?.detected && unicorn_detection.severity === 'critical';
+  const isWarning = unicorn_detection?.detected && unicorn_detection.severity === 'warning';
+  const isInfo = unicorn_detection?.detected && unicorn_detection.severity === 'info';
 
   return (
     <div className="hidden-brief-card" style={{
@@ -141,6 +158,75 @@ export default function HiddenBriefCard({
       </div>
 
       <div style={{ padding: '20px 24px' }}>
+        
+        {/* ============================================================
+            UNICORN DETECTION - CRITICAL SEVERITY (TOP OF CARD)
+            ============================================================ */}
+        {isCritical && unicorn_detection && (
+          <div style={{ 
+            marginBottom: '24px',
+            padding: '16px',
+            backgroundColor: getUnicornColor('critical').bg,
+            borderLeft: `4px solid ${getUnicornColor('critical').border}`,
+            borderRadius: '8px'
+          }}>
+            <div 
+              onClick={() => toggleSection('unicorn')}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '20px' }}>{getUnicornColor('critical').icon}</span>
+                <div>
+                  <div style={{ fontWeight: '700', fontSize: '14px', color: getUnicornColor('critical').text }}>
+                    CRITICAL: UNREALISTIC REQUIREMENTS
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    {unicorn_detection.summary}
+                  </div>
+                </div>
+              </div>
+              <span>{expandedSections.unicorn ? '▼' : '▶'}</span>
+            </div>
+            
+            {expandedSections.unicorn && unicorn_detection.reasons && (
+              <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
+                {unicorn_detection.reasons.map((reason, idx) => (
+                  <div key={idx} style={{ marginBottom: '12px' }}>
+                    <div style={{ fontWeight: '600', fontSize: '12px', marginBottom: '4px' }}>
+                      {reason.pattern === 'years_exceed_field_age' && '📅 Years of Experience Exceeds Field Age'}
+                      {reason.pattern === 'contradictory_seniority' && '🔀 Contradictory Seniority Levels'}
+                      {reason.pattern === 'rare_skills_stack' && '🔬 Rare Skills Stack'}
+                      {reason.pattern === 'scope_title_mismatch' && '📋 Scope vs Title Mismatch'}
+                      {reason.pattern === 'operational_contradictions' && '⚡ Operational Contradictions'}
+                      {!reason.pattern && '⚠️ Issue Detected'}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      Evidence: "{reason.evidence_phrase}"
+                    </div>
+                    <div style={{ fontSize: '12px' }}>{reason.explanation}</div>
+                  </div>
+                ))}
+                {unicorn_detection.advice && (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '10px',
+                    backgroundColor: 'rgba(0,0,0,0.05)',
+                    borderRadius: '6px',
+                    fontSize: '12px'
+                  }}>
+                    <strong>💡 Advice:</strong> {unicorn_detection.advice}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* JD Quality Assessment - NEW SECTION */}
         {jd_quality_assessment && (
           <div style={{ marginBottom: '24px' }}>
@@ -263,6 +349,116 @@ export default function HiddenBriefCard({
                 <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>{sector_classification.confidence_cap_note}</span>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Language Pattern (Cultural Assessment) */}
+        {hiddenBrief.language_pattern?.language_pattern_detected && (
+          <div style={{ marginBottom: '24px' }}>
+            <div 
+              onClick={() => toggleSection('language')}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer',
+                padding: '10px 0',
+                borderBottom: '1px solid var(--border-light)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>🎭</span>
+                <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0 }}>Cultural Language Pattern</h3>
+                <span style={{
+                  fontSize: '10px',
+                  padding: '2px 8px',
+                  borderRadius: '12px',
+                  backgroundColor: hiddenBrief.language_pattern.confidence === 'high' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                  color: hiddenBrief.language_pattern.confidence === 'high' ? '#10b981' : '#f59e0b'
+                }}>
+                  {hiddenBrief.language_pattern.language_pattern_detected}
+                </span>
+              </div>
+              <span>{expandedSections.language ? '▼' : '▶'}</span>
+            </div>
+            
+            {expandedSections.language && (
+              <div style={{ padding: '16px 0' }}>
+                <p style={{ fontSize: '13px', marginBottom: '8px' }}>{hiddenBrief.language_pattern.what_this_pattern_suggests}</p>
+                <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                  <em>{hiddenBrief.language_pattern.what_this_does_not_tell_you}</em>
+                </p>
+                <p style={{ fontSize: '12px', marginTop: '8px' }}>
+                  <strong>💡 Resume framing tip:</strong> {hiddenBrief.language_pattern.resume_framing_tip}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ============================================================
+            UNICORN DETECTION - WARNING AND INFO SEVERITY (AFTER LANGUAGE PATTERN)
+            ============================================================ */}
+        {(isWarning || isInfo) && unicorn_detection && (
+          <div style={{ 
+            marginBottom: '24px',
+            padding: '16px',
+            backgroundColor: getUnicornColor(isWarning ? 'warning' : 'info').bg,
+            borderLeft: `4px solid ${getUnicornColor(isWarning ? 'warning' : 'info').border}`,
+            borderRadius: '8px'
+          }}>
+            <div 
+              onClick={() => toggleSection('unicorn')}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '20px' }}>{getUnicornColor(isWarning ? 'warning' : 'info').icon}</span>
+                <div>
+                  <div style={{ fontWeight: '700', fontSize: '14px', color: getUnicornColor(isWarning ? 'warning' : 'info').text }}>
+                    {isWarning ? 'WARNING: Unusually Rare Requirements' : 'INFO: Unusual Role Pattern'}
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                    {unicorn_detection.summary}
+                  </div>
+                </div>
+              </div>
+              <span>{expandedSections.unicorn ? '▼' : '▶'}</span>
+            </div>
+            
+            {expandedSections.unicorn && unicorn_detection.reasons && (
+              <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border-light)' }}>
+                {unicorn_detection.reasons.map((reason, idx) => (
+                  <div key={idx} style={{ marginBottom: '12px' }}>
+                    <div style={{ fontWeight: '600', fontSize: '12px', marginBottom: '4px' }}>
+                      {reason.pattern === 'rare_skills_stack' && '🔬 Rare Skills Stack'}
+                      {reason.pattern === 'scope_title_mismatch' && '📋 Scope vs Title Mismatch'}
+                      {reason.pattern === 'operational_contradictions' && '⚡ Operational Contradictions'}
+                      {!reason.pattern && '⚠️ Issue Detected'}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      Evidence: "{reason.evidence_phrase}"
+                    </div>
+                    <div style={{ fontSize: '12px' }}>{reason.explanation}</div>
+                  </div>
+                ))}
+                {unicorn_detection.advice && (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '10px',
+                    backgroundColor: 'rgba(0,0,0,0.05)',
+                    borderRadius: '6px',
+                    fontSize: '12px'
+                  }}>
+                    <strong>💡 Advice:</strong> {unicorn_detection.advice}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

@@ -8,6 +8,7 @@ export function useHiddenBrief() {
   const [error, setError] = useState(null);
   const [transformingBullets, setTransformingBullets] = useState(false);
   const [transformingSummary, setTransformingSummary] = useState(false);
+  const [generatingReport, setGeneratingReport] = useState(false); // ADDED
 
   const analyze = useCallback(async (jdText, resumeText) => {
     setLoading(true);
@@ -109,14 +110,60 @@ export function useHiddenBrief() {
     }
   }, []);
 
+  // ============================================================
+  // NEW: Generate downloadable report
+  // ============================================================
+  const generateReport = useCallback(async (jdText, resumeText, hiddenBriefJson) => {
+    setGeneratingReport(true);
+    setError(null);
+    
+    try {
+      const response = await fetch(`${HIDDEN_BRIEF_WORKER_URL}/generate-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jd_text: jdText,
+          resume_text: resumeText || '',
+          hidden_brief_json: hiddenBriefJson
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      return {
+        markdown: data.report_markdown,
+        generated: data.generated,
+        fallback: data.fallback || false
+      };
+      
+    } catch (err) {
+      setError(err.message);
+      console.error('Report generation error:', err);
+      return {
+        markdown: null,
+        generated: false,
+        fallback: true,
+        error: err.message
+      };
+    } finally {
+      setGeneratingReport(false);
+    }
+  }, []);
+
   return {
     analysis,
     loading,
     error,
     transformingBullets,
     transformingSummary,
+    generatingReport,        // ADDED
     analyze,
     transformBullets,
-    transformSummary
+    transformSummary,
+    generateReport           // ADDED
   };
 }

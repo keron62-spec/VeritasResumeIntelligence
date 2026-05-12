@@ -1,488 +1,745 @@
 // src/utils/reportGenerator.js
 
-export function generateMarkdownReport(hiddenBrief, candidateContext = null) {
-    const {
-      jd_quality_assessment,
-      core_problem,
-      hidden_requirements,
-      decision_bottleneck_risk,
-      burnout_risk,
-      scale_surge_risk,
-      scope_grade_mismatch,
-      stakeholder_complexity,
-      repetition_signals,
-      contradictions_detected,
-      language_pattern,
-      recommendation_summary,
-      analysis_limitations,
-      confidence_statement
-    } = hiddenBrief;
+/**
+ * Generates a unique ID for each report
+ * @returns {string} Unique report ID (e.g., VER-1747123456789-A3F9K2)
+ */
+function generateReportId() {
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 8).toUpperCase();
+    return `VER-${timestamp}-${randomStr}`;
+  }
   
-    const currentDate = new Date().toLocaleString();
-    const roleTitle = candidateContext?.role_title || "the role";
-    const organization = candidateContext?.organization || "the organization";
+  /**
+   * Escapes HTML special characters to prevent injection
+   * @param {string} str - Input string
+   * @returns {string} Escaped string
+   */
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
   
-    let markdown = `# Hidden Brief Intelligence Report\n\n`;
-    markdown += `## ${roleTitle} – ${organization}\n\n`;
-    markdown += `**Generated:** ${currentDate}\n`;
-    markdown += `**Report ID:** HB-${Date.now()}\n\n`;
-    markdown += `*This report is based on analysis of the job description. Verify all claims in the interview.*\n\n`;
-    markdown += `---\n\n`;
-  
-    // ============================================================
-    // SECTION 1: EXECUTIVE SUMMARY
-    // ============================================================
-    markdown += `## 1. Executive Summary\n\n`;
-    markdown += `### Bottom Line\n`;
-    markdown += `${recommendation_summary || 'Review the full report for insights on this role.'}\n\n`;
-  
-    markdown += `### Key Findings at a Glance\n\n`;
-    markdown += `| Area | What You Should Know |\n`;
-    markdown += `|------|----------------------|\n`;
-    
-    if (jd_quality_assessment) {
-      markdown += `| Role Clarity | ${jd_quality_assessment.maturity_grade || 'Not specified'} – ${jd_quality_assessment.assessment?.substring(0, 80) || 'Review JD'}\n`;
-    }
-    if (stakeholder_complexity) {
-      markdown += `| Stakeholder Complexity | ${stakeholder_complexity.complexity_level || 'Not specified'}\n`;
-    }
-    if (core_problem?.confidence === 'high' || core_problem?.confidence === 'medium') {
-      markdown += `| Hidden Problem Detected | Yes – see Section 2\n`;
-    }
-    if (decision_bottleneck_risk?.risk_level === 'High' || decision_bottleneck_risk?.risk_level === 'Very High') {
-      markdown += `| Approval Bottleneck Risk | ${decision_bottleneck_risk.risk_level} – see Section 12\n`;
-    }
-    if (scope_grade_mismatch?.detected) {
-      markdown += `| Title vs Scope | ${scope_grade_mismatch.mismatch_type === 'under_titled' ? 'May be under-titled' : 'May be over-titled'}\n`;
-    }
-    markdown += `\n`;
-  
-    // ============================================================
-    // SECTION 2: WHAT THIS ROLE IS DESIGNED TO ADDRESS
-    // ============================================================
-    if (core_problem) {
-      markdown += `## 2. What This Role is Designed to Address\n\n`;
-      markdown += `### What the Job Description States\n`;
-      markdown += `${core_problem.stated_task || 'Not explicitly stated in the JD.'}\n\n`;
-      
-      if (core_problem.inferred_problem) {
-        markdown += `### The Challenge Behind This Vacancy\n`;
-        markdown += `${core_problem.inferred_problem}\n\n`;
-      }
-      
-      if (core_problem.evidence_quotes && core_problem.evidence_quotes.length > 0) {
-        markdown += `**Evidence from the JD:**\n`;
-        core_problem.evidence_quotes.forEach(quote => {
-          markdown += `- "${quote}"\n`;
-        });
-        markdown += `\n`;
-      }
-      
-      if (core_problem.inference_limitation) {
-        markdown += `*Note: ${core_problem.inference_limitation}*\n\n`;
-      }
-    }
-  
-    // ============================================================
-    // SECTION 3: WHAT YOU NEED TO KNOW ABOUT THIS ROLE
-    // ============================================================
-    if (jd_quality_assessment) {
-      markdown += `## 3. What You Need to Know About This Role\n\n`;
-      markdown += `**JD Word Count:** ${jd_quality_assessment.word_count || 'Not available'}\n`;
-      markdown += `**Detected Seniority:** ${jd_quality_assessment.detected_seniority || 'Not specified'}\n`;
-      markdown += `**Maturity Grade:** ${jd_quality_assessment.maturity_grade || 'Not assessed'}\n\n`;
-      markdown += `${jd_quality_assessment.assessment || 'No additional assessment available.'}\n\n`;
-      
-      if (jd_quality_assessment.recommendation) {
-        markdown += `**Recommendation:** ${jd_quality_assessment.recommendation}\n\n`;
-      }
-      
-      if (scope_grade_mismatch?.detected) {
-        markdown += `### How This Role Compares to Its Title\n\n`;
-        markdown += `The title suggests ${scope_grade_mismatch.mismatch_type === 'under_titled' ? 'a more junior function than the responsibilities indicate' : 'a more senior function than the responsibilities indicate'}. `;
-        markdown += `${scope_grade_mismatch.explanation || 'Review the duties carefully against the title.'}\n\n`;
-        markdown += `**To clarify in the interview:**\n`;
-        markdown += `"${scope_grade_mismatch.resume_framing_advice || 'How does this role compare to others with similar titles at your organization?'}"\n\n`;
-      }
-    }
-  
-    // ============================================================
-    // SECTION 4: STAKEHOLDERS MENTIONED IN THE JD
-    // ============================================================
-    if (stakeholder_complexity) {
-      markdown += `## 4. Stakeholders Mentioned in the JD (And Who Else You Might Work With)\n\n`;
-      markdown += `**Complexity Level:** ${stakeholder_complexity.complexity_level || 'Not specified'}\n\n`;
-      
-      if (stakeholder_complexity.stakeholder_types_identified && stakeholder_complexity.stakeholder_types_identified.length > 0) {
-        markdown += `### Explicitly Mentioned in the Job Description\n\n`;
-        markdown += `The JD specifically names these stakeholder groups:\n\n`;
-        markdown += `| Stakeholder Type | Context |\n`;
-        markdown += `|-----------------|--------|\n`;
-        stakeholder_complexity.stakeholder_types_identified.forEach(type => {
-          markdown += `| ${type} | Mentioned in JD |\n`;
-        });
-        markdown += `\n`;
-      }
-      
-      // Generate suggested additional stakeholders based on patterns (no methodology disclosure)
-      markdown += `### Who You May Also Need to Coordinate With (Based on Similar Roles)\n\n`;
-      markdown += `Roles like this often involve coordination with:\n\n`;
-      
-      // This is where you would add sector-specific suggestions
-      // The actual suggestions would come from a mapping function based on sector_code
-      markdown += `- **Other technical partners** – Projects of this scale often involve multiple technical advisors\n`;
-      markdown += `- **Additional donor agencies** – Rarely does only one donor fund an entire project\n`;
-      markdown += `- **Regional coordinating bodies** – Depending on the role's geographic scope\n\n`;
-      markdown += `**Important Note:** These are not mentioned in the JD. They are patterns observed in similar roles. Use the interview to confirm the actual stakeholder map.\n\n`;
-      
-      markdown += `${stakeholder_complexity.explanation || ''}\n\n`;
-      
-      markdown += `**To clarify in the interview:**\n`;
-      if (stakeholder_complexity.resume_framing_advice) {
-        markdown += `- ${stakeholder_complexity.resume_framing_advice}\n`;
-      }
-      markdown += `- "Beyond the stakeholders mentioned in the JD, who else would I need to coordinate with regularly?"\n`;
-      markdown += `- "Are there other donor agencies or technical partners involved in this project?"\n\n`;
-    }
-  
-    // ============================================================
-    // SECTION 5: WHAT THEY'RE NOT SAYING (HIDDEN REQUIREMENTS)
-    // ============================================================
-    if (hidden_requirements && hidden_requirements.length > 0) {
-      markdown += `## 5. What They're Not Saying (Hidden Requirements)\n\n`;
-      hidden_requirements.forEach((req, idx) => {
-        markdown += `### ${idx + 1}. ${req.implied_requirement}\n`;
-        markdown += `- **Why it matters:** ${req.why_it_matters || 'This appears to be important based on the JD language.'}\n`;
-        markdown += `- **How to show it:** ${req.resume_framing_advice || 'Prepare an example from your experience that demonstrates this capability.'}\n\n`;
-      });
-    }
-  
-    // ============================================================
-    // SECTION 6: WHAT PAST PROJECTS OR SIMILAR INITIATIVES MAY HAVE STRUGGLED WITH
-    // ============================================================
-    if (repetition_signals && repetition_signals.length > 0) {
-      markdown += `## 6. What Past Projects or Similar Initiatives May Have Struggled With\n\n`;
-      markdown += `The JD repeatedly emphasizes certain areas. In job descriptions, this pattern often reflects challenges the organization has experienced – whether in this project, a previous project, or similar initiatives elsewhere.\n\n`;
-      
-      markdown += `### Areas That May Have Been Challenging\n\n`;
-      
-      repetition_signals.slice(0, 5).forEach(signal => {
-        if (!signal.required_vocabulary) {
-          markdown += `**${signal.phrase}**\n`;
-          markdown += `- Appears ${signal.count} times in the JD\n`;
-          markdown += `- ${signal.signal || 'Organizations typically emphasize this when it has been a source of difficulty.'}\n\n`;
-        }
-      });
-      
-      markdown += `### What This Means for You\n\n`;
-      markdown += `These patterns suggest the organization has experience with challenges in these areas. Your application and interview should address how you would prevent these specific issues.\n\n`;
-      
-      markdown += `### To Ask in the Interview\n\n`;
-      markdown += `- "What has been the biggest challenge in keeping this project on track so far?"\n`;
-      markdown += `- "Are there any areas where past deliverables required significant rework?"\n`;
-      markdown += `- "What would you want to see done differently compared to how things have been handled before?"\n\n`;
-      
-      markdown += `**Important Note:** The JD does not specify whether this is a new project or a replacement role. These patterns reflect the organization's experience with similar situations – not necessarily the performance of any specific person.\n\n`;
-    }
-  
-    // ============================================================
-    // SECTION 7: WHAT THE TIMELINE SUGGESTS
-    // ============================================================
-    markdown += `## 7. What the Timeline Suggests\n\n`;
-    
-    let urgencyLevel = "Moderate";
-    let urgencyEvidence = [];
-    
-    if (repetition_signals) {
-      const timelySignals = repetition_signals.filter(s => 
-        s.phrase?.toLowerCase().includes('timely') || 
-        s.phrase?.toLowerCase().includes('deadline') ||
-        s.phrase?.toLowerCase().includes('urgent')
-      );
-      if (timelySignals.length > 0) {
-        urgencyLevel = "Urgent";
-        urgencyEvidence = timelySignals.map(s => `"${s.phrase}" appears ${s.count} times`);
-      }
-    }
-    
-    if (jd_quality_assessment?.red_flag_risk === 'Critical' || jd_quality_assessment?.red_flag_risk === 'High') {
-      urgencyLevel = "Urgent";
-    }
-    
-    markdown += `Language in the JD suggests: **${urgencyLevel}**\n\n`;
-    
-    if (urgencyEvidence.length > 0) {
-      markdown += `**Evidence:**\n`;
-      urgencyEvidence.forEach(evidence => {
-        markdown += `- ${evidence}\n`;
-      });
-      markdown += `\n`;
-    }
-    
-    markdown += `**What this means for you:**\n`;
-    if (urgencyLevel === "Urgent") {
-      markdown += `- Emphasize your availability and speed of execution\n`;
-      markdown += `- Mention your ability to "hit the ground running"\n`;
-      markdown += `- You may have less negotiating room on start date\n`;
-    } else {
-      markdown += `- You may have more time to prepare and negotiate\n`;
-      markdown += `- The organization may be willing to wait for the right person\n`;
-    }
-    markdown += `\n**To clarify:**\n"What is the ideal start date? How quickly do you need someone in this role?"\n\n`;
-  
-    // ============================================================
-    // SECTION 8: WHERE YOU MAY HAVE LEVERAGE
-    // ============================================================
-    markdown += `## 8. Where You May Have Leverage\n\n`;
-    markdown += `Based on the JD and typical patterns in roles like this:\n\n`;
-    
-    let leveragePoints = [];
-    
-    if (decision_bottleneck_risk?.risk_level === 'High' || decision_bottleneck_risk?.risk_level === 'Very High') {
-      leveragePoints.push(`**They need someone who can navigate complex approvals** – The JD indicates multiple approval layers. If you have experience with similar bureaucracies, you require less ramp-up time.`);
-    }
-    
-    if (burnout_risk?.risk_level === 'High' || burnout_risk?.risk_level === 'Very High') {
-      leveragePoints.push(`**They have experienced high pressure in this area** – The JD emphasizes tight timelines and multiple priorities. If you have a track record of delivering under pressure, you bring proven resilience.`);
-    }
-    
-    if (scale_surge_risk?.risk_level === 'High' || scale_surge_risk?.risk_level === 'Very High') {
-      leveragePoints.push(`**This project may be larger than typical for the team** – The JD's emphasis on capacity suggests they may be scaling up. If you have experience with similar scale, you bring institutional knowledge they lack.`);
-    }
-    
-    if (scope_grade_mismatch?.detected && scope_grade_mismatch.mismatch_type === 'under_titled') {
-      leveragePoints.push(`**The title may understate the scope** – If the role requires Project Manager responsibilities but carries a "Support" title, you have grounds to discuss appropriate recognition.`);
-    }
-    
-    if (leveragePoints.length === 0) {
-      leveragePoints.push(`**Your specific experience** – If you have directly relevant experience to the core responsibilities, that is your primary leverage.`);
-    }
-    
-    leveragePoints.forEach((point, idx) => {
-      markdown += `${idx + 1}. ${point}\n\n`;
+  /**
+   * Formats a date for display in the report
+   * @returns {string} Formatted date string
+   */
+  function getFormattedDate() {
+    return new Date().toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZoneName: 'short'
     });
-    
-    markdown += `**To use in negotiation:**\n"${leveragePoints[0]?.split('–')[0] || 'I notice the JD emphasizes [specific need]. My experience with [your experience] directly addresses that.'}"\n\n`;
+  }
   
-    // ============================================================
-    // SECTION 9: QUESTIONS THEY'RE LIKELY TO ASK (BEYOND THE JD)
-    // ============================================================
-    markdown += `## 9. Questions They're Likely to Ask (Beyond the JD)\n\n`;
-    markdown += `Based on similar roles, be prepared for:\n\n`;
-    
-    if (decision_bottleneck_risk?.risk_level === 'High' || decision_bottleneck_risk?.risk_level === 'Very High') {
-      markdown += `**1. "Tell me about a time you had to get buy-in from people who didn't report to you."**\n`;
-      markdown += `   - They need someone who can influence without authority across multiple stakeholders\n`;
-      markdown += `   - **Prepare an example** where you coordinated across different groups with competing priorities\n\n`;
-    }
-    
-    if (burnout_risk?.risk_level === 'High' || burnout_risk?.risk_level === 'Very High' || repetition_signals?.some(s => s.phrase?.toLowerCase().includes('multiple'))) {
-      markdown += `**2. "How do you handle competing priorities when everything is urgent?"**\n`;
-      markdown += `   - The JD's emphasis on multiple priorities and tight timelines suggests this is a real challenge\n`;
-      markdown += `   - **Prepare an example** where you prioritized effectively under pressure\n\n`;
-    }
-    
-    markdown += `**3. "Describe a project that was behind schedule. What did you do?"**\n`;
-    markdown += `   - Past delays appear to be a concern based on JD language\n`;
-    markdown += `   - **Prepare an example** where you identified risks early or recovered a delayed project\n\n`;
-    
-    if (core_problem?.inferred_problem) {
-      markdown += `**4. "What is your experience with [core function of the role]?"**\n`;
-      markdown += `   - This is the core of the role\n`;
-      markdown += `   - **Prepare to detail** your relevant experience with specific metrics\n\n`;
-    }
-    
-    markdown += `**How to prepare:** Have specific examples ready for each of these scenarios using the CAR method (Context, Action, Result).\n\n`;
+  /**
+   * Gets CSS class for risk level
+   * @param {string} riskLevel - Risk level (Very High, High, Medium, Low)
+   * @returns {string} CSS class name
+   */
+  function getRiskClass(riskLevel) {
+    if (riskLevel === 'Very High' || riskLevel === 'Critical') return 'risk-critical';
+    if (riskLevel === 'High') return 'risk-high';
+    if (riskLevel === 'Medium') return 'risk-medium';
+    return 'risk-low';
+  }
   
-    // ============================================================
-    // SECTION 10: WHAT THE JD DOESN'T SAY ABOUT THE TEAM
-    // ============================================================
-    markdown += `## 10. What the JD Doesn't Say About the Team\n\n`;
-    markdown += `Language patterns in the JD suggest:\n\n`;
-    
-    let teamInsights = [];
-    
-    if (repetition_signals?.some(s => s.phrase?.toLowerCase().includes('multi-task') || s.phrase?.toLowerCase().includes('multiple'))) {
-      teamInsights.push(`- **The team may be understaffed** – The emphasis on handling multiple tasks often appears when teams are stretched thin`);
+  /**
+   * Gets CSS class for maturity grade
+   * @param {string} grade - Maturity grade
+   * @returns {string} CSS class name
+   */
+  function getMaturityClass(grade) {
+    switch(grade) {
+      case 'Mature': return 'mature';
+      case 'Adequate': return 'adequate';
+      case 'Concerning': return 'concerning';
+      case 'Red Flag': return 'red-flag';
+      case 'Critical Red Flag': return 'critical-flag';
+      case 'Dysfunctional': return 'dysfunctional';
+      default: return 'adequate';
     }
-    
-    if (decision_bottleneck_risk?.risk_level === 'High' || decision_bottleneck_risk?.risk_level === 'Very High') {
-      teamInsights.push(`- **Decision-making may be slow** – The JD indicates multiple approval layers or coordination requirements`);
-    }
-    
-    if (stakeholder_complexity?.complexity_level === 'Very High' || stakeholder_complexity?.complexity_level === 'High') {
-      teamInsights.push(`- **The role may involve working across silos** – Many stakeholder groups mentioned suggests coordination challenges`);
-    }
-    
-    if (teamInsights.length === 0) {
-      teamInsights.push(`- **The JD provides limited information about team dynamics** – Use the interview to ask about team structure and collaboration patterns`);
-    }
-    
-    teamInsights.forEach(insight => {
-      markdown += `${insight}\n`;
-    });
-    markdown += `\n`;
-    
-    markdown += `**To clarify in the interview:**\n`;
-    markdown += `- "How many people are on the project team? How does work get divided?"\n`;
-    markdown += `- "Who else would I work with day-to-day outside the formal reporting line?"\n\n`;
+  }
   
-    // ============================================================
-    // SECTION 11: WHAT SUCCESS LIKELY LOOKS LIKE (BEYOND THE JD)
-    // ============================================================
-    markdown += `## 11. What Success Likely Looks Like (Beyond the JD)\n\n`;
-    markdown += `While the JD mentions specific deliverables and milestones, roles like this often measure success by:\n\n`;
-    markdown += `- **Keeping stakeholders informed before they ask** – Proactive communication, not just responding to requests\n`;
-    markdown += `- **Flagging risks before they become problems** – Early warning, not just crisis management\n`;
-    markdown += `- **Making the manager's job easier** – Reducing the need for supervision on routine tasks\n`;
-    markdown += `- **Audit-ready documentation** – Files that would survive scrutiny without rework\n\n`;
+  /**
+   * Generates the complete deterministic HTML report
+   * @param {Object} hiddenBrief - The hidden brief analysis JSON
+   * @param {string} resumeText - The candidate's resume text (optional)
+   * @returns {Object} { html, reportId, generationDate }
+   */
+  export function generateDeterministicHtmlReport(hiddenBrief, resumeText = '') {
+    const reportId = generateReportId();
+    const generationDate = getFormattedDate();
     
-    markdown += `**To clarify:**\n`;
-    markdown += `- "Beyond the deliverables in the JD, how will you know I'm succeeding in this role?"\n`;
-    markdown += `- "What would make you say 'I'm glad we hired this person' six months from now?"\n\n`;
-  
-    // ============================================================
-    // SECTION 12: RISKS TO INVESTIGATE IN THE INTERVIEW
-    // ============================================================
-    markdown += `## 12. Risks to Investigate in the Interview\n\n`;
+    // Extract data with safe defaults
+    const jdQuality = hiddenBrief?.jd_quality_assessment || {};
+    const coreProblem = hiddenBrief?.core_problem || {};
+    const hiddenRequirements = hiddenBrief?.hidden_requirements || [];
+    const decisionBottleneck = hiddenBrief?.decision_bottleneck_risk || {};
+    const burnoutRisk = hiddenBrief?.burnout_risk || {};
+    const scaleSurge = hiddenBrief?.scale_surge_risk || {};
+    const scopeMismatch = hiddenBrief?.scope_grade_mismatch || {};
+    const repetitionSignals = hiddenBrief?.repetition_signals || [];
+    const stakeholderComplexity = hiddenBrief?.stakeholder_complexity || {};
+    const languagePattern = hiddenBrief?.language_pattern || {};
+    const unicornDetection = hiddenBrief?.unicorn_detection || {};
+    const recommendationSummary = hiddenBrief?.recommendation_summary || '';
+    const sectorClassification = hiddenBrief?.sector_classification || {};
     
-    if (decision_bottleneck_risk) {
-      markdown += `### Approval Bottlenecks\n`;
-      markdown += `${decision_bottleneck_risk.explanation || 'The JD suggests multiple approval layers that may slow down execution.'}\n\n`;
-      markdown += `**Question to ask:** "What is the typical approval turnaround time for major project decisions?"\n`;
-      if (decision_bottleneck_risk.resume_framing_advice) {
-        markdown += `**How to prepare:** ${decision_bottleneck_risk.resume_framing_advice}\n`;
+    // Build hidden requirements HTML
+    const hiddenRequirementsHtml = hiddenRequirements.map(req => `
+      <div class="requirement-card">
+        <div class="requirement-title">${escapeHtml(req.implied_requirement)}</div>
+        <p><strong>Why it matters:</strong> ${escapeHtml(req.why_it_matters || 'This appears to be important based on the JD language.')}</p>
+        <p><strong>How to show it:</strong> ${escapeHtml(req.resume_framing_advice || 'Prepare an example from your experience that demonstrates this capability.')}</p>
+      </div>
+    `).join('');
+    
+    // Build repetition signals HTML
+    const repetitionSignalsHtml = repetitionSignals.slice(0, 6).map(signal => `
+      <div class="repetition-item">
+        <div class="repetition-phrase">“${escapeHtml(signal.phrase)}”</div>
+        <div class="repetition-count">appears ${signal.count} times</div>
+        <div class="repetition-signal">${escapeHtml(signal.signal || '')}</div>
+      </div>
+    `).join('');
+    
+    // Build stakeholder table HTML
+    const stakeholderTypes = stakeholderComplexity.stakeholder_types_identified || [];
+    const stakeholderTableHtml = stakeholderTypes.length > 0 ? `
+      <table class="stakeholder-table">
+        <thead>
+          <tr>
+            <th>Stakeholder Type</th>
+            <th>Context</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${stakeholderTypes.map(type => `
+            <tr>
+              <td>${escapeHtml(type)}</td>
+              <td>Mentioned in JD</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    ` : '<p>No specific stakeholder types were extracted from this job description.</p>';
+    
+    // Build unicorn detection HTML (if detected)
+    const unicornHtml = unicornDetection.detected ? `
+      <div class="unicorn-banner">
+        <div class="unicorn-title">🦄 UNICORN ROLE DETECTED</div>
+        <div class="unicorn-severity ${unicornDetection.severity}">Severity: ${unicornDetection.severity?.toUpperCase() || 'INFO'}</div>
+        <p>${escapeHtml(unicornDetection.summary || 'This role has unusual or potentially unrealistic requirements.')}</p>
+        ${unicornDetection.reasons ? unicornDetection.reasons.map(reason => `
+          <div class="unicorn-reason">
+            <strong>${escapeHtml(reason.pattern?.replace(/_/g, ' ') || 'Issue')}:</strong>
+            <div class="evidence">Evidence: "${escapeHtml(reason.evidence_phrase)}"</div>
+            <div>${escapeHtml(reason.explanation)}</div>
+          </div>
+        `).join('') : ''}
+        ${unicornDetection.advice ? `<p class="unicorn-advice"><strong>Advice:</strong> ${escapeHtml(unicornDetection.advice)}</p>` : ''}
+      </div>
+    ` : '';
+    
+    // Build risk indicators HTML
+    const risksHtml = `
+      ${decisionBottleneck.risk_level ? `
+        <div class="risk-item ${getRiskClass(decisionBottleneck.risk_level)}">
+          <strong>Decision Bottleneck Risk: ${decisionBottleneck.risk_level}</strong>
+          <p>${escapeHtml(decisionBottleneck.explanation || 'The JD suggests multiple approval layers that may slow down execution.')}</p>
+          ${decisionBottleneck.resume_framing_advice ? `<p class="risk-advice">💡 ${escapeHtml(decisionBottleneck.resume_framing_advice)}</p>` : ''}
+        </div>
+      ` : ''}
+      ${burnoutRisk.risk_level ? `
+        <div class="risk-item ${getRiskClass(burnoutRisk.risk_level)}">
+          <strong>Burnout Risk: ${burnoutRisk.risk_level}</strong>
+          <p>${escapeHtml(burnoutRisk.explanation || 'The JD suggests a high-pressure environment with potential for scope creep.')}</p>
+          ${burnoutRisk.resume_framing_advice ? `<p class="risk-advice">💡 ${escapeHtml(burnoutRisk.resume_framing_advice)}</p>` : ''}
+        </div>
+      ` : ''}
+      ${scaleSurge.risk_level ? `
+        <div class="risk-item ${getRiskClass(scaleSurge.risk_level)}">
+          <strong>Scale Surge Risk: ${scaleSurge.risk_level}</strong>
+          <p>${escapeHtml(scaleSurge.explanation || 'The project may be larger or more complex than the team typically handles.')}</p>
+          ${scaleSurge.resume_framing_advice ? `<p class="risk-advice">💡 ${escapeHtml(scaleSurge.resume_framing_advice)}</p>` : ''}
+        </div>
+      ` : ''}
+    `;
+    
+    // Build key findings grid
+    const keyFindingsHtml = `
+      <div class="key-findings">
+        <div class="finding-card">
+          <div class="finding-label">Role Clarity</div>
+          <div class="finding-value">${escapeHtml(jdQuality.maturity_grade || 'Not detected')}</div>
+        </div>
+        <div class="finding-card">
+          <div class="finding-label">Stakeholder Complexity</div>
+          <div class="finding-value">${escapeHtml(stakeholderComplexity.complexity_level || 'Not detected')}</div>
+        </div>
+        <div class="finding-card">
+          <div class="finding-label">Hidden Problem</div>
+          <div class="finding-value">${coreProblem.inferred_problem ? 'Yes' : 'No'}</div>
+        </div>
+        <div class="finding-card">
+          <div class="finding-label">Unicorn Detection</div>
+          <div class="finding-value">${unicornDetection.detected ? 'Yes' : 'No'}</div>
+        </div>
+        <div class="finding-card">
+          <div class="finding-label">Key Risks</div>
+          <div class="finding-value">${[decisionBottleneck.risk_level, burnoutRisk.risk_level].filter(Boolean).join(', ') || 'None detected'}</div>
+        </div>
+      </div>
+    `;
+    
+    // Build the complete HTML
+    const html = `<!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Veritas Hidden Brief Intelligence Report</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&family=Playfair+Display:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
       }
-      markdown += `\n`;
-    }
-    
-    if (burnout_risk) {
-      markdown += `### Workload Expectations\n`;
-      markdown += `${burnout_risk.explanation || 'The JD suggests a high-pressure environment with potential for scope creep.'}\n\n`;
-      markdown += `**Question to ask:** "The JD includes 'other duties as assigned.' What percentage of time typically goes to unexpected tasks?"\n`;
-      if (burnout_risk.resume_framing_advice) {
-        markdown += `**How to prepare:** ${burnout_risk.resume_framing_advice}\n`;
+      
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: #f5f3f0;
+        color: #1a1f2e;
+        line-height: 1.5;
+        font-size: 14px;
+        padding: 40px 24px;
       }
-      markdown += `\n`;
-    }
-    
-    if (scale_surge_risk) {
-      markdown += `### Project Scale\n`;
-      markdown += `${scale_surge_risk.explanation || 'The project may be larger or more complex than the team typically handles.'}\n\n`;
-      markdown += `**Question to ask:** "How does this project compare to others the team has managed in terms of scale and complexity?"\n`;
-      markdown += `\n`;
-    }
-    
-    if (contradictions_detected && contradictions_detected.length > 0) {
-      markdown += `### Contradictions in the JD\n`;
-      contradictions_detected.forEach(contradiction => {
-        markdown += `- **${contradiction.type || 'Potential contradiction'}** – ${contradiction.explanation || 'The JD contains language that may conflict.'}\n`;
-        markdown += `  - **Question to ask:** "The JD mentions both [X] and [Y]. How do these work together in practice?"\n`;
-      });
-      markdown += `\n`;
-    }
-  
-    // ============================================================
-    // SECTION 13: WORDS AND PHRASES TO USE IN YOUR APPLICATION
-    // ============================================================
-    markdown += `## 13. Words and Phrases to Use in Your Application\n\n`;
-    
-    if (language_pattern?.resume_framing_tip) {
-      markdown += `### In Your Summary\n`;
-      markdown += `${language_pattern.resume_framing_tip}\n\n`;
-    }
-    
-    if (repetition_signals && repetition_signals.length > 0) {
-      markdown += `### Keywords That Appear Repeatedly in the JD\n\n`;
-      repetition_signals.slice(0, 6).forEach(signal => {
-        if (!signal.required_vocabulary) {
-          markdown += `- **"${signal.phrase}"** – ${signal.signal || 'Appears multiple times, suggesting importance'}\n`;
+      
+      .report-container {
+        max-width: 1000px;
+        margin: 0 auto;
+        background: #ffffff;
+        border-radius: 4px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        overflow: hidden;
+      }
+      
+      @media print {
+        body {
+          background: white;
+          padding: 0;
+          margin: 0;
         }
-      });
-      markdown += `\n`;
-    }
-    
-    if (hidden_requirements && hidden_requirements.length > 0) {
-      markdown += `### Phrases to Demonstrate Hidden Requirements\n\n`;
-      hidden_requirements.slice(0, 3).forEach(req => {
-        if (req.resume_framing_advice) {
-          markdown += `- ${req.resume_framing_advice}\n`;
+        .report-container {
+          box-shadow: none;
+          max-width: 100%;
         }
-      });
-      markdown += `\n`;
-    }
+        .no-print {
+          display: none;
+        }
+        a {
+          text-decoration: none;
+          color: black;
+        }
+        .instruction-banner {
+          display: none;
+        }
+      }
+      
+      .report-header {
+        text-align: center;
+        padding: 48px 48px 32px;
+        border-bottom: 1px solid #e6e4dd;
+        background: #ffffff;
+      }
+      
+      .logo {
+        max-width: 180px;
+        height: auto;
+        margin-bottom: 16px;
+      }
+      
+      .logo-text {
+        font-family: 'Playfair Display', serif;
+        letter-spacing: 6px;
+        font-size: 28px;
+        font-weight: 600;
+        color: #c9a84c;
+      }
+      
+      .logo-tagline {
+        font-family: 'Playfair Display', serif;
+        font-size: 10px;
+        letter-spacing: 2px;
+        color: #8a8a8a;
+        margin-top: 6px;
+      }
+      
+      .instruction-banner {
+        background: #f8f7f4;
+        border-bottom: 1px solid #e6e4dd;
+        padding: 12px 48px;
+        text-align: center;
+        font-size: 12px;
+        color: #6b7280;
+      }
+      
+      .report-content {
+        padding: 40px 48px;
+      }
+      
+      h1 {
+        font-family: 'Playfair Display', serif;
+        font-size: 28px;
+        font-weight: 600;
+        color: #1a1f2e;
+        margin-bottom: 24px;
+        padding-bottom: 12px;
+        border-bottom: 2px solid #c9a84c;
+      }
+      
+      h2 {
+        font-family: 'Playfair Display', serif;
+        font-size: 18px;
+        font-weight: 600;
+        color: #c9a84c;
+        margin: 32px 0 16px 0;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+      }
+      
+      h3 {
+        font-family: 'Inter', sans-serif;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1a1f2e;
+        margin: 20px 0 10px 0;
+      }
+      
+      .key-findings {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 16px;
+        margin: 24px 0;
+      }
+      
+      .finding-card {
+        border-left: 3px solid #c9a84c;
+        padding: 12px 16px;
+        background: #f8f7f4;
+      }
+      
+      .finding-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #6b7280;
+        margin-bottom: 6px;
+      }
+      
+      .finding-value {
+        font-weight: 600;
+        font-size: 14px;
+        color: #1a1f2e;
+      }
+      
+      .risk-item {
+        padding: 16px;
+        margin: 12px 0;
+        border-radius: 4px;
+      }
+      
+      .risk-critical {
+        background: rgba(239, 68, 68, 0.05);
+        border-left: 3px solid #ef4444;
+      }
+      
+      .risk-high {
+        background: rgba(245, 158, 11, 0.05);
+        border-left: 3px solid #f97316;
+      }
+      
+      .risk-medium {
+        background: rgba(245, 158, 11, 0.05);
+        border-left: 3px solid #f59e0b;
+      }
+      
+      .risk-low {
+        background: rgba(16, 185, 129, 0.05);
+        border-left: 3px solid #10b981;
+      }
+      
+      .risk-advice {
+        font-size: 12px;
+        color: #6b7280;
+        margin-top: 8px;
+      }
+      
+      .stakeholder-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 16px 0;
+      }
+      
+      .stakeholder-table th {
+        text-align: left;
+        padding: 12px 8px;
+        background: #f8f7f4;
+        font-weight: 600;
+        font-size: 12px;
+        border-bottom: 1px solid #e6e4dd;
+      }
+      
+      .stakeholder-table td {
+        padding: 10px 8px;
+        border-bottom: 1px solid #e6e4dd;
+        font-size: 13px;
+      }
+      
+      .requirement-card {
+        padding: 16px;
+        margin: 12px 0;
+        background: #f8f7f4;
+        border-radius: 4px;
+        border-left: 3px solid #c9a84c;
+      }
+      
+      .requirement-title {
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #1a1f2e;
+        font-size: 14px;
+      }
+      
+      .repetition-item {
+        padding: 12px;
+        border-bottom: 1px solid #e6e4dd;
+      }
+      
+      .repetition-phrase {
+        font-weight: 600;
+        font-size: 13px;
+        margin-bottom: 4px;
+      }
+      
+      .repetition-count {
+        font-size: 11px;
+        color: #6b7280;
+        margin-bottom: 6px;
+      }
+      
+      .repetition-signal {
+        font-size: 12px;
+        color: #4a5568;
+      }
+      
+      .unicorn-banner {
+        padding: 20px;
+        margin: 24px 0;
+        background: rgba(239, 68, 68, 0.08);
+        border-left: 4px solid #ef4444;
+        border-radius: 4px;
+      }
+      
+      .unicorn-title {
+        font-weight: 700;
+        font-size: 14px;
+        color: #ef4444;
+        margin-bottom: 8px;
+      }
+      
+      .unicorn-severity {
+        font-size: 11px;
+        font-weight: 600;
+        margin-bottom: 12px;
+      }
+      
+      .unicorn-severity.critical {
+        color: #ef4444;
+      }
+      
+      .unicorn-severity.warning {
+        color: #f59e0b;
+      }
+      
+      .unicorn-reason {
+        margin: 12px 0;
+        padding: 8px;
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 4px;
+      }
+      
+      .unicorn-advice {
+        margin-top: 12px;
+        padding: 8px;
+        background: rgba(0, 0, 0, 0.03);
+        border-radius: 4px;
+        font-size: 12px;
+      }
+      
+      .core-problem-insight {
+        background: rgba(198, 164, 63, 0.08);
+        border-left: 3px solid #c9a84c;
+        padding: 16px;
+        margin: 16px 0;
+        border-radius: 4px;
+      }
+      
+      .evidence-quote {
+        font-style: italic;
+        color: #6b7280;
+        margin: 8px 0;
+        padding-left: 16px;
+        border-left: 2px solid #e6e4dd;
+      }
+      
+      .advantage-box {
+        background: rgba(16, 185, 129, 0.05);
+        border-left: 3px solid #10b981;
+        padding: 16px;
+        margin: 16px 0;
+        border-radius: 4px;
+      }
+      
+      .action-list {
+        list-style: none;
+        padding: 0;
+      }
+      
+      .action-list li {
+        padding: 8px 0;
+        border-bottom: 1px solid #e6e4dd;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      
+      .action-list li::before {
+        content: "☐";
+        color: #c9a84c;
+        font-size: 14px;
+      }
+      
+      .report-footer {
+        padding: 24px 48px;
+        border-top: 1px solid #e6e4dd;
+        text-align: center;
+        font-size: 11px;
+        color: #9ca3af;
+        background: #f8f7f4;
+      }
+      
+      .footer-tagline {
+        font-family: 'Playfair Display', serif;
+        font-size: 12px;
+        font-style: italic;
+        color: #c9a84c;
+        margin-bottom: 8px;
+      }
+      
+      .report-metadata {
+        margin-top: 24px;
+        padding: 16px;
+        background: #f8f7f4;
+        border-radius: 4px;
+        font-size: 11px;
+        color: #6b7280;
+      }
+      
+      .report-metadata p {
+        margin: 4px 0;
+      }
+      
+      hr {
+        border: none;
+        border-top: 1px solid #e6e4dd;
+        margin: 24px 0;
+      }
+      
+      @media (max-width: 768px) {
+        .report-content {
+          padding: 24px;
+        }
+        .report-header {
+          padding: 32px 24px;
+        }
+        .key-findings {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+  <div class="report-container">
+    <div class="report-header">
+      <img src="https://raw.githubusercontent.com/keron62-spec/VeritasResumeIntelligence/main/public/images/veritaslogo.jpeg" alt="Veritas Logo" class="logo">
+      <div class="logo-text">VERITAS</div>
+      <div class="logo-tagline">See clearly, act decisively</div>
+    </div>
+    
+    <div class="instruction-banner no-print">
+      💡 To save as PDF: Press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac) → Select "Save as PDF"
+    </div>
+    
+    <div class="report-content">
+      <h1>Hidden Brief Intelligence Report</h1>
+      
+      <!-- Executive Summary -->
+      <section>
+        <h2>Executive Summary</h2>
+        ${keyFindingsHtml}
+        <p>${escapeHtml(recommendationSummary || 'Review the full analysis for insights on this role.')}</p>
+      </section>
+      
+      <!-- What This Role is Designed to Address -->
+      <section>
+        <h2>What This Role is Designed to Address</h2>
+        <p><strong>What the JD states:</strong> ${escapeHtml(coreProblem.stated_task || 'Not explicitly stated in the job description.')}</p>
+        ${coreProblem.inferred_problem ? `
+          <div class="core-problem-insight">
+            <p>${escapeHtml(coreProblem.inferred_problem)}</p>
+          </div>
+        ` : ''}
+        ${coreProblem.evidence_quotes && coreProblem.evidence_quotes.length > 0 ? `
+          <div class="evidence-quote">
+            ${coreProblem.evidence_quotes.map(quote => `<p>“${escapeHtml(quote)}”</p>`).join('')}
+          </div>
+        ` : ''}
+      </section>
+      
+      <!-- JD Quality Assessment -->
+      <section>
+        <h2>JD Quality Assessment</h2>
+        <div class="key-findings">
+          <div class="finding-card">
+            <div class="finding-label">Word Count</div>
+            <div class="finding-value">${jdQuality.word_count || 'N/A'} words</div>
+          </div>
+          <div class="finding-card">
+            <div class="finding-label">Detected Seniority</div>
+            <div class="finding-value">${escapeHtml(jdQuality.detected_seniority || 'Not detected')}</div>
+          </div>
+          <div class="finding-card">
+            <div class="finding-label">Maturity Grade</div>
+            <div class="finding-value ${getMaturityClass(jdQuality.maturity_grade)}">${escapeHtml(jdQuality.maturity_grade || 'Not assessed')}</div>
+          </div>
+          <div class="finding-card">
+            <div class="finding-label">Red Flag Risk</div>
+            <div class="finding-value">${escapeHtml(jdQuality.red_flag_risk || 'None')}</div>
+          </div>
+        </div>
+        <p>${escapeHtml(jdQuality.assessment || 'No additional assessment available.')}</p>
+        ${jdQuality.over_titled_risk?.detected ? `
+          <div class="risk-item risk-high">
+            <strong>⚠️ Potential Over-Titled Role</strong>
+            <p>${escapeHtml(jdQuality.over_titled_risk.explanation)}</p>
+            <p class="risk-advice">💡 ${escapeHtml(jdQuality.over_titled_risk.recommendation)}</p>
+          </div>
+        ` : ''}
+      </section>
+      
+      <!-- Stakeholders -->
+      <section>
+        <h2>Stakeholders Mentioned in the JD</h2>
+        ${stakeholderTableHtml}
+        <p>💡 ${escapeHtml(stakeholderComplexity.resume_framing_advice || 'Prepare examples of coordinating across multiple stakeholder groups with competing priorities.')}</p>
+      </section>
+      
+      <!-- Hidden Requirements -->
+      ${hiddenRequirements.length > 0 ? `
+        <section>
+          <h2>What They're Not Saying (Hidden Requirements)</h2>
+          ${hiddenRequirementsHtml}
+        </section>
+      ` : ''}
+      
+      <!-- Risk Indicators -->
+      ${risksHtml ? `
+        <section>
+          <h2>Risk Indicators</h2>
+          ${risksHtml}
+        </section>
+      ` : ''}
+      
+      <!-- Unicorn Detection -->
+      ${unicornHtml}
+      
+      <!-- Title-Function Mismatch -->
+      ${scopeMismatch.detected ? `
+        <section>
+          <h2>Title-Function Mismatch</h2>
+          <div class="risk-item ${scopeMismatch.severity === 'High' ? 'risk-high' : 'risk-medium'}">
+            <strong>${scopeMismatch.mismatch_type?.replace('_', ' ').toUpperCase()}</strong>
+            <p>${escapeHtml(scopeMismatch.explanation || '')}</p>
+            <p class="risk-advice">💡 ${escapeHtml(scopeMismatch.resume_framing_advice || '')}</p>
+          </div>
+        </section>
+      ` : ''}
+      
+      <!-- Words and Phrases to Use -->
+      ${repetitionSignals.length > 0 ? `
+        <section>
+          <h2>Words and Phrases to Use</h2>
+          ${repetitionSignalsHtml}
+          ${languagePattern.resume_framing_tip ? `
+            <p><strong>Resume Framing Tip:</strong> ${escapeHtml(languagePattern.resume_framing_tip)}</p>
+          ` : ''}
+        </section>
+      ` : ''}
+      
+      <!-- Specific Actions to Take -->
+      <section>
+        <h2>Specific Actions to Take</h2>
+        <ul class="action-list">
+          <li>Review the JD for any stakeholder groups not listed in this report</li>
+          <li>Prepare examples of coordinating across multiple stakeholders and navigating approval processes</li>
+          <li>Research the organization's recent projects in this area</li>
+          <li>Prepare questions about approval processes and reporting expectations</li>
+          <li>Tailor your resume to emphasize relevant skills and keywords</li>
+        </ul>
+      </section>
+      
+      <!-- Report Metadata -->
+      <div class="report-metadata">
+        <p><strong>Report ID:</strong> ${reportId}</p>
+        <p><strong>Generated:</strong> ${generationDate}</p>
+        <p><strong>Disclaimer:</strong> This report is based on analysis of the job description. Verify all claims in the interview. The Veritas Intelligence Platform is not responsible for the outcome of any application.</p>
+      </div>
+    </div>
+    
+    <div class="report-footer">
+      <div class="footer-tagline">Veritas – See clearly, act decisively</div>
+      <p>© 2026 Veritas Intelligence Platform. All rights reserved.</p>
+    </div>
+    
+    <div class="instruction-banner no-print" style="border-top: 1px solid #e6e4dd; border-bottom: none;">
+      💡 To save as PDF: Press <strong>Ctrl+P</strong> (Windows) or <strong>Cmd+P</strong> (Mac) → Select "Save as PDF"
+    </div>
+  </div>
   
-    // ============================================================
-    // SECTION 14: INTERVIEW PREPARATION
-    // ============================================================
-    markdown += `## 14. Interview Preparation\n\n`;
+  <script>
+    // Optional: Auto-open print dialog after a short delay to ensure fonts and images load
+    // Uncomment the lines below if you want the PDF dialog to open automatically
+    /*
+    window.onload = function() {
+      setTimeout(function() {
+        window.print();
+      }, 750);
+    };
+    */
+  </script>
+  </body>
+  </html>`;
     
-    markdown += `### Questions You Should Ask\n\n`;
-    markdown += `| Category | Question |\n`;
-    markdown += `|----------|----------|\n`;
-    markdown += `| How work gets done | "What is the typical approval turnaround time for major decisions?" |\n`;
-    markdown += `| Team dynamics | "How many people are on the project team? How does work get divided?" |\n`;
-    markdown += `| Past performance | "What has been the biggest challenge in keeping this project on track so far?" |\n`;
-    markdown += `| Success measures | "Beyond the deliverables, how will you know I'm succeeding?" |\n`;
-    if (scope_grade_mismatch?.detected) {
-      markdown += `| Role clarity | "How does this role compare to others with similar titles?" |\n`;
-    }
-    markdown += `\n`;
-    
-    markdown += `### Questions They May Ask You\n\n`;
-    markdown += `| Likely Question | How to Frame Your Answer |\n`;
-    markdown += `|-----------------|--------------------------|\n`;
-    markdown += `| "Tell me about your experience with [core function]." | Connect your experience directly to what the JD emphasizes. |\n`;
-    markdown += `| "How do you handle competing priorities?" | Use a specific example with a clear outcome. |\n`;
-    markdown += `| "What is your experience with multi-stakeholder coordination?" | Describe the number and types of stakeholders and how you managed them. |\n`;
-    markdown += `| "Are you familiar with [specific technical term from JD]?" | Be honest. If not, show readiness to learn quickly. |\n\n`;
-  
-    // ============================================================
-    // SECTION 15: SPECIFIC ACTIONS TO TAKE BEFORE APPLYING
-    // ============================================================
-    markdown += `## 15. Specific Actions to Take Before Applying\n\n`;
-    markdown += `- [ ] **Revise your summary** – Incorporate keywords and themes from Section 13\n`;
-    markdown += `- [ ] **Update relevant bullets** – Add phrases that address the hidden requirements\n`;
-    markdown += `- [ ] **Research the organization** – Understand their recent projects in this area\n`;
-    markdown += `- [ ] **Prepare examples** – Have specific stories for the likely questions in Section 9\n`;
-    markdown += `- [ ] **Clarify your availability** – Based on the timeline in Section 7\n\n`;
-  
-    // ============================================================
-    // SECTION 16: IF YOU GET AN INTERVIEW
-    // ============================================================
-    markdown += `## 16. If You Get an Interview\n\n`;
-    
-    markdown += `### Before the Interview\n\n`;
-    markdown += `- Research the organization's recent projects and press releases\n`;
-    markdown += `- Understand how this role fits into their broader strategy\n`;
-    markdown += `- Prepare a 60-second answer to "Why are you interested?" that incorporates what you've learned\n\n`;
-    
-    markdown += `### Red Flags to Watch For\n\n`;
-    markdown += `- Vague answers about reporting lines or approval chains\n`;
-    markdown += `- Inability to describe what happened to the previous person in this role\n`;
-    markdown += `- The "other duties" clause represents more than 20% of expected workload\n`;
-    markdown += `- Reluctance to clarify the title vs. scope discrepancy (if applicable)\n\n`;
-  
-    // ============================================================
-    // FOOTER & DISCLAIMERS
-    // ============================================================
-    markdown += `---\n\n`;
-    markdown += `*This report is based on analysis of the job description. It does not reflect insider knowledge of the organization. Verify all claims in the interview.*\n\n`;
-    
-    if (analysis_limitations && analysis_limitations.length > 0) {
-      markdown += `**Analysis limitations:**\n`;
-      analysis_limitations.forEach(limit => {
-        markdown += `- ${limit}\n`;
-      });
-      markdown += `\n`;
-    }
-    
-    if (confidence_statement) {
-      markdown += `${confidence_statement}\n\n`;
-    }
-    
-    markdown += `---\n\n`;
-    markdown += `**Veritas – See clearly. Act decisively.**\n`;
-  
-    return markdown;
+    return { html, reportId, generationDate };
   }

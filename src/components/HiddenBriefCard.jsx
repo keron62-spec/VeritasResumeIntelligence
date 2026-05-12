@@ -5,7 +5,9 @@ export default function HiddenBriefCard({
   onApplyToBullets, 
   onApplyToSummary,
   isApplyingBullets,
-  isApplyingSummary
+  isApplyingSummary,
+  onDownloadReport,        // NEW PROP
+  isGeneratingReport       // NEW PROP
 }) {
   const [expandedSections, setExpandedSections] = useState({
     quality: true,
@@ -14,7 +16,7 @@ export default function HiddenBriefCard({
     bottlenecks: true,
     contradictions: false,
     repetitions: false,
-    unicorn: true  // ADDED - new section state
+    unicorn: true
   });
 
   const toggleSection = (section) => {
@@ -37,7 +39,7 @@ export default function HiddenBriefCard({
     stakeholder_complexity,
     recommendation_summary,
     analysis_limitations,
-    unicorn_detection  // ADDED - new field
+    unicorn_detection
   } = hiddenBrief;
 
   // Helper to get risk color
@@ -153,6 +155,27 @@ export default function HiddenBriefCard({
             }}
           >
             {isApplyingSummary ? 'Applying...' : '📝 Apply to Summary'}
+          </button>
+          {/* ADDED: Download Report Button */}
+          <button
+            onClick={onDownloadReport}
+            disabled={isGeneratingReport}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: 'transparent',
+              border: '1px solid var(--border-light)',
+              color: 'var(--text-primary)',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: '500',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              opacity: isGeneratingReport ? 0.6 : 1
+            }}
+          >
+            <span>📥</span> {isGeneratingReport ? 'Generating...' : 'Download Report'}
           </button>
         </div>
       </div>

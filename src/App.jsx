@@ -91,9 +91,11 @@ export default function App() {
         error: hiddenBriefError,
         transformingBullets: hbTransformingBullets,
         transformingSummary: hbTransformingSummary,
+        generatingReport: hbGeneratingReport,  // ADDED
         analyze: analyzeHiddenBrief,
         transformBullets: transformBulletsWithHB,
-        transformSummary: transformSummaryWithHB
+        transformSummary: transformSummaryWithHB,
+        generateReport: generateHBReport       // ADDED
     } = useHiddenBrief();
 
     // Track whether hidden brief has been triggered for this JD/resume
@@ -185,6 +187,30 @@ export default function App() {
             });
         }
     }, [hiddenBriefAnalysis, jobDescriptionText, result, transformSummaryWithHB]);
+
+    // ============================================================
+    // NEW: Handler for downloading hidden brief report
+    // ============================================================
+    const handleDownloadHBReport = useCallback(async () => {
+        if (!hiddenBriefAnalysis || !jobDescriptionText) {
+            alert('Hidden brief analysis not available. Please ensure both JD and resume are loaded.');
+            return;
+        }
+        
+        const result = await generateHBReport(jobDescriptionText, resumeText, hiddenBriefAnalysis);
+        
+        if (result.markdown) {
+            const blob = new Blob([result.markdown], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `veritas-hb-report-${Date.now()}.md`;
+            a.click();
+            URL.revokeObjectURL(url);
+        } else {
+            alert('Failed to generate report. Please try again.');
+        }
+    }, [hiddenBriefAnalysis, jobDescriptionText, resumeText, generateHBReport]);
 
     // Reset hidden brief trigger when JD changes or analysis resets
     useEffect(() => {
@@ -648,6 +674,8 @@ export default function App() {
                                     onApplyToSummary={handleApplyHiddenBriefToSummary}
                                     isApplyingBullets={hbTransformingBullets}
                                     isApplyingSummary={hbTransformingSummary}
+                                    onDownloadReport={handleDownloadHBReport}
+                                    isGeneratingReport={hbGeneratingReport}
                                 />
                             )}
                         </>

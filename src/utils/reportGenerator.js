@@ -93,7 +93,6 @@ function generateReportId() {
     const languagePattern = hiddenBrief?.language_pattern || {};
     const unicornDetection = hiddenBrief?.unicorn_detection || {};
     const recommendationSummary = hiddenBrief?.recommendation_summary || '';
-    const sectorClassification = hiddenBrief?.sector_classification || {};
     
     // Build hidden requirements HTML
     const hiddenRequirementsHtml = hiddenRequirements.map(req => `
@@ -206,7 +205,7 @@ function generateReportId() {
     // NARRATIVE SECTIONS (from LLM) - Only render if provided
     // ============================================================
     
-    // Cover Letter Framework
+    // Cover Letter Framework - with bullet array support
     const coverLetterHtml = narrative?.cover_letter ? `
       <section>
         <h2>Cover Letter Framework</h2>
@@ -216,14 +215,18 @@ function generateReportId() {
             <p>${escapeHtml(narrative.cover_letter.opening_hook)}</p>
           </div>
           <div class="cover-letter-section">
-            <h3>Middle Paragraph – Evidence:</h3>
-            <p>${escapeHtml(narrative.cover_letter.middle_evidence)}</p>
+            <h3>Key Achievements – Bullet Points:</h3>
+            <ul class="cover-letter-bullets">
+              ${narrative.cover_letter.middle_evidence_bullets?.map(bullet => `
+                <li>${escapeHtml(bullet)}</li>
+              `).join('') || '<li>No specific achievements identified.</li>'}
+            </ul>
           </div>
           <div class="cover-letter-section">
             <h3>Closing Paragraph – Value:</h3>
             <p>${escapeHtml(narrative.cover_letter.closing_value)}</p>
           </div>
-          ${narrative.cover_letter.keywords ? `
+          ${narrative.cover_letter.keywords && narrative.cover_letter.keywords.length > 0 ? `
             <div class="cover-letter-section">
               <h3>Keywords to Include:</h3>
               <p>${escapeHtml(narrative.cover_letter.keywords.join(', '))}</p>
@@ -606,6 +609,16 @@ function generateReportId() {
         font-size: 13px;
         color: #c9a84c;
         margin-bottom: 8px;
+      }
+      
+      .cover-letter-bullets {
+        margin: 12px 0 0 20px;
+        padding-left: 0;
+      }
+      
+      .cover-letter-bullets li {
+        margin-bottom: 8px;
+        line-height: 1.5;
       }
       
       .interview-question {

@@ -70,12 +70,13 @@ function generateReportId() {
   }
   
   /**
-   * Generates the complete deterministic HTML report
+   * Generates the complete deterministic HTML report with optional narrative sections
    * @param {Object} hiddenBrief - The hidden brief analysis JSON
    * @param {string} resumeText - The candidate's resume text (optional)
+   * @param {Object} narrative - LLM-generated narrative sections (optional)
    * @returns {Object} { html, reportId, generationDate }
    */
-  export function generateDeterministicHtmlReport(hiddenBrief, resumeText = '') {
+  export function generateDeterministicHtmlReport(hiddenBrief, resumeText = '', narrative = null) {
     const reportId = generateReportId();
     const generationDate = getFormattedDate();
     
@@ -200,6 +201,77 @@ function generateReportId() {
         </div>
       </div>
     `;
+    
+    // ============================================================
+    // NARRATIVE SECTIONS (from LLM) - Only render if provided
+    // ============================================================
+    
+    // Cover Letter Framework
+    const coverLetterHtml = narrative?.cover_letter ? `
+      <section>
+        <h2>Cover Letter Framework</h2>
+        <div class="cover-letter-box">
+          <div class="cover-letter-section">
+            <h3>Opening Paragraph – Hook:</h3>
+            <p>${escapeHtml(narrative.cover_letter.opening_hook)}</p>
+          </div>
+          <div class="cover-letter-section">
+            <h3>Middle Paragraph – Evidence:</h3>
+            <p>${escapeHtml(narrative.cover_letter.middle_evidence)}</p>
+          </div>
+          <div class="cover-letter-section">
+            <h3>Closing Paragraph – Value:</h3>
+            <p>${escapeHtml(narrative.cover_letter.closing_value)}</p>
+          </div>
+          ${narrative.cover_letter.keywords ? `
+            <div class="cover-letter-section">
+              <h3>Keywords to Include:</h3>
+              <p>${escapeHtml(narrative.cover_letter.keywords.join(', '))}</p>
+            </div>
+          ` : ''}
+        </div>
+      </section>
+    ` : '';
+    
+    // Likely Interview Questions
+    const interviewQuestionsHtml = narrative?.interview_questions && narrative.interview_questions.length > 0 ? `
+      <section>
+        <h2>Likely Interview Questions</h2>
+        ${narrative.interview_questions.map((q, idx) => `
+          <div class="interview-question">
+            <div class="question-title">${idx + 1}. ${escapeHtml(q.question)}</div>
+            <p><strong>What they're really testing:</strong> ${escapeHtml(q.what_they_test)}</p>
+            <p><strong>Your best evidence:</strong> ${escapeHtml(q.best_evidence)}</p>
+            <p><strong>STAR guidance:</strong> ${escapeHtml(q.star_guidance)}</p>
+          </div>
+        `).join('')}
+      </section>
+    ` : '';
+    
+    // Advantage vs. Risk
+    const advantageRiskHtml = narrative?.advantage_risk ? `
+      <section>
+        <h2>Your Advantage vs. Your Risk</h2>
+        <div class="advantage-box">
+          <h3>Your Advantage:</h3>
+          <p>${escapeHtml(narrative.advantage_risk.advantage)}</p>
+        </div>
+        <div class="risk-box">
+          <h3>Your Risk:</h3>
+          <p>${escapeHtml(narrative.advantage_risk.risk)}</p>
+        </div>
+      </section>
+    ` : '';
+    
+    // Questions You Should Ask Them
+    const questionsToAskHtml = narrative?.questions_to_ask && narrative.questions_to_ask.length > 0 ? `
+      <section>
+        <h2>Questions You Should Ask Them</h2>
+        <ul class="questions-list">
+          ${narrative.questions_to_ask.map(q => `<li>${escapeHtml(q)}</li>`).join('')}
+        </ul>
+      </section>
+    ` : '';
     
     // Build the complete HTML
     const html = `<!DOCTYPE html>
@@ -511,6 +583,56 @@ function generateReportId() {
         border-radius: 4px;
       }
       
+      .risk-box {
+        background: rgba(245, 158, 11, 0.05);
+        border-left: 3px solid #f59e0b;
+        padding: 16px;
+        margin: 16px 0;
+        border-radius: 4px;
+      }
+      
+      .cover-letter-box {
+        background: #f8f7f4;
+        padding: 20px;
+        border-radius: 8px;
+        margin: 16px 0;
+      }
+      
+      .cover-letter-section {
+        margin-bottom: 20px;
+      }
+      
+      .cover-letter-section h3 {
+        font-size: 13px;
+        color: #c9a84c;
+        margin-bottom: 8px;
+      }
+      
+      .interview-question {
+        background: #f8f7f4;
+        padding: 16px;
+        margin: 12px 0;
+        border-radius: 8px;
+        border-left: 3px solid #c9a84c;
+      }
+      
+      .question-title {
+        font-weight: 700;
+        color: #c9a84c;
+        margin-bottom: 12px;
+        font-size: 14px;
+      }
+      
+      .questions-list {
+        margin: 16px 0;
+        padding-left: 20px;
+      }
+      
+      .questions-list li {
+        margin-bottom: 8px;
+        font-size: 13px;
+      }
+      
       .action-list {
         list-style: none;
         padding: 0;
@@ -696,6 +818,14 @@ function generateReportId() {
           ` : ''}
         </section>
       ` : ''}
+      
+      <!-- ============================================================
+           NARRATIVE SECTIONS (from LLM)
+           ============================================================ -->
+      ${coverLetterHtml}
+      ${interviewQuestionsHtml}
+      ${advantageRiskHtml}
+      ${questionsToAskHtml}
       
       <!-- Specific Actions to Take -->
       <section>

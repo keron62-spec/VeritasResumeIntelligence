@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { generateDeterministicHtmlReport } from '../utils/reportGenerator.js';
 
 const HIDDEN_BRIEF_WORKER_URL = 'https://hidden-brief.keron62.workers.dev';
 
@@ -111,51 +112,84 @@ export function useHiddenBrief() {
   }, []);
 
   // ============================================================
-  // Generate downloadable report (FIXED: Now handles report_html)
+  // Generate narrative sections from LLM (lightweight call)
   // ============================================================
-  const generateReport = useCallback(async (jdText, resumeText, hiddenBriefJson) => {
-    setGeneratingReport(true);
-    setError(null);
-    
+  const generateNarrativeSections = useCallback(async (hiddenBriefJson, resumeText) => {
     try {
-      const response = await fetch(`${HIDDEN_BRIEF_WORKER_URL}/generate-report`, {
+      const response = await fetch(`${HIDDEN_BRIEF_WORKER_URL}/generate-narrative`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          jd_text: jdText,
-          resume_text: resumeText || '',
-          hidden_brief_json: hiddenBriefJson
+          hidden_brief: hiddenBriefJson,
+          resume_text: resumeText || ''
         })
       });
       
       const data = await response.json();
       
       if (data.error) {
-        throw new Error(data.error);
+        console.error('Narrative generation error:', data.error);
+        return null;
       }
       
-      // FIXED: Return both report_html and markdown for compatibility
+      return data.narrative;
+      
+    } catch (err) {
+      console.error('Narrative generation error:', err);
+      return null;
+    }
+  }, []);
+
+  // ============================================================
+  // Generate complete report (deterministic HTML + narrative sections)
+  // ============================================================
+  const generateReport = useCallback(async (jdText, resumeText, hiddenBriefJson) => {
+    setGeneratingReport(true);
+    setError(null);
+    
+    try {
+      // Fetch narrative sections from LLM (lightweight, fast)
+      const narrative = await generateNarrativeSections(hiddenBriefJson, resumeText);
+      
+      // Generate deterministic HTML with narrative merged
+      const { html, reportId, generationDate } = generateDeterministicHtmlReport(
+        hiddenBriefJson,
+        resumeText,
+        narrative  // Pass narrative data to be injected into HTML
+      );
+      
       return {
-        report_html: data.report_html,      // Primary: HTML for the report
-        markdown: data.report_markdown,      // Fallback: Markdown (if worker returns it)
-        generated: data.generated,
-        fallback: data.fallback || false
+        report_html: html,
+        report_id: reportId,
+        generation_date: generationDate,
+        generated: true,
+        narrative_generated: !!narrative
       };
       
     } catch (err) {
       setError(err.message);
       console.error('Report generation error:', err);
+      
+      // Fallback: generate report without narrative sections
+      const { html, reportId, generationDate } = generateDeterministicHtmlReport(
+        hiddenBriefJson,
+        resumeText,
+        null  // No narrative data
+      );
+      
       return {
-        report_html: null,
-        markdown: null,
-        generated: false,
-        fallback: true,
-        error: err.message
+        report_html: html,
+        report_id: reportId,
+        generation_date: generationDate,
+        generated: true,
+        narrative_generated: false,
+        fallback: true
       };
+      
     } finally {
       setGeneratingReport(false);
     }
-  }, []);
+  }, [generateNarrativeSections]);
 
   return {
     analysis,

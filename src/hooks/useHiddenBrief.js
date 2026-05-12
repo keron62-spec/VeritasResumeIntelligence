@@ -112,50 +112,39 @@ export function useHiddenBrief() {
   }, []);
 
   // ============================================================
-  // Generate narrative sections from LLM (lightweight call)
-  // ============================================================
-  const generateNarrativeSections = useCallback(async (hiddenBriefJson, resumeText) => {
-    try {
-      const response = await fetch(`${HIDDEN_BRIEF_WORKER_URL}/generate-narrative`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          hidden_brief: hiddenBriefJson,
-          resume_text: resumeText || ''
-        })
-      });
-      
-      const data = await response.json();
-      
-      if (data.error) {
-        console.error('Narrative generation error:', data.error);
-        return null;
-      }
-      
-      return data.narrative;
-      
-    } catch (err) {
-      console.error('Narrative generation error:', err);
-      return null;
-    }
-  }, []);
-
-  // ============================================================
-  // Generate complete report (deterministic HTML + narrative sections)
+  // Generate downloadable report - uses /generate-report endpoint
+  // Returns narrative data + frontend builds deterministic HTML
   // ============================================================
   const generateReport = useCallback(async (jdText, resumeText, hiddenBriefJson) => {
     setGeneratingReport(true);
     setError(null);
     
     try {
-      // Fetch narrative sections from LLM (lightweight, fast)
-      const narrative = await generateNarrativeSections(hiddenBriefJson, resumeText);
+      // Call the existing /generate-report endpoint (now returns narrative JSON)
+      const response = await fetch(`${HIDDEN_BRIEF_WORKER_URL}/generate-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jd_text: jdText,
+          resume_text: resumeText || '',
+          hidden_brief_json: hiddenBriefJson
+        })
+      });
       
-      // Generate deterministic HTML with narrative merged
+      const data = await response.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Extract narrative from response (the worker returns { narrative: {...}, generated: true })
+      const narrative = data.narrative || null;
+      
+      // Generate deterministic HTML with the narrative data
       const { html, reportId, generationDate } = generateDeterministicHtmlReport(
         hiddenBriefJson,
         resumeText,
-        narrative  // Pass narrative data to be injected into HTML
+        narrative  // Pass narrative to be injected into HTML sections
       );
       
       return {
@@ -189,7 +178,7 @@ export function useHiddenBrief() {
     } finally {
       setGeneratingReport(false);
     }
-  }, [generateNarrativeSections]);
+  }, []);
 
   return {
     analysis,

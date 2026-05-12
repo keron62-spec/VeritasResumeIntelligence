@@ -200,28 +200,25 @@ export default function App() {
         const result = await generateHBReport(jobDescriptionText, resumeText, hiddenBriefAnalysis);
         
         if (result.report_html) {
-          // Open HTML in new tab (user can then print to PDF)
-          const newTab = window.open();
-          newTab.document.write(result.report_html);
-          newTab.document.close();
-        } else if (result.markdown) {
-          // Fallback: try to use markdown if HTML not available
-          const blob = new Blob([result.markdown], { type: 'text/markdown' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = `veritas-hb-report-${Date.now()}.md`;
-          a.click();
-          URL.revokeObjectURL(url);
+          // Attempt to open in new tab for easy "Print to PDF"
+          const newTab = window.open('', '_blank');
+          if (newTab) {
+            newTab.document.write(result.report_html);
+            newTab.document.close();
+          } else {
+            // POP-UP BLOCKER FALLBACK: Download as an HTML file directly
+            const blob = new Blob([result.report_html], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `veritas-hidden-brief-${Date.now()}.html`;
+            a.click();
+            URL.revokeObjectURL(url);
+          }
         } else {
           alert('Failed to generate report. Please try again.');
         }
       }, [hiddenBriefAnalysis, jobDescriptionText, resumeText, generateHBReport]);
-
-    // Reset hidden brief trigger when JD changes or analysis resets
-    useEffect(() => {
-        setHiddenBriefTriggered(false);
-    }, [jobDescriptionText, resumeText]);
     // ============================================================
     // END HIDDEN BRIEF INTEGRATION
     // ============================================================

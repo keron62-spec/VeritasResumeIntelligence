@@ -8,7 +8,7 @@ export function useHiddenBrief() {
   const [error, setError] = useState(null);
   const [transformingBullets, setTransformingBullets] = useState(false);
   const [transformingSummary, setTransformingSummary] = useState(false);
-  const [generatingReport, setGeneratingReport] = useState(false); // ADDED
+  const [generatingReport, setGeneratingReport] = useState(false);
 
   const analyze = useCallback(async (jdText, resumeText) => {
     setLoading(true);
@@ -111,7 +111,7 @@ export function useHiddenBrief() {
   }, []);
 
   // ============================================================
-  // NEW: Generate downloadable report
+  // Generate downloadable report (FIXED: Now handles report_html)
   // ============================================================
   const generateReport = useCallback(async (jdText, resumeText, hiddenBriefJson) => {
     setGeneratingReport(true);
@@ -134,8 +134,10 @@ export function useHiddenBrief() {
         throw new Error(data.error);
       }
       
+      // FIXED: Return both report_html and markdown for compatibility
       return {
-        markdown: data.report_markdown,
+        report_html: data.report_html,      // Primary: HTML for the report
+        markdown: data.report_markdown,      // Fallback: Markdown (if worker returns it)
         generated: data.generated,
         fallback: data.fallback || false
       };
@@ -144,6 +146,7 @@ export function useHiddenBrief() {
       setError(err.message);
       console.error('Report generation error:', err);
       return {
+        report_html: null,
         markdown: null,
         generated: false,
         fallback: true,
@@ -160,10 +163,10 @@ export function useHiddenBrief() {
     error,
     transformingBullets,
     transformingSummary,
-    generatingReport,        // ADDED
+    generatingReport,
     analyze,
     transformBullets,
     transformSummary,
-    generateReport           // ADDED
+    generateReport
   };
 }

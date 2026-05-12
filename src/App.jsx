@@ -443,7 +443,12 @@ export default function App() {
             
             setAnalysisStage('📊 Processing your results...');
             const safeResult = createSafeResult(data.result || data, resumePdfHealth);
-            setResult(safeResult);
+console.log('=== DEBUG: safeResult.bullet_analysis ===');
+console.log(safeResult.bullet_analysis);
+console.log('bullet_analysis type:', typeof safeResult.bullet_analysis);
+console.log('bullets array:', safeResult.bullet_analysis?.bullets);
+console.log('bullets is array:', Array.isArray(safeResult.bullet_analysis?.bullets));
+setResult(safeResult);
             
         } catch (error) {
             console.error('Analysis error:', error);

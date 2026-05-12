@@ -193,24 +193,30 @@ export default function App() {
     // ============================================================
     const handleDownloadHBReport = useCallback(async () => {
         if (!hiddenBriefAnalysis || !jobDescriptionText) {
-            alert('Hidden brief analysis not available. Please ensure both JD and resume are loaded.');
-            return;
+          alert('Hidden brief analysis not available.');
+          return;
         }
         
         const result = await generateHBReport(jobDescriptionText, resumeText, hiddenBriefAnalysis);
         
-        if (result.markdown) {
-            const blob = new Blob([result.markdown], { type: 'text/markdown' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `veritas-hb-report-${Date.now()}.md`;
-            a.click();
-            URL.revokeObjectURL(url);
+        if (result.report_html) {
+          // Open HTML in new tab (user can then print to PDF)
+          const newTab = window.open();
+          newTab.document.write(result.report_html);
+          newTab.document.close();
+        } else if (result.markdown) {
+          // Fallback: try to use markdown if HTML not available
+          const blob = new Blob([result.markdown], { type: 'text/markdown' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `veritas-hb-report-${Date.now()}.md`;
+          a.click();
+          URL.revokeObjectURL(url);
         } else {
-            alert('Failed to generate report. Please try again.');
+          alert('Failed to generate report. Please try again.');
         }
-    }, [hiddenBriefAnalysis, jobDescriptionText, resumeText, generateHBReport]);
+      }, [hiddenBriefAnalysis, jobDescriptionText, resumeText, generateHBReport]);
 
     // Reset hidden brief trigger when JD changes or analysis resets
     useEffect(() => {

@@ -427,7 +427,7 @@ export default function App() {
                 // These workers support BOTH resume-only AND comparison mode
                 if (hermesModelType === 'hermes') {
                     // Use OpenRouter worker with Hermes fallback chain
-                    workerUrl = "https://openrouter-leniency.keron62.workers.dev";
+                    workerUrl = "https://open-router-leniency.keron62.workers.dev";
                 } else {
                     // Use existing Recruiter Leniency Worker (Gemini)
                     workerUrl = "https://recruiter-leniency.keron62.workers.dev";

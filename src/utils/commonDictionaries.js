@@ -93,7 +93,7 @@ export const LANGUAGES = [
    * @param {string} jdText - The job description text
    * @returns {number} Count of unique education categories found
    */
-  export function countEducations(jdText) {
+  export function detectEducationLevel(jdText) {
     if (!jdText || typeof jdText !== 'string') return 0;
     const lowerText = jdText.toLowerCase();
     const foundEducations = new Set();

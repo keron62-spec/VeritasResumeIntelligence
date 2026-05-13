@@ -752,10 +752,14 @@ setResult(safeResult);
                         />
                     )}
                     
-                    {/* Skill Extractor - NEW COMPONENT */}
-                    {result.skill_extractor && (
-                        <SkillExtractor skillExtractor={result.skill_extractor} />
-                    )}
+                  {/* Skill Extractor - NEW COMPONENT */}
+{result.skill_extractor && (
+    <SkillExtractor 
+        skillExtractor={result.skill_extractor}
+        jdText={jobDescriptionText}
+        resumeText={resumeText}
+    />
+)}
                     
                     <div className="results-grid">
                         <StrengthsAndKeywords 

@@ -47,9 +47,18 @@ export default function App() {
     const [pdfFile, setPdfFile] = useState(null);
     const [showWarning, setShowWarning] = useState(true);
     
-    // Model Type State (Gemini vs Dual-Optimized)
+    // Model Type State (Normal mode - Gemini vs Dual-Optimized)
     const [modelType, setModelType] = useState(() => {
         return localStorage.getItem('veritas_model_type') || 'gemini';
+    });
+    
+    // Hermes Model Type State (Strict/Very Strict/Lenient modes - Gemini vs Hermes)
+    const [hermesModelType, setHermesModelType] = useState(() => {
+        const saved = localStorage.getItem('veritas_hermes_model_type');
+        if (saved && ['gemini', 'hermes'].includes(saved)) {
+            return saved;
+        }
+        return 'gemini';
     });
     
     // Resume State
@@ -234,10 +243,15 @@ export default function App() {
         }
     }, [darkMode]);
 
-    // Save model type preference
+    // Save model type preference for Normal mode
     useEffect(() => {
         localStorage.setItem('veritas_model_type', modelType);
     }, [modelType]);
+
+    // Save Hermes model type preference for Strict/Very Strict/Lenient modes
+    useEffect(() => {
+        localStorage.setItem('veritas_hermes_model_type', hermesModelType);
+    }, [hermesModelType]);
 
     // Debug toggle
     const toggleDebug = () => setShowDebug(!showDebug);
@@ -385,7 +399,7 @@ export default function App() {
         }
     };
 
-    // Analysis Function - Routes based on modelType (only for Normal mode)
+    // Analysis Function - Routes based on modelType, hermesModelType, and leniencyMode
     const analyzeResume = async () => {
         if (isAnalyzing) return;
         if (!resumeText.trim()) {
@@ -405,21 +419,34 @@ export default function App() {
         setAnalysisStage('🤖 Connecting to AI...');
         
         try {
-            // Determine which worker to use based on modelType and leniencyMode
-            // Model toggle only applies to Normal mode (not Strict/Very Strict/Lenient)
+            // Determine which worker to use based on modelType, hermesModelType, and leniencyMode
             let workerUrl;
             
             if (leniencyMode !== 'normal') {
-                // Use Recruiter Leniency Worker for Strict/Very Strict/Lenient modes
-                workerUrl = "https://recruiter-leniency.keron62.workers.dev";
+                // Strict/Very Strict/Lenient modes
+                // These workers support BOTH resume-only AND comparison mode
+                if (hermesModelType === 'hermes') {
+                    // Use OpenRouter worker with Hermes fallback chain
+                    workerUrl = "https://openrouter-leniency.keron62.workers.dev";
+                } else {
+                    // Use existing Recruiter Leniency Worker (Gemini)
+                    workerUrl = "https://recruiter-leniency.keron62.workers.dev";
+                }
             } else if (modelType === 'dual') {
-                // Use Dual-Optimized worker (GPT-OSS + Minimax) for Normal mode
-                workerUrl = "https://groq-bloom.keron62.workers.dev";
+                // Normal mode with GPT-OSS (Comparison Mode only - but we guard in UI)
+                if (!isComparisonMode) {
+                    // Fallback to Gemini resume-only if somehow triggered
+                    workerUrl = "https://ats-resume-only.keron62.workers.dev";
+                } else {
+                    workerUrl = "https://groq-bloom.keron62.workers.dev";
+                }
             } else {
-                // Use Gemini orchestrator for Normal mode (default)
-                workerUrl = isComparisonMode 
-                    ? "https://orchestrator.keron62.workers.dev" 
-                    : "https://ats-resume-only.keron62.workers.dev";
+                // Normal mode with Gemini (default)
+                if (isComparisonMode) {
+                    workerUrl = "https://orchestrator.keron62.workers.dev";
+                } else {
+                    workerUrl = "https://ats-resume-only.keron62.workers.dev";
+                }
             }
             
             const payload = { 
@@ -528,6 +555,8 @@ setResult(safeResult);
                     showStrictTooltip={showStrictTooltip}
                     modelType={modelType}
                     setModelType={setModelType}
+                    hermesModelType={hermesModelType}
+                    setHermesModelType={setHermesModelType}
                 />
             )}
 

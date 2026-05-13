@@ -356,6 +356,33 @@ export const PROGRAMMING_LANGUAGES = [
   ];
 
 // ============================================================
+// MASTER TECHNICAL SKILLS EXPORT (For the Deterministic Extractor)
+// ============================================================
+export const TECHNICAL_SKILLS = {
+  PROGRAMMING_LANGUAGES,
+  FRONTEND_SKILLS,
+  BACKEND_SKILLS,
+  ML_AI_SKILLS,
+  DATA_ANALYTICS_SKILLS,
+  CLOUD_DEVOPS_SKILLS,
+  SYSTEMS_SKILLS,
+  CYBERSECURITY_SKILLS,
+  AUTOMATION_SKILLS,
+  HEALTHCARE_SKILLS,
+  PROJECT_MGMT_SKILLS,
+  ERP_CRM_SKILLS,
+  LEGAL_SKILLS,
+  EDUCATION_SKILLS,
+  MANUFACTURING_SKILLS,
+  ENERGY_SKILLS,
+  CONSTRUCTION_SKILLS,
+  AGRICULTURE_SKILLS,
+  HOSPITALITY_SKILLS,
+  GOVERNMENT_SKILLS,
+  RETAIL_SKILLS
+};
+
+// ============================================================
 // SKILL COUNTING FUNCTION (ADDED)
 // ============================================================
 

@@ -361,7 +361,7 @@ export const STAKEHOLDER_PATTERNS = {
    * @param {string} jdText - The job description text
    * @returns {number} Count of distinct stakeholder categories found
    */
-  export function countStakeholderTypes(jdText) {
+  export function countStakeholder(jdText) {
     const lowerText = jdText.toLowerCase();
     let foundCount = 0;
     

@@ -16,7 +16,8 @@ export default function HiddenBriefCard({
     bottlenecks: true,
     contradictions: false,
     repetitions: false,
-    unicorn: true
+    unicorn: true,
+    complexity: true  // ADDED - for complexity analysis section
   });
 
   const toggleSection = (section) => {
@@ -39,7 +40,8 @@ export default function HiddenBriefCard({
     stakeholder_complexity,
     recommendation_summary,
     analysis_limitations,
-    unicorn_detection
+    unicorn_detection,
+    complexity_analysis  // ADDED - new field from worker
   } = hiddenBrief;
 
   // Helper to get risk color
@@ -859,6 +861,150 @@ export default function HiddenBriefCard({
                     <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>{signal.signal}</div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ============================================================
+            COMPLEXITY ANALYSIS - NEW SECTION
+            ============================================================ */}
+        {complexity_analysis && (
+          <div style={{ marginBottom: '24px' }}>
+            <div 
+              onClick={() => toggleSection('complexity')}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer',
+                padding: '10px 0',
+                borderBottom: '1px solid var(--border-light)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>🗻</span>
+                <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0 }}>Role Complexity Analysis</h3>
+                <span style={{
+                  fontSize: '10px',
+                  padding: '2px 10px',
+                  borderRadius: '20px',
+                  backgroundColor: complexity_analysis.priority === 'Critical' ? '#ef4444' :
+                                   complexity_analysis.priority === 'High' ? '#f97316' :
+                                   complexity_analysis.priority === 'Medium' ? '#f59e0b' : '#10b981',
+                  color: '#fff'
+                }}>
+                  {complexity_analysis.iceberg_grade}
+                </span>
+              </div>
+              <span>{expandedSections.complexity ? '▼' : '▶'}</span>
+            </div>
+            
+            {expandedSections.complexity && (
+              <div style={{ padding: '16px 0' }}>
+                {/* Iceberg Interpretation */}
+                <div style={{
+                  backgroundColor: 'rgba(198, 164, 63, 0.08)',
+                  borderLeft: '3px solid #c9a84c',
+                  padding: '14px 16px',
+                  borderRadius: '8px',
+                  marginBottom: '16px'
+                }}>
+                  <p style={{ fontSize: '14px', marginBottom: '8px' }}>
+                    <strong>{complexity_analysis.iceberg_interpretation}</strong>
+                  </p>
+                  <p style={{ fontSize: '13px', margin: 0 }}>
+                    {complexity_analysis.candidate_implication}
+                  </p>
+                </div>
+                
+                {/* Score Grid */}
+                <div style={{ 
+                  display: 'grid', 
+                  gridTemplateColumns: '1fr 1fr', 
+                  gap: '16px',
+                  marginBottom: '16px'
+                }}>
+                  <div style={{ textAlign: 'center', padding: '12px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Surface Complexity</div>
+                    <div style={{ fontSize: '28px', fontWeight: '700', color: '#3b82f6' }}>
+                      {complexity_analysis.surface_score}
+                    </div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>What the JD says</div>
+                  </div>
+                  <div style={{ textAlign: 'center', padding: '12px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
+                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Hidden Complexity</div>
+                    <div style={{ fontSize: '28px', fontWeight: '700', color: '#c9a84c' }}>
+                      {complexity_analysis.hidden_score}
+                    </div>
+                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>What the role actually demands</div>
+                  </div>
+                </div>
+                
+                {/* Ratio and Delta */}
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '12px',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  borderRadius: '8px',
+                  marginBottom: '16px',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}>
+                  <div>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Complexity Ratio</span>
+                    <div style={{ fontWeight: '600' }}>{complexity_analysis.ratio}</div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Hidden Delta</span>
+                    <div style={{ fontWeight: '600', color: complexity_analysis.delta > 0 ? '#ef4444' : '#10b981' }}>
+                      {complexity_analysis.delta > 0 ? '+' : ''}{complexity_analysis.delta}
+                    </div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Invisible Complexity</span>
+                    <div style={{ fontWeight: '600' }}>{complexity_analysis.invisible_complexity_percentage}%</div>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Analysis Confidence</span>
+                    <div style={{ fontWeight: '600', color: complexity_analysis.confidence === 'High' ? '#10b981' : '#f59e0b' }}>
+                      {complexity_analysis.confidence}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Surface Components (Collapsible) */}
+                {complexity_analysis.surface_components && (
+                  <details style={{ marginTop: '8px' }}>
+                    <summary style={{ fontSize: '11px', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                      Surface complexity breakdown
+                    </summary>
+                    <div style={{ marginTop: '12px', fontSize: '12px' }}>
+                      {Object.entries(complexity_analysis.surface_components).map(([key, value]) => (
+                        <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
+                          <span style={{ textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}</span>
+                          <span style={{ fontWeight: '500' }}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+                
+                {/* Hidden Signals (Collapsible) */}
+                {complexity_analysis.hidden_signals && complexity_analysis.hidden_signals.length > 0 && (
+                  <details style={{ marginTop: '12px' }}>
+                    <summary style={{ fontSize: '11px', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                      Hidden complexity signals ({complexity_analysis.hidden_signals.length})
+                    </summary>
+                    <ul style={{ marginTop: '12px', paddingLeft: '20px', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      {complexity_analysis.hidden_signals.map((signal, idx) => (
+                        <li key={idx} style={{ marginBottom: '6px' }}>{signal}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
               </div>
             )}
           </div>

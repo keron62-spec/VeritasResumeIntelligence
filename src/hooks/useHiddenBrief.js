@@ -1,5 +1,10 @@
 import { useState, useCallback } from 'react';
 import { generateDeterministicHtmlReport } from '../utils/reportGenerator.js';
+import { countWords, countCharacters, getAnalysisDepth, validateJobDescription } from '../utils/wordCounter';
+import { countTechnicalSkills } from '../utils/skillDictionary';
+import { countCertifications } from '../utils/certifications';
+import { countLanguages, detectEducationLevel } from '../utils/commonDictionaries';
+import { countStakeholders } from '../utils/stakeholderPatterns';
 
 const HIDDEN_BRIEF_WORKER_URL = 'https://hidden-brief.keron62.workers.dev';
 
@@ -15,13 +20,66 @@ export function useHiddenBrief() {
     setLoading(true);
     setError(null);
     
+    // ============================================================
+    // DETERMINISTIC FRONTEND PRE-PROCESSING
+    // ============================================================
+    
+    // Word & character counts
+    const wordCount = countWords(jdText);
+    const charCount = countCharacters(jdText);
+    const jdValidation = validateJobDescription(jdText);
+    
+    // Pre-compute all counts from frontend dictionaries
+    const technicalSkillsCount = countTechnicalSkills(jdText);
+    const certificationsCount = countCertifications(jdText);
+    const languagesCount = countLanguages(jdText);
+    const educationLevel = detectEducationLevel(jdText);
+    const stakeholderCount = countStakeholders(jdText);
+    
+    // If JD is too short, return early without API call
+    if (!jdValidation.canRunAnalysis) {
+      setLoading(false);
+      
+      // Create a minimal response for short JDs
+      const minimalBrief = {
+        run_analysis: false,
+        analysis_depth: "none",
+        jd_word_count: wordCount,
+        note: jdValidation.note,
+        recommendation_summary: "Job description too short for reliable analysis. Research company culture through LinkedIn, Glassdoor, or the company website.",
+        jd_quality_assessment: {
+          word_count: wordCount,
+          detected_seniority: "Undetectable",
+          seniority_confidence: "low",
+          maturity_grade: "Invalid",
+          assessment: "Job description is too short for meaningful analysis.",
+          red_flag_risk: "Critical",
+          recommendation: "Consider researching the organization through other sources.",
+          interview_questions: ["Can you share a more detailed responsibilities document?"],
+          full_analysis_available: false,
+          analysis_limitation_note: jdValidation.note
+        }
+      };
+      
+      setAnalysis(minimalBrief);
+      return minimalBrief;
+    }
+    
     try {
       const response = await fetch(`${HIDDEN_BRIEF_WORKER_URL}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           jd_text: jdText,
-          resume_text: resumeText
+          resume_text: resumeText,
+          // Pre-computed values sent to worker
+          jd_word_count: wordCount,
+          jd_char_count: charCount,
+          technical_skills_count: technicalSkillsCount,
+          certifications_count: certificationsCount,
+          languages_count: languagesCount,
+          education_level: educationLevel,
+          stakeholder_count: stakeholderCount
         })
       });
       
@@ -31,8 +89,15 @@ export function useHiddenBrief() {
         throw new Error(data.error);
       }
       
-      setAnalysis(data.hidden_brief);
-      return data.hidden_brief;
+      // Merge the frontend pre-computed values with worker response
+      const mergedBrief = {
+        ...data.hidden_brief,
+        jd_word_count: wordCount,
+        frontend_validation: jdValidation
+      };
+      
+      setAnalysis(mergedBrief);
+      return mergedBrief;
       
     } catch (err) {
       setError(err.message);

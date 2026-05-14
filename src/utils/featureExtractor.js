@@ -23,10 +23,79 @@ import { detectRoleType } from './jobTitles.js';
 import { calculateRIASECDeterministic, formatRIASECForDisplay } from './riasec.js';
 
 /**
+ * Get empty features result for error cases
+ */
+function getEmptyFeaturesResult() {
+  return {
+    extractor_version: '1.0.0',
+    extraction_time_ms: 0,
+    bullets: [],
+    bullet_count: 0,
+    bullet_groups: [],
+    bloom: {
+      average_level: 3.5,
+      distribution: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+      classification: 'unknown',
+      assessment: 'No resume data available',
+      multiplier: 1.0
+    },
+    verb_analysis: {
+      average_strength: 5,
+      classification: 'moderate',
+      strong_count: 0,
+      weak_count: 0
+    },
+    metrics: {
+      strong_count: 0,
+      weak_count: 0,
+      has_baseline: false,
+      strength_score: 50
+    },
+    seniority: {
+      level: 'mid',
+      confidence: 'low',
+      years_detected: 0
+    },
+    skills_count: 0,
+    skills_list: [],
+    certifications_count: 0,
+    certifications_list: [],
+    languages_count: 0,
+    industry: 'unknown',
+    role_type: 'unknown',
+    top_achievements: [],
+    ats_score: 70,
+    ats_label: 'Moderate',
+    ats_breakdown: {},
+    credibility_score: 70,
+    credibility_label: 'Moderate',
+    credibility_flags: {},
+    semantic_position: 0,
+    semantic_label: 'Perfectly positioned',
+    semantic_alignment: 7,
+    detected_level: 'Mid',
+    riasec: null,
+    jd_comparison: null,
+    buzzword_count: 0,
+    buzzword_penalty: 0,
+    has_summary: false,
+    has_skills_section: false,
+    has_projects_section: false,
+    original_summary: null
+  };
+}
+
+/**
  * Extract all features from resume and JD
  * Returns a compact JSON object ready to send to the worker
  */
 export function extractAllFeatures(resumeText, jdText = null) {
+  // SAFETY: Ensure resumeText is a valid string
+  if (!resumeText || typeof resumeText !== 'string' || resumeText.trim().length === 0) {
+    console.warn('extractAllFeatures: resumeText is invalid, returning empty features');
+    return getEmptyFeaturesResult();
+  }
+
   const startTime = Date.now();
   
   // ============================================================
@@ -35,16 +104,20 @@ export function extractAllFeatures(resumeText, jdText = null) {
   
   // Extract bullets
   const bulletResult = extractBullets(resumeText);
-  const bullets = bulletResult.bullets;
+  const bullets = bulletResult.bullets || [];
   const bulletGroups = groupBulletsByRole(bullets);
   
   // Calculate deterministic Bloom across all bullets
   const bulletBloomResults = [];
   for (const bullet of bullets) {
-    const bloom = calculateDeterministicBloom(bullet.original_text);
-    bulletBloomResults.push(bloom);
+    if (bullet && bullet.original_text) {
+      const bloom = calculateDeterministicBloom(bullet.original_text);
+      bulletBloomResults.push(bloom);
+    } else {
+      bulletBloomResults.push({ level: 3.0 });
+    }
   }
-  const overallBloom = analyzeBulletBloom(bullets.map(b => b.original_text));
+  const overallBloom = analyzeBulletBloom(bullets.map(b => b?.original_text || '').filter(t => t));
   
   // Detect seniority
   const seniority = detectSeniorityFromText(resumeText);
@@ -65,7 +138,7 @@ export function extractAllFeatures(resumeText, jdText = null) {
   
   // Detect certifications
   const certDetails = getCertificationDetails(resumeText);
-  const certificationsCount = certDetails.total_count;
+  const certificationsCount = certDetails.total_count || 0;
   const certificationsList = extractCertificationsList(resumeText);
   
   // Detect languages
@@ -116,7 +189,7 @@ export function extractAllFeatures(resumeText, jdText = null) {
   let matchingCertifications = 0;
   let skillsMatchRate = 0;
   
-  if (jdText) {
+  if (jdText && typeof jdText === 'string' && jdText.trim().length > 0) {
     const jdParsed = parseJobDescription(jdText);
     const jdSeniority = detectSeniorityFromText(jdText);
     const jdYearsRequired = extractYearsRequired(jdText);
@@ -128,13 +201,13 @@ export function extractAllFeatures(resumeText, jdText = null) {
     
     // Calculate match rates
     const keywordAnalysis = calculateKeywordMatchRate(resumeText, jdText);
-    keywordMatchRate = keywordAnalysis.matchRate;
+    keywordMatchRate = keywordAnalysis.matchRate || 0;
     
     const certAnalysis = calculateCertMatchRate(certDetails, jdCertDetails);
-    matchingCertifications = certAnalysis.matchCount;
+    matchingCertifications = certAnalysis.matchCount || 0;
     
     const skillsAnalysis = calculateSkillsMatchRate(skillsList, jdText);
-    skillsMatchRate = skillsAnalysis.matchRate;
+    skillsMatchRate = skillsAnalysis.matchRate || 0;
     
     // Level gap (negative = candidate below JD)
     const seniorityLevels = { 'entry': 1, 'mid': 2, 'senior': 3, 'executive': 4 };
@@ -163,10 +236,10 @@ export function extractAllFeatures(resumeText, jdText = null) {
       skills_count: jdSkillsCount,
       role_type: jdRoleType,
       industry: jdIndustry,
-      responsibilities: jdParsed.responsibilities,
-      requirements: jdParsed.requirements,
-      preferred: jdParsed.preferred,
-      critical_keywords: keywordAnalysis.criticalKeywords
+      responsibilities: jdParsed.responsibilities || [],
+      requirements: jdParsed.requirements || [],
+      preferred: jdParsed.preferred || [],
+      critical_keywords: keywordAnalysis.criticalKeywords || { matched: [], missing: [] }
     };
   }
   
@@ -180,93 +253,93 @@ export function extractAllFeatures(resumeText, jdText = null) {
     extraction_time_ms: Date.now() - startTime,
     
     // Bullet data
-    bullets: bullets.map(b => ({
-      id: b.id,
-      section: b.section,
-      role: b.role,
-      company: b.company,
-      original_text: b.original_text,
-      bloom_level: bulletBloomResults.find(bl => bl?.level)?.level || 3.0
+    bullets: bullets.map((b, idx) => ({
+      id: b?.id || `bullet_${idx}`,
+      section: b?.section || 'unknown',
+      role: b?.role || null,
+      company: b?.company || null,
+      original_text: b?.original_text || '',
+      bloom_level: bulletBloomResults[idx]?.level || 3.0
     })),
     bullet_count: bullets.length,
     bullet_groups: bulletGroups.map(g => ({
-      company: g.company,
-      role: g.role,
-      bullet_count: g.bullets.length
+      company: g?.company || 'unknown',
+      role: g?.role || 'unknown',
+      bullet_count: g?.bullets?.length || 0
     })),
     
     // Bloom analysis
     bloom: {
-      average_level: overallBloom.averageLevel,
-      distribution: overallBloom.distribution,
-      classification: overallBloom.classification,
-      assessment: getBloomAssessment(overallBloom.averageLevel, seniority.level),
-      multiplier: calculateBloomMultiplier(overallBloom.averageLevel, seniority.level)
+      average_level: overallBloom.averageLevel || 3.5,
+      distribution: overallBloom.distribution || { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+      classification: overallBloom.classification || 'unknown',
+      assessment: getBloomAssessment(overallBloom.averageLevel || 3.5, seniority.level),
+      multiplier: calculateBloomMultiplier(overallBloom.averageLevel || 3.5, seniority.level)
     },
     
     // Verb analysis
     verb_analysis: {
-      average_strength: verbAnalysis.averageStrength,
-      classification: verbAnalysis.classification,
-      strong_count: verbAnalysis.strongCount,
-      weak_count: verbAnalysis.weakCount
+      average_strength: verbAnalysis.averageStrength || 5,
+      classification: verbAnalysis.classification || 'moderate',
+      strong_count: verbAnalysis.strongCount || 0,
+      weak_count: verbAnalysis.weakCount || 0
     },
     
     // Metrics
     metrics: {
-      strong_count: metrics.currency.length + metrics.percentages.length + metrics.volume.length,
-      weak_count: metrics.weak.length,
-      has_baseline: metrics.time.length > 0,
-      strength_score: metricStrength
+      strong_count: (metrics.currency?.length || 0) + (metrics.percentages?.length || 0) + (metrics.volume?.length || 0),
+      weak_count: metrics.weak?.length || 0,
+      has_baseline: (metrics.time?.length || 0) > 0,
+      strength_score: metricStrength || 50
     },
     
     // Seniority
     seniority: {
-      level: seniority.level,
-      confidence: seniority.confidence,
-      years_detected: seniority.years_detected
+      level: seniority.level || 'mid',
+      confidence: seniority.confidence || 'low',
+      years_detected: seniority.years_detected || 0
     },
     
     // Skills & certifications
-    skills_count: skillsCount,
-    skills_list: skillsList.slice(0, 30),
-    certifications_count: certificationsCount,
-    certifications_list: certificationsList.slice(0, 20),
-    languages_count: languagesCount,
+    skills_count: skillsCount || 0,
+    skills_list: (skillsList || []).slice(0, 30),
+    certifications_count: certificationsCount || 0,
+    certifications_list: (certificationsList || []).slice(0, 20),
+    languages_count: languagesCount || 0,
     
     // Industry & role
-    industry: industry,
-    role_type: roleType,
+    industry: industry || 'unknown',
+    role_type: roleType || 'unknown',
     
     // Top achievements
-    top_achievements: topAchievements,
+    top_achievements: topAchievements || [],
     
     // Scores
-    ats_score: atsScore.total,
-    ats_label: atsScore.label,
-    ats_breakdown: atsScore.breakdown,
+    ats_score: atsScore?.total || 70,
+    ats_label: atsScore?.label || 'Moderate',
+    ats_breakdown: atsScore?.breakdown || {},
     
-    credibility_score: credibility.score,
-    credibility_label: credibility.label,
-    credibility_flags: credibility.flags,
+    credibility_score: credibility?.score || 70,
+    credibility_label: credibility?.label || 'Moderate',
+    credibility_flags: credibility?.flags || {},
     
-    semantic_position: semanticPosition.position_score,
-    semantic_label: semanticPosition.position_label,
+    semantic_position: semanticPosition?.position_score || 0,
+    semantic_label: semanticPosition?.position_label || 'Perfectly positioned',
     semantic_alignment: 7,
-    detected_level: semanticPosition.detected_level,
+    detected_level: semanticPosition?.detected_level || 'Mid',
     
     // RIASEC
-    riasec: {
-      candidate_codes: riasecResult.candidate_codes,
-      jd_codes: riasecResult.jd_codes,
-      candidate_scores: riasecResult.candidate_scores,
-      jd_scores: riasecResult.jd_scores,
-      match_percent: riasecResult.match_percent,
-      multiplier: riasecResult.multiplier,
-      insight: riasecResult.insight,
-      profile_description: riasecResult.profile_description,
-      confidence: riasecResult.confidence
-    },
+    riasec: riasecResult ? {
+      candidate_codes: riasecResult.candidate_codes || '',
+      jd_codes: riasecResult.jd_codes || null,
+      candidate_scores: riasecResult.candidate_scores || { R: 0, I: 0, A: 0, S: 0, E: 0, C: 0 },
+      jd_scores: riasecResult.jd_scores || null,
+      match_percent: riasecResult.match_percent || null,
+      multiplier: riasecResult.multiplier || 1.0,
+      insight: riasecResult.insight || '',
+      profile_description: riasecResult.profile_description || '',
+      confidence: riasecResult.confidence || 0
+    } : null,
     
     // JD comparison (if available)
     jd_comparison: jdFeatures ? {
@@ -278,18 +351,18 @@ export function extractAllFeatures(resumeText, jdText = null) {
       fit_score: fitScore?.score || 50,
       fit_label: fitScore?.label || 'Moderate',
       critical_keywords_missing: jdFeatures.critical_keywords?.missing || [],
-      responsibilities: jdFeatures.responsibilities,
-      requirements: jdFeatures.requirements
+      responsibilities: jdFeatures.responsibilities || [],
+      requirements: jdFeatures.requirements || []
     } : null,
     
     // Buzzwords
-    buzzword_count: buzzwords.total,
-    buzzword_penalty: buzzwords.penaltyScore,
+    buzzword_count: buzzwords?.total || 0,
+    buzzword_penalty: buzzwords?.penaltyScore || 0,
     
     // Section presence
-    has_summary: !!sections.summary,
-    has_skills_section: !!sections.skills,
-    has_projects_section: !!sections.projects,
+    has_summary: !!(sections && sections.summary),
+    has_skills_section: !!(sections && sections.skills),
+    has_projects_section: !!(sections && sections.projects),
     
     // Original summary
     original_summary: extractOriginalSummary(resumeText, sections)
@@ -309,6 +382,12 @@ function extractSkillsList(resumeText) {
   const skills = new Set();
   const lowerText = resumeText.toLowerCase();
   
+  // Safety check for TECHNICAL_SKILLS
+  if (!TECHNICAL_SKILLS || typeof TECHNICAL_SKILLS !== 'object') {
+    console.warn('extractSkillsList: TECHNICAL_SKILLS not available');
+    return [];
+  }
+  
   const allSkills = [];
   for (const category of Object.values(TECHNICAL_SKILLS)) {
     if (Array.isArray(category)) {
@@ -317,6 +396,7 @@ function extractSkillsList(resumeText) {
   }
   
   for (const skill of allSkills) {
+    if (!skill || typeof skill !== 'string') continue; // Skip invalid entries
     const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`\\b${escaped}\\b`, 'i');
     if (regex.test(lowerText)) {
@@ -334,14 +414,20 @@ function extractCertificationsList(resumeText) {
   const certs = new Set();
   const lowerText = resumeText.toLowerCase();
   
+  // Safety check for CERTIFICATIONS
+  if (!CERTIFICATIONS || typeof CERTIFICATIONS !== 'object') {
+    console.warn('extractCertificationsList: CERTIFICATIONS not available');
+    return [];
+  }
+  
   for (const category of Object.values(CERTIFICATIONS)) {
-    if (Array.isArray(category)) {
-      for (const cert of category) {
-        const escaped = cert.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const regex = new RegExp(`\\b${escaped}\\b`, 'i');
-        if (regex.test(lowerText)) {
-          certs.add(cert);
-        }
+    if (!Array.isArray(category)) continue;
+    for (const cert of category) {
+      if (!cert || typeof cert !== 'string') continue; // Skip invalid entries
+      const escaped = cert.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+      if (regex.test(lowerText)) {
+        certs.add(cert);
       }
     }
   }
@@ -353,10 +439,12 @@ function extractCertificationsList(resumeText) {
  * Extract top 3-5 achievements from bullets
  */
 function extractTopAchievements(bullets, bloomResults) {
+  if (!bullets || bullets.length === 0) return [];
+  
   const bulletScores = bullets.map((bullet, idx) => ({
-    text: bullet.original_text,
+    text: bullet?.original_text || '',
     bloom_level: bloomResults[idx]?.level || 3.0,
-    has_metric: /\d+%|\$\d+|\d+\s*(million|billion|thousand|k|m)/i.test(bullet.original_text)
+    has_metric: /\d+%|\$\d+|\d+\s*(million|billion|thousand|k|m)/i.test(bullet?.original_text || '')
   }));
   
   bulletScores.sort((a, b) => {
@@ -378,7 +466,7 @@ function extractTopAchievements(bullets, bloomResults) {
 function getBloomAssessment(averageLevel, seniorityLevel) {
   const expectedLevels = { entry: 2.5, mid: 3.5, senior: 4.5, executive: 5.5 };
   const expected = expectedLevels[seniorityLevel] || 3.5;
-  const gap = averageLevel - expected;
+  const gap = (averageLevel || 3.5) - expected;
   
   if (gap > 1.0) {
     return "Your language suggests higher cognitive complexity than expected. Ensure claims are fully supported with evidence.";
@@ -399,7 +487,7 @@ function getBloomAssessment(averageLevel, seniorityLevel) {
 function calculateBloomMultiplier(averageLevel, seniorityLevel) {
   const expectedLevels = { entry: 2.5, mid: 3.5, senior: 4.5, executive: 5.5 };
   const expected = expectedLevels[seniorityLevel] || 3.5;
-  const ratio = averageLevel / expected;
+  const ratio = (averageLevel || 3.5) / expected;
   return Math.min(1.25, Math.max(0.75, ratio));
 }
 
@@ -407,7 +495,9 @@ function calculateBloomMultiplier(averageLevel, seniorityLevel) {
  * Extract original summary from resume
  */
 function extractOriginalSummary(resumeText, sections) {
-  if (sections.summary) {
+  // Safety check
+  if (!sections) return null;
+  if (sections.summary && typeof sections.summary === 'string') {
     return sections.summary.substring(0, 500);
   }
   
@@ -439,6 +529,10 @@ function extractOriginalSummary(resumeText, sections) {
  * Calculate keyword match rate between resume and JD
  */
 function calculateKeywordMatchRate(resumeText, jdText) {
+  if (!jdText || typeof jdText !== 'string') {
+    return { matchRate: 0, matchedKeywords: [], missingKeywords: [], criticalKeywords: { matched: [], missing: [] } };
+  }
+  
   const jdWords = jdText.split(/\s+/);
   const criticalKeywords = [];
   
@@ -450,7 +544,7 @@ function calculateKeywordMatchRate(resumeText, jdText) {
   }
   
   const uniqueKeywords = [...new Set(criticalKeywords)];
-  const lowerResume = resumeText.toLowerCase();
+  const lowerResume = (resumeText || '').toLowerCase();
   
   let matchCount = 0;
   const matched = [];
@@ -480,13 +574,27 @@ function calculateKeywordMatchRate(resumeText, jdText) {
  */
 function calculateCertMatchRate(resumeCerts, jdCerts) {
   const resumeCertSet = new Set();
-  for (const certs of Object.values(resumeCerts.matches || {})) {
-    certs.forEach(c => resumeCertSet.add(c.toLowerCase()));
+  
+  // Safety check
+  if (resumeCerts && resumeCerts.matches) {
+    for (const certs of Object.values(resumeCerts.matches)) {
+      if (Array.isArray(certs)) {
+        certs.forEach(c => {
+          if (c && typeof c === 'string') resumeCertSet.add(c.toLowerCase());
+        });
+      }
+    }
   }
   
   const jdCertSet = new Set();
-  for (const certs of Object.values(jdCerts.matches || {})) {
-    certs.forEach(c => jdCertSet.add(c.toLowerCase()));
+  if (jdCerts && jdCerts.matches) {
+    for (const certs of Object.values(jdCerts.matches)) {
+      if (Array.isArray(certs)) {
+        certs.forEach(c => {
+          if (c && typeof c === 'string') jdCertSet.add(c.toLowerCase());
+        });
+      }
+    }
   }
   
   let matchCount = 0;
@@ -507,8 +615,12 @@ function calculateCertMatchRate(resumeCerts, jdCerts) {
  * Calculate skills match rate
  */
 function calculateSkillsMatchRate(resumeSkills, jdText) {
+  if (!jdText || typeof jdText !== 'string') {
+    return { matchRate: 0, matchCount: 0, totalJdSkills: 0 };
+  }
+  
   const jdSkills = extractSkillsList(jdText);
-  const resumeSkillSet = new Set(resumeSkills.map(s => s.toLowerCase()));
+  const resumeSkillSet = new Set((resumeSkills || []).map(s => s.toLowerCase()));
   const jdSkillSet = new Set(jdSkills.map(s => s.toLowerCase()));
   
   let matchCount = 0;
@@ -528,9 +640,14 @@ function calculateSkillsMatchRate(resumeSkills, jdText) {
  */
 function extractTitles(bulletGroups) {
   const titles = [];
+  if (!bulletGroups || !Array.isArray(bulletGroups)) return titles;
+  
   for (const group of bulletGroups) {
-    if (group.role) {
-      titles.push({ title: group.role, company: group.company });
+    if (group && group.role && typeof group.role === 'string' && group.role.trim().length > 0) {
+      titles.push({ 
+        title: group.role, 
+        company: group.company || null 
+      });
     }
   }
   return titles;

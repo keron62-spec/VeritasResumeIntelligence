@@ -24,6 +24,8 @@ import { useLeniencyMode } from './hooks/useLeniencyMode.js';
 import { useHiddenBrief } from './hooks/useHiddenBrief.js';
 import { extractDocx } from './utils/parseHelpers.js';
 import { createSafeResult } from './utils/helpers.js';
+import { extractAllFeatures } from './utils/featureExtractor.js';
+import { calculateRIASECDeterministic } from './utils/riasec.js';
 import './styles/leniency-modes.css';
 
 export default function App() {
@@ -61,6 +63,9 @@ export default function App() {
         return 'gemini';
     });
     
+// Extracted Features State (for Gemma deterministic extraction)
+const [extractedFeatures, setExtractedFeatures] = useState(null); 
+
     // Resume State
     const [resumeText, setResumeText] = useState('');
     const [resumeFileName, setResumeFileName] = useState('');
@@ -399,60 +404,244 @@ export default function App() {
         }
     };
 
-    // Analysis Function - Routes based on modelType, hermesModelType, and leniencyMode
-    const analyzeResume = async () => {
-        if (isAnalyzing) return;
-        if (!resumeText.trim()) {
-            alert('Please provide resume text or upload a file.');
-            return;
-        }
-        if (isComparisonMode && !jobDescriptionText.trim()) {
-            alert('Please provide a job description or switch to Standard Mode.');
-            return;
-        }
+// Analysis Function - Routes based on modelType, hermesModelType, and leniencyMode
+const analyzeResume = async () => {
+    if (isAnalyzing) return;
+    if (!resumeText.trim()) {
+        alert('Please provide resume text or upload a file.');
+        return;
+    }
+    if (isComparisonMode && !jobDescriptionText.trim()) {
+        alert('Please provide a job description or switch to Standard Mode.');
+        return;
+    }
+    
+    // Reset hidden brief trigger for new analysis
+    setHiddenBriefTriggered(false);
+    
+    setIsAnalyzing(true);
+    setLoading(true);
+    setAnalysisStage('🤖 Connecting to AI...');
+    
+    try {
+        // Determine which worker to use based on modelType, hermesModelType, and leniencyMode
+        let workerUrl;
         
-        // Reset hidden brief trigger for new analysis
-        setHiddenBriefTriggered(false);
-        
-        setIsAnalyzing(true);
-        setLoading(true);
-        setAnalysisStage('🤖 Connecting to AI...');
-        
-        try {
-            // Determine which worker to use based on modelType, hermesModelType, and leniencyMode
-            let workerUrl;
-            
-            if (leniencyMode !== 'normal') {
-                // Strict/Very Strict/Lenient modes
-                // These workers support BOTH resume-only AND comparison mode
-                if (hermesModelType === 'hermes') {
-                    // Use OpenRouter worker with Hermes fallback chain
-                    workerUrl = "https://open-router-leniency.keron62.workers.dev";
-                } else {
-                    // Use existing Recruiter Leniency Worker (Gemini)
-                    workerUrl = "https://recruiter-leniency.keron62.workers.dev";
-                }
-            } else if (modelType === 'dual') {
-                // Normal mode with GPT-OSS (Comparison Mode only - but we guard in UI)
-                if (!isComparisonMode) {
-                    // Fallback to Gemini resume-only if somehow triggered
-                    workerUrl = "https://ats-resume-only.keron62.workers.dev";
-                } else {
-                    workerUrl = "https://groq-bloom.keron62.workers.dev";
-                }
+        if (leniencyMode !== 'normal') {
+            // Strict/Very Strict/Lenient modes
+            if (hermesModelType === 'hermes') {
+                // ============================================================
+                // NEW: Gemma 3 27B Worker with Deterministic Extraction
+                // ============================================================
+                workerUrl = "https://open-router-leniency.keron62.workers.dev";
+                
+                // Step 1: Run deterministic feature extraction
+                setAnalysisStage('🔍 Analyzing your resume deterministically...');
+                
+                // Import the feature extractor (make sure this is imported at top of file)
+                const { extractAllFeatures } = await import('./utils/featureExtractor.js');
+                const { calculateRIASECDeterministic } = await import('./utils/riasec.js');
+                
+                // Extract all features from resume and JD
+                const features = extractAllFeatures(
+                    resumeText, 
+                    isComparisonMode ? jobDescriptionText : null
+                );
+                
+                // Add RIASEC calculation (deterministic)
+                const riasec = calculateRIASECDeterministic(
+                    resumeText, 
+                    isComparisonMode ? jobDescriptionText : null,
+                    false
+                );
+                features.riasec = riasec;
+                
+                // Store extracted features for debugging or hidden brief (optional)
+                setExtractedFeatures(features);
+                
+                // Build payload with features instead of raw text
+                const payload = { 
+                    features: features, 
+                    leniency_mode: leniencyMode 
+                };
+                
+                // Step 2: Call Gemma worker for transformations
+                setAnalysisStage('🤖 Transforming with Gemma 3 27B...');
+                const response = await fetch(workerUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+                
+                // Step 3: Process results
+                setAnalysisStage('📊 Processing your results...');
+                
+                // Merge deterministic scores with Gemma-generated content
+                const mergedResult = {
+                    // Deterministic scores from frontend
+                    total_ats_score: features.ats_score,
+                    ats_label: features.ats_label,
+                    credibility_score: features.credibility_score,
+                    credibility_label: features.credibility_label,
+                    fit_score: features.jd_comparison?.fit_score || null,
+                    risk_level: data.risk_level || 'Medium',
+                    
+                    // Semantic positioning
+                    semantic_analysis: {
+                        position_score: features.semantic_position,
+                        alignment_score: features.semantic_alignment || 7,
+                        detected_level: features.detected_level || features.seniority?.level,
+                        position_label: features.semantic_label,
+                        confidence: 85,
+                        flags: [],
+                        recommendations: []
+                    },
+                    
+                    // Bloom analysis
+                    bloom_analysis: {
+                        average_bloom_level: features.bloom?.average_level || 3.5,
+                        expected_bloom_level: features.seniority?.level === 'executive' ? 5.5 : 
+                                              features.seniority?.level === 'senior' ? 4.5 : 3.5,
+                        bloom_gap: (features.bloom?.average_level || 3.5) - (
+                            features.seniority?.level === 'executive' ? 5.5 : 
+                            features.seniority?.level === 'senior' ? 4.5 : 3.5
+                        ),
+                        bloom_assessment: features.bloom?.assessment || "Analysis complete",
+                        bloom_multiplier: features.bloom?.multiplier || 1.0,
+                        bullets_by_level: [],
+                        flags: []
+                    },
+                    
+                    // RIASEC (already calculated)
+                    riasec: features.riasec,
+                    
+                    // Credibility analysis
+                    credibility_analysis: features.credibility_flags || {
+                        career_plausibility_flags: [],
+                        education_title_flags: [],
+                        metric_plausibility_flags: [],
+                        acting_title_flags: [],
+                        promotion_signals: []
+                    },
+                    
+                    // Interview likelihood (calculate deterministically)
+                    interview_likelihood_score: calculateInterviewLikelihood({
+                        ats: features.ats_score,
+                        fit: features.jd_comparison?.fit_score || 70,
+                        credibility: features.credibility_score,
+                        alignment: features.semantic_alignment || 7,
+                        bloomMultiplier: features.bloom?.multiplier || 1.0,
+                        semanticMultiplier: 1.0,
+                        riasecMultiplier: features.riasec?.multiplier || 1.0,
+                        leniencyMode: leniencyMode
+                    }).score,
+                    
+                    // Bullet transformation (from Gemma)
+                    bullet_analysis: data.bullet_analysis,
+                    
+                    // Summary analysis (from Gemma)
+                    summary_analysis: data.summary_analysis,
+                    
+                    // Role matching (from Gemma)
+                    role_match: data.role_match || [],
+                    
+                    // Extract missing keywords from features
+                    missing_keywords: features.jd_comparison?.critical_keywords_missing || [],
+                    missing_tools: [],
+                    
+                    // Grammar and metrics (from deterministic extraction)
+                    grammar_issues: [],
+                    weak_metrics_details: [],
+                    suggested_rewrites: [],
+                    metric_quality_breakdown: {
+                        overall_score: features.metrics?.strength_score || 50,
+                        bullets_assessed: features.bullet_count || 0,
+                        weak_count: features.metrics?.weak_count || 0,
+                        good_count: 0,
+                        strong_count: features.metrics?.strong_count || 0
+                    },
+                    
+                    // Market positioning
+                    market_positioning: {
+                        level: features.seniority?.level || 'Mid',
+                        assessment: features.bloom?.assessment || "Analysis complete",
+                        seniority_detected: features.seniority?.level || 'Mid-Level'
+                    },
+                    
+                    // Strengths and issues
+                    strengths: features.strengths || [],
+                    all_issues: features.all_issues || [],
+                    immediate_fixes: features.immediate_fixes || [],
+                    buzzwords_detected: features.buzzwords_detected || [],
+                    
+                    // ATS breakdown
+                    breakdown: features.ats_breakdown || {
+                        header_contact: 8,
+                        keyword_density: 15,
+                        quantified_results: 12,
+                        action_verbs: 10,
+                        formatting_structure: 8,
+                        skills_section: 8,
+                        length_brevity: 4,
+                        publications_projects: 2,
+                        recruiter_scan_penalty: 0,
+                        buzzword_repetition_penalty: 0
+                    },
+                    
+                    // Leniency info
+                    leniency_mode: leniencyMode,
+                    leniency_note: data.leniency_note,
+                    leniency_gate_results: data.leniency_gate_results || null,
+                    
+                    // Model info
+                    model_used: "Gemma 3 27B + Deterministic Frontend",
+                    worker_version: "1.0.0",
+                    fallback_used: false
+                };
+                
+                setResult(mergedResult);
+                
             } else {
-                // Normal mode with Gemini (default)
-                if (isComparisonMode) {
-                    workerUrl = "https://orchestrator.keron62.workers.dev";
-                } else {
-                    workerUrl = "https://ats-resume-only.keron62.workers.dev";
-                }
+                // ============================================================
+                // EXISTING: Recruiter Leniency Worker (Gemini)
+                // ============================================================
+                workerUrl = "https://recruiter-leniency.keron62.workers.dev";
+                
+                const payload = { 
+                    resumeText, 
+                    leniency_mode: leniencyMode 
+                };
+                if (isComparisonMode) payload.jobDescriptionText = jobDescriptionText;
+                
+                setAnalysisStage('🧠 AI is analyzing your resume (20-30 seconds)...');
+                const response = await fetch(workerUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                
+                const data = await response.json();
+                if (data.error) throw new Error(data.error);
+                
+                setAnalysisStage('📊 Processing your results...');
+                const safeResult = createSafeResult(data.result || data, resumePdfHealth);
+                setResult(safeResult);
             }
             
-            const payload = { 
-                resumeText,
-                leniency_mode: leniencyMode
-            };
+        } else if (modelType === 'dual') {
+            // ============================================================
+            // EXISTING: Normal mode with GPT-OSS (Comparison Mode only)
+            // ============================================================
+            if (!isComparisonMode) {
+                workerUrl = "https://ats-resume-only.keron62.workers.dev";
+            } else {
+                workerUrl = "https://groq-bloom.keron62.workers.dev";
+            }
+            
+            const payload = { resumeText };
             if (isComparisonMode) payload.jobDescriptionText = jobDescriptionText;
             
             setAnalysisStage('🧠 AI is analyzing your resume (20-30 seconds)...');
@@ -465,27 +654,75 @@ export default function App() {
             const data = await response.json();
             if (data.error) throw new Error(data.error);
             
-            // Store raw response for debugging
-            setRawApiResponse(data);
+            setAnalysisStage('📊 Processing your results...');
+            const safeResult = createSafeResult(data.result || data, resumePdfHealth);
+            setResult(safeResult);
+            
+        } else {
+            // ============================================================
+            // EXISTING: Normal mode with Gemini (default)
+            // ============================================================
+            if (isComparisonMode) {
+                workerUrl = "https://orchestrator.keron62.workers.dev";
+            } else {
+                workerUrl = "https://ats-resume-only.keron62.workers.dev";
+            }
+            
+            const payload = { resumeText };
+            if (isComparisonMode) payload.jobDescriptionText = jobDescriptionText;
+            
+            setAnalysisStage('🧠 AI is analyzing your resume (20-30 seconds)...');
+            const response = await fetch(workerUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
             
             setAnalysisStage('📊 Processing your results...');
             const safeResult = createSafeResult(data.result || data, resumePdfHealth);
-console.log('=== DEBUG: safeResult.bullet_analysis ===');
-console.log(safeResult.bullet_analysis);
-console.log('bullet_analysis type:', typeof safeResult.bullet_analysis);
-console.log('bullets array:', safeResult.bullet_analysis?.bullets);
-console.log('bullets is array:', Array.isArray(safeResult.bullet_analysis?.bullets));
-setResult(safeResult);
-            
-        } catch (error) {
-            console.error('Analysis error:', error);
-            alert('Analysis Error: ' + error.message);
-        } finally {
-            setLoading(false);
-            setIsAnalyzing(false);
-            setAnalysisStage('');
+            setResult(safeResult);
         }
-    };
+        
+    } catch (error) {
+        console.error('Analysis error:', error);
+        alert('Analysis Error: ' + error.message);
+    } finally {
+        setLoading(false);
+        setIsAnalyzing(false);
+        setAnalysisStage('');
+    }
+};
+
+// Helper function for interview likelihood calculation (add this outside analyzeResume)
+const calculateInterviewLikelihood = ({ ats, fit, credibility, alignment, bloomMultiplier, semanticMultiplier, riasecMultiplier, leniencyMode }) => {
+    let finalFit = fit;
+    let finalCredibility = credibility;
+    let finalAlignment = alignment;
+    
+    if (leniencyMode === 'very_strict') {
+        finalFit = fit ? Math.round(fit * 0.82) : null;
+        finalCredibility = Math.round(credibility * 0.82);
+        finalAlignment = Math.round(alignment * 0.82);
+    } else if (leniencyMode === 'strict') {
+        finalFit = fit ? Math.round(fit * 0.90) : null;
+        finalCredibility = Math.round(credibility * 0.90);
+        finalAlignment = Math.round(alignment * 0.90);
+    } else if (leniencyMode === 'lenient') {
+        finalFit = fit ? Math.min(100, Math.round(fit * 1.10)) : null;
+        finalCredibility = Math.min(100, Math.round(credibility * 1.10));
+        finalAlignment = Math.min(10, Math.round(alignment * 1.10));
+    }
+    
+    const qualityScore = (ats / 100) * ((finalFit ?? 50) / 100) * (finalCredibility / 100) * (finalAlignment / 10) * bloomMultiplier * semanticMultiplier * riasecMultiplier;
+    const clamped = Math.min(0.99, Math.max(0.01, qualityScore));
+    const likelihood = 25 * Math.exp(-3 * (1 - clamped));
+    const finalScore = Math.round(likelihood);
+    
+    return { score: Math.min(25, Math.max(0, finalScore)) };
+};
 
     const handleEmailSubmit = () => {
         if (!email || !email.includes('@')) {

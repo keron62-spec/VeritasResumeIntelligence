@@ -433,7 +433,7 @@ const analyzeResume = async () => {
                 // ============================================================
                 // NEW: Gemma 3 27B Worker with Deterministic Extraction
                 // ============================================================
-                workerUrl = "https://open-router-leniency.keron62.workers.dev";
+                workerUrl = "https://open-router-leniency.keron62.workers.dev/analyze";
                 
                 // Step 1: Run deterministic feature extraction
                 setAnalysisStage('🔍 Analyzing your resume deterministically...');

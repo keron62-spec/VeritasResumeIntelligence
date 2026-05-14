@@ -15,7 +15,7 @@ import { calculateDeterministicBloom, analyzeBulletBloom, getBloomGapAnalysis } 
 import { detectSeniorityFromText } from './seniorityDetector.js';
 import { detectIndustry } from './industryKeywords.js';
 import { countTechnicalSkills, TECHNICAL_SKILLS } from './skillDictionary.js';
-import { countCertifications, getCertificationDetails } from './certifications.js';
+import { countCertifications, getCertificationDetails, CERTIFICATIONS } from './certifications.js';
 import { countLanguages, detectEducationLevel } from './commonDictionaries.js';
 import { calculateATSScore, calculateCredibilityScore, calculateSemanticPosition, calculateFitScore } from './scoreCalculator.js';
 import { detectJobHopping, detectCareerGaps } from './dateParser.js';
@@ -85,7 +85,7 @@ export function extractAllFeatures(resumeText, jdText = null) {
   
   // Calculate ATS score
   const atsScore = calculateATSScore(resumeText, jdText, {
-    keywordMatchRate: 0, // Will be updated if JD provided
+    keywordMatchRate: 0,
     skillsCount,
     certificationsCount
   });
@@ -103,7 +103,6 @@ export function extractAllFeatures(resumeText, jdText = null) {
   // ============================================================
   
   const riasecResult = calculateRIASECDeterministic(resumeText, jdText, false);
-  const riasecFormatted = formatRIASECForDisplay(riasecResult);
   
   // ============================================================
   // JD EXTRACTION (if provided)
@@ -253,10 +252,10 @@ export function extractAllFeatures(resumeText, jdText = null) {
     
     semantic_position: semanticPosition.position_score,
     semantic_label: semanticPosition.position_label,
-    semantic_alignment: 7, // Default alignment score
+    semantic_alignment: 7,
     detected_level: semanticPosition.detected_level,
     
-    // RIASEC (NEW)
+    // RIASEC
     riasec: {
       candidate_codes: riasecResult.candidate_codes,
       jd_codes: riasecResult.jd_codes,
@@ -292,7 +291,7 @@ export function extractAllFeatures(resumeText, jdText = null) {
     has_skills_section: !!sections.skills,
     has_projects_section: !!sections.projects,
     
-    // Original summary (if exists)
+    // Original summary
     original_summary: extractOriginalSummary(resumeText, sections)
   };
   
@@ -310,7 +309,6 @@ function extractSkillsList(resumeText) {
   const skills = new Set();
   const lowerText = resumeText.toLowerCase();
   
-  // Flatten all skill categories
   const allSkills = [];
   for (const category of Object.values(TECHNICAL_SKILLS)) {
     if (Array.isArray(category)) {
@@ -335,10 +333,6 @@ function extractSkillsList(resumeText) {
 function extractCertificationsList(resumeText) {
   const certs = new Set();
   const lowerText = resumeText.toLowerCase();
-  
-  // Flatten all certification categories from CERTIFICATIONS object
-  // This assumes CERTIFICATIONS is imported and has the structure
-  import { CERTIFICATIONS } from './certifications.js';
   
   for (const category of Object.values(CERTIFICATIONS)) {
     if (Array.isArray(category)) {
@@ -365,7 +359,6 @@ function extractTopAchievements(bullets, bloomResults) {
     has_metric: /\d+%|\$\d+|\d+\s*(million|billion|thousand|k|m)/i.test(bullet.original_text)
   }));
   
-  // Sort by bloom level (highest first) and then by metric presence
   bulletScores.sort((a, b) => {
     if (a.bloom_level !== b.bloom_level) return b.bloom_level - a.bloom_level;
     if (a.has_metric !== b.has_metric) return a.has_metric ? -1 : 1;
@@ -414,16 +407,13 @@ function calculateBloomMultiplier(averageLevel, seniorityLevel) {
  * Extract original summary from resume
  */
 function extractOriginalSummary(resumeText, sections) {
-  // First try to get from summary section
   if (sections.summary) {
     return sections.summary.substring(0, 500);
   }
   
-  // Otherwise, look for a paragraph at the top (after contact info)
   const lines = resumeText.split('\n');
   let startIdx = 0;
   
-  // Skip contact lines (email, phone, linkedin)
   for (let i = 0; i < Math.min(10, lines.length); i++) {
     const line = lines[i].toLowerCase();
     if (line.includes('@') || line.includes('linkedin') || line.match(/[\d\s-]{10,}/)) {
@@ -436,7 +426,6 @@ function extractOriginalSummary(resumeText, sections) {
   
   if (startIdx < lines.length) {
     let summary = lines[startIdx].trim();
-    // If the first line is short, take next line too
     if (summary.length < 100 && startIdx + 1 < lines.length) {
       summary += ' ' + lines[startIdx + 1].trim();
     }
@@ -450,7 +439,6 @@ function extractOriginalSummary(resumeText, sections) {
  * Calculate keyword match rate between resume and JD
  */
 function calculateKeywordMatchRate(resumeText, jdText) {
-  // Extract important keywords from JD
   const jdWords = jdText.split(/\s+/);
   const criticalKeywords = [];
   
@@ -492,12 +480,12 @@ function calculateKeywordMatchRate(resumeText, jdText) {
  */
 function calculateCertMatchRate(resumeCerts, jdCerts) {
   const resumeCertSet = new Set();
-  for (const [category, certs] of Object.entries(resumeCerts.matches || {})) {
+  for (const certs of Object.values(resumeCerts.matches || {})) {
     certs.forEach(c => resumeCertSet.add(c.toLowerCase()));
   }
   
   const jdCertSet = new Set();
-  for (const [category, certs] of Object.entries(jdCerts.matches || {})) {
+  for (const certs of Object.values(jdCerts.matches || {})) {
     certs.forEach(c => jdCertSet.add(c.toLowerCase()));
   }
   

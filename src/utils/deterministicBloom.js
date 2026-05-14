@@ -137,7 +137,11 @@ function getAuthorityAdjustment(text, firstVerb) {
  * @param {string} text - Bullet text
  * @returns {number} Bonus (0 to 1.0)
  */
+// In deterministicBloom.js, update the getMetricBonus function
 function getMetricBonus(text) {
+  if (!text || typeof text !== 'string') {
+    return 0;
+  }
   const metricStrength = calculateMetricStrength(text);
   
   if (metricStrength >= 80) return 1.0;

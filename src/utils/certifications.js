@@ -29,17 +29,16 @@ export const CERTIFICATIONS = {
   
     // Cybersecurity
     cybersecurity: [
-      "cissp", "cism", "cisa", "ceh", "oscp", "sans",
+      "cissp", "cism", "cisa", "ceh", "oscp",
       "gsec", "gcfa", "gcih", "ccsp", "cyberops",
-      "casp+", "penetration tester", "ethical hacker",
+      "casp+",
       "iso 27001 lead auditor", "iso 27001 lead implementer",
       "crisc", "comptia security+", "security analyst"
     ],
   
     // Data & AI
     data_ai: [
-      "data analyst", "data scientist", "machine learning",
-      "artificial intelligence", "tableau certified",
+      "artificial intelligence","tableau certified",
       "power bi certified", "sql certified", "google data analytics",
       "ibm data science", "azure ai engineer",
       "aws machine learning", "tensorflow developer",
@@ -51,11 +50,11 @@ export const CERTIFICATIONS = {
     // Software Engineering
     software_engineering: [
       "oracle java certified", "java certified", "python institute",
-      "pcap", "pcpp", "microsoft developer", "full stack developer",
+      "pcap", "pcpp", "microsoft developer",
       "salesforce developer", "scrum developer",
       "certified kubernetes application developer",
       "red hat certified engineer", "rhce", "rhcsa",
-      "oracle certified professional", "devops engineer"
+      "oracle certified professional",
     ],
   
     // Finance & Accounting
@@ -70,8 +69,7 @@ export const CERTIFICATIONS = {
     // Human Resources
     hr: [
       "shrm-cp", "shrm-scp", "phr", "sphr", "gphr",
-      "cipd", "talent management practitioner",
-      "human capital strategist", "workday hcm",
+      "cipd", "talent management practitioner", "workday hcm",
       "hr analytics", "people analytics", "certified recruiter"
     ],
   
@@ -81,8 +79,7 @@ export const CERTIFICATIONS = {
       "lean healthcare", "health informatics",
       "epidemiology certification", "infection prevention",
       "icd-10 certification", "icd-11 certification",
-      "medical coding", "cpc", "rhia", "rhit",
-      "clinical research associate", "gcp certification",
+      "medical coding", "cpc", "rhia", "rhit", "gcp certification",
       "bls", "acls", "pals", "nih stroke scale",
       "emergency management", "incident command system"
     ],
@@ -94,13 +91,13 @@ export const CERTIFICATIONS = {
       "theory of change", "project dpro",
       "grant management", "usaid certification",
       "humanitarian response", "sphere standards",
-      "donor compliance", "proposal development"
+      "donor compliance",
     ],
   
     // Supply Chain & Procurement
     supply_chain_procurement: [
       "cscp", "cpim", "cltd", "procurement certification",
-      "supply chain professional", "logistics certification",
+      "SCMP", "logistics certification",
       "sap mm", "sap scm", "warehouse management",
       "inventory management", "lean logistics",
       "chartered institute of procurement",
@@ -111,9 +108,8 @@ export const CERTIFICATIONS = {
     quality_operations: [
       "iso 9001 lead auditor", "iso 14001",
       "iso 45001", "quality management",
-      "lean practitioner", "operational excellence",
-      "kaizen", "tqm", "continuous improvement",
-      "root cause analysis", "business process management"
+      "lean practitioner", 
+      "kaizen", "tqm", "root cause analysis", "Six Sigma"
     ],
   
     // Legal & Compliance
@@ -121,7 +117,7 @@ export const CERTIFICATIONS = {
       "certified compliance officer", "aml certification",
       "kyc certification", "gdpr certification",
       "privacy professional", "cipm", "cipp",
-      "contract management", "legal operations",
+      " CPCM",
       "regulatory affairs certification"
     ],
   
@@ -130,8 +126,7 @@ export const CERTIFICATIONS = {
       "tesol", "tefl", "instructional design",
       "adult learning", "curriculum development",
       "google educator", "microsoft educator",
-      "moodle certified", "training facilitator",
-      "corporate trainer"
+      "moodle certified",
     ],
   
     // Marketing & Communications
@@ -139,14 +134,13 @@ export const CERTIFICATIONS = {
       "google ads", "google analytics",
       "hubspot certified", "facebook blueprint",
       "seo certification", "content marketing",
-      "digital marketing institute", "email marketing",
-      "brand management", "public relations"
+      "digital marketing institute", "email marketing"
     ],
   
     // Design & Creative
     design_creative: [
       "adobe certified", "ux certification",
-      "ui certification", "graphic design",
+      "ui certification",
       "autodesk certified", "revit certified",
       "solidworks certified", "video editing certification",
       "motion graphics", "creative direction"
@@ -155,102 +149,77 @@ export const CERTIFICATIONS = {
     // Engineering & Manufacturing
     engineering_manufacturing: [
       "pe license", "fe exam", "autocad certified",
-      "solidworks", "catia certification",
-      "industrial engineering", "manufacturing engineer",
-      "quality engineer", "reliability engineer",
+      "solidworks","catia certification",
       "osha certification", "nebosh", "hazmat"
     ],
   
     // Energy & Environment
     energy_environment: [
-      "leed ap", "energy auditor", "renewable energy",
+      "leed ap", "energy auditor",
       "environmental management", "sustainability reporting",
-      "esg certification", "carbon accounting",
-      "climate risk", "iso 50001"
+      "esg certification", "carbon accounting", "iso 50001"
     ],
   
     // Aviation & Maritime
     aviation_maritime: [
       "iata certification", "icao certification",
       "aviation safety", "air traffic control",
-      "maritime security", "port operations",
+      "maritime security",
       "stcw", "customs compliance",
       "dangerous goods certification"
     ],
   
     // Security & Defense
     security_defense: [
-      "unclos", "iatg", "mosaic", "arms control",
-      "security sector reform", "crisis management",
-      "disaster risk reduction", "humanitarian logistics",
-      "peacekeeping operations", "counter terrorism",
+      "unclos", "iatg", "mosaic",
       "weapons management", "ammunition management", "marsec"
     ],
   
     // Research & Analytics
-    research_analytics: [
-      "research methods", "biostatistics",
-      "sas certification", "stata certification",
-      "spss certification", "nvivo certification",
-      "qualitative research", "quantitative research",
-      "policy analysis", "economic analysis"
+    research_analytics: ["sas certification", "stata certification",
+      "spss certification", "nvivo certification"
     ],
   
     // Agriculture & Food Systems
     agriculture_food: [
-      "food safety", "haccp", "agriculture extension",
-      "precision agriculture", "organic certification",
-      "farm management", "nutrition certification",
-      "food systems", "livestock management"
+      "food safety", "haccp", "organic certification",
+      "farm management", "nutrition certification"
     ],
   
     // Hospitality & Tourism
-    hospitality_tourism: [
-      "hotel management", "hospitality management",
-      "tourism management", "event planning",
-      "culinary certification", "food service management",
-      "customer experience", "guest relations"
-    ],
+    hospitality_tourism: ["culinary certification", "food service management"],
   
     // Real Estate & Construction
     construction_real_estate: [
-      "primavera p6", "construction management",
-      "quantity surveying", "property management",
+      "primavera p6", "CCM",
+      "quantity surveying", "CPM",
       "real estate license", "facility management",
-      "bim certification", "site supervision"
+      "bim certification"
     ],
   
     // Languages & International Affairs
     languages_international: [
       "delf", "dele", "jlpt", "toefl", "ielts",
-      "translation certification", "interpretation certification",
-      "diplomatic protocol", "international relations",
-      "foreign service"
-    ],
+      "translation certification", "interpretation certification"],
   
     // Business & Leadership
     business_leadership: [
-      "mba", "executive leadership", "management certification",
-      "strategic planning", "business analysis", "cbap",
+      "mba", "management certification",
+     , "business analysis", "cbap",
       "change management", "prosci", "organizational development",
-      "coaching certification", "icf accredited", "mentoring"
+      "coaching certification", "icf accredited"
     ],
   
     // Sales & Customer Success
     sales_customer_success: [
-      "sales certification", "certified sales professional",
-      "customer success manager", "customer experience certification",
+      "sales certification", "certified sales professional", "customer experience certification",
       "sandler sales", "challenger sale", "spin selling",
-      "negotiation certification", "account management"
-    ],
+      "negotiation certification"],
   
     // Risk Management
     risk_management: [
-      "frm", "prm", "financial risk manager",
-      "operational risk", "credit risk", "market risk",
-      "enterprise risk management", "erm certification",
-      "business continuity", "bcp certification", "crisis management"
-    ]
+      "frm", "prm", "financial risk manager","enterprise risk management", "erm certification",
+      "business continuity", "bcp certification",]
   };
   
   /**

@@ -1,8 +1,11 @@
 import React from 'react';
 
 const getRoleMatchDisclaimer = (roleMatches, atsScore, positionScore) => {
-    if (!roleMatches || roleMatches.length === 0) return null;
-    const strongMatches = roleMatches.filter(m => (m.match_percentage ?? 0) >= 80);
+    // Safety check - ensure roleMatches is an array
+    const safeRoleMatches = Array.isArray(roleMatches) ? roleMatches : [];
+    if (safeRoleMatches.length === 0) return null;
+    
+    const strongMatches = safeRoleMatches.filter(m => (m.match_percentage ?? 0) >= 80);
     const strongMatchCount = strongMatches.length;
     const isPositionedOutsideRange = Math.abs(positionScore) > 1.5;
     const isLowAts = atsScore < 70;
@@ -29,14 +32,18 @@ const getRoleMatchDisclaimer = (roleMatches, atsScore, positionScore) => {
 };
 
 export default function RoleMatches({ role_match, total_ats_score, position_score, immediate_fixes }) {
-    const disclaimer = getRoleMatchDisclaimer(role_match, total_ats_score, position_score);
+    // Safety check - ensure role_match is an array
+    const safeRoleMatch = Array.isArray(role_match) ? role_match : [];
+    const safeImmediateFixes = Array.isArray(immediate_fixes) ? immediate_fixes : [];
+    
+    const disclaimer = getRoleMatchDisclaimer(safeRoleMatch, total_ats_score, position_score);
 
     return (
         <div className="results-section">
             <h3>🎯 Role Match Scores</h3>
-            {role_match?.length > 0 ? (
+            {safeRoleMatch.length > 0 ? (
                 <>
-                    {role_match.map((role, idx) => (
+                    {safeRoleMatch.map((role, idx) => (
                         <div key={idx} className="role-match-item">
                             <span>{role.role || 'Unknown Role'}</span>
                             <span className={(role.match_percentage ?? 0) >= 80 ? "match-strong" : "match-percentage"}>
@@ -58,11 +65,11 @@ export default function RoleMatches({ role_match, total_ats_score, position_scor
                 </>
             ) : <p>No role matches identified</p>}
 
-            {immediate_fixes?.length > 0 && (
+            {safeImmediateFixes.length > 0 && (
                 <>
                     <h3 style={{ marginTop: '20px' }}>🔧 Immediate Fixes</h3>
                     <ul>
-                        {immediate_fixes.map((fix, idx) => <li key={idx} style={{ marginBottom: '10px' }}>{fix}</li>)}
+                        {safeImmediateFixes.map((fix, idx) => <li key={idx} style={{ marginBottom: '10px' }}>{fix}</li>)}
                     </ul>
                 </>
             )}

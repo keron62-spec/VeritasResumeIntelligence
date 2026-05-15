@@ -69,6 +69,23 @@ function getMaturityClass(grade) {
   }
 }
 
+function getDimensionScoreColor(score) {
+ if (score >= 70) return '#ef4444';
+ if (score >= 40) return '#f59e0b';
+ return '#10b981';
+}
+
+/**
+* Gets color for complexity score (operational complexity profile)
+* @param {number} score - Complexity score (0-100)
+* @returns {string} CSS color
+*/
+function getComplexityColor(score) {
+ if (score >= 70) return '#ef4444';
+ if (score >= 40) return '#f59e0b';
+ return '#10b981';
+}
+
 /**
  * Generates the complete deterministic HTML report with optional narrative sections
  * @param {Object} hiddenBrief - The hidden brief analysis JSON
@@ -94,6 +111,12 @@ export function generateDeterministicHtmlReport(hiddenBrief, resumeText = '', na
   const unicornDetection = hiddenBrief?.unicorn_detection || {};
   const recommendationSummary = hiddenBrief?.recommendation_summary || '';
   const complexityAnalysis = hiddenBrief?.complexity_analysis || {};
+const operationalReality = hiddenBrief?.operational_reality || {};
+const dimensions = operationalReality.dimensions || {};
+const stressTopology = operationalReality.stress_topology || {};
+const primaryStress = operationalReality.primary_stress || {};
+const interactionWarnings = operationalReality.interaction_warnings || [];
+const confidence = operationalReality.confidence || {};
 
   // Build hidden requirements HTML
   const hiddenRequirementsHtml = hiddenRequirements.map(req => `
@@ -290,6 +313,151 @@ export function generateDeterministicHtmlReport(hiddenBrief, resumeText = '', na
     </section>
   ` : '';
   
+// ============================================================
+// OPERATIONAL REALITY (5D MATRIX) - NEW SECTION
+// ============================================================
+
+// Dimension labels and icons
+const dimensionLabels = {
+  bureaucratic_friction: { label: 'Bureaucratic Friction', icon: '📋' },
+  operational_load: { label: 'Operational Load', icon: '⚡' },
+  stakeholder_density: { label: 'Stakeholder Density', icon: '🤝' },
+  strategic_ambiguity: { label: 'Strategic Ambiguity', icon: '🎯' },
+  technical_rigidity: { label: 'Technical Rigidity', icon: '🔧' }
+};
+
+const operationalRealityHtml = Object.keys(dimensions).length > 0 ? `
+  <section>
+    <h2>Operational Reality Profile</h2>
+    <p style="margin-bottom: 16px;">This is what working in this role will actually feel like — beyond the job description.</p>
+    
+    <!-- 5 Dimension Cards Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px;">
+      ${Object.entries(dimensions).map(([key, dim]) => {
+        const config = dimensionLabels[key] || { label: key.replace(/_/g, ' '), icon: '📊' };
+        const scoreColor = getDimensionScoreColor(dim.score);
+        return `
+          <div style="padding: 14px; background: #f8f7f4; border-radius: 8px; border-left: 3px solid ${scoreColor};">
+            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+              <span style="font-size: 18px;">${config.icon}</span>
+              <span style="font-size: 12px; font-weight: 600;">${config.label}</span>
+            </div>
+            <div style="font-size: 24px; font-weight: 700; color: ${scoreColor};">
+              ${dim.score}
+              <span style="font-size: 11px; font-weight: 400; color: #6b7280;">/100</span>
+            </div>
+            <div style="font-size: 11px; margin-top: 8px; line-height: 1.4;">${escapeHtml(dim.interpretation || '')}</div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    
+    <!-- Dominant Reality -->
+    ${operationalReality.dominant_reality ? `
+      <div style="background: rgba(198, 164, 63, 0.08); border-left: 3px solid #c9a84c; padding: 16px; margin-bottom: 16px; border-radius: 4px;">
+        <strong>${escapeHtml(operationalReality.dominant_reality.name)} is the dominant factor.</strong>
+        <p style="margin-top: 8px; font-size: 13px;">${escapeHtml(operationalReality.dominant_reality.interpretation)}</p>
+      </div>
+    ` : ''}
+    
+    <!-- LLM Narrative for Operational Reality (if available) -->
+    ${narrative?.operational_reality ? `
+      ${narrative.operational_reality.observations && narrative.operational_reality.observations.length > 0 ? `
+        <div style="margin: 16px 0;">
+          ${narrative.operational_reality.observations.map(obs => `
+            <div style="padding: 8px 0; border-bottom: 1px solid #e6e4dd; font-size: 13px;">${escapeHtml(obs)}</div>
+          `).join('')}
+        </div>
+      ` : ''}
+      ${narrative.operational_reality.bottom_line ? `
+        <div style="margin-top: 16px; padding: 12px; background: rgba(198, 164, 63, 0.05); border-radius: 4px; font-style: italic; font-size: 13px;">
+          ${escapeHtml(narrative.operational_reality.bottom_line)}
+        </div>
+      ` : ''}
+    ` : ''}
+    
+    <p style="font-size: 10px; color: #6b7280; margin-top: 12px; font-style: italic;">Higher scores indicate more challenging conditions in that dimension.</p>
+  </section>
+` : '';
+
+// ============================================================
+// OPERATIONAL COMPLEXITY PROFILE - NEW SECTION
+// ============================================================
+
+const complexityLabels = {
+  cognitive_stress: 'Complex problem-solving',
+  relational_stress: 'Stakeholder coordination',
+  administrative_stress: 'Process & documentation load',
+  ambiguity_stress: 'Role intensity',
+  performance_pressure: 'Deadline pressure',
+  travel_strain: 'Travel commitment'
+};
+
+const operationalComplexityHtml = Object.keys(stressTopology).length > 0 ? `
+  <section>
+    <h2>Operational Complexity Profile</h2>
+    <p style="margin-bottom: 16px;">Where this role demands attention and energy.</p>
+    
+    <!-- Complexity Factors Grid -->
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px;">
+      ${Object.entries(stressTopology).map(([type, score]) => {
+        const label = complexityLabels[type] || type.replace(/_/g, ' ');
+        const scoreColor = getComplexityColor(score);
+        return `
+          <div style="padding: 10px 12px; background: #f8f7f4; border-radius: 6px; border-left: 3px solid ${scoreColor};">
+            <div style="font-size: 10px; color: #6b7280;">${escapeHtml(label)}</div>
+            <div style="font-size: 18px; font-weight: 700; color: ${scoreColor};">${score}<span style="font-size: 10px; font-weight: 400;">/100</span></div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    
+    <!-- Primary Consideration -->
+    ${primaryStress.type ? `
+      <div style="background: rgba(245, 158, 11, 0.05); border-left: 3px solid #f59e0b; padding: 14px; margin-bottom: 16px; border-radius: 4px;">
+        <strong>Primary Consideration: ${escapeHtml(primaryStress.label || complexityLabels[primaryStress.type] || primaryStress.type.replace(/_/g, ' '))}</strong>
+        <p style="margin-top: 8px; font-size: 12px; color: #6b7280;">This is worth asking about in the interview to understand how the team handles this aspect of the role.</p>
+      </div>
+    ` : ''}
+    
+    <!-- Interaction Warnings -->
+    ${interactionWarnings.length > 0 ? `
+      <div style="margin-top: 16px;">
+        <div style="font-weight: 600; font-size: 12px; margin-bottom: 8px;">⚠️ Risk Interactions</div>
+        ${interactionWarnings.map(warning => `
+          <div style="padding: 8px 12px; background: rgba(245, 158, 11, 0.05); border-left: 2px solid #f59e0b; margin-bottom: 8px; border-radius: 4px; font-size: 11px;">
+            ${escapeHtml(warning)}
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+    
+    <!-- Confidence Note -->
+    ${confidence.note ? `
+      <div style="margin-top: 16px; padding: 8px 12px; background: #f8f7f4; border-radius: 4px; font-size: 10px; color: #6b7280; font-style: italic;">
+        📊 ${escapeHtml(confidence.note)} ${confidence.reliable === false ? '⚠️' : ''}
+      </div>
+    ` : ''}
+    
+    <!-- LLM Narrative for Operational Complexity (if available) -->
+    ${narrative?.operational_complexity ? `
+      ${narrative.operational_complexity.factors && narrative.operational_complexity.factors.length > 0 ? `
+        <div style="margin: 16px 0;">
+          ${narrative.operational_complexity.factors.map(factor => `
+            <div style="padding: 6px 0; font-size: 12px;">• ${escapeHtml(factor)}</div>
+          `).join('')}
+        </div>
+      ` : ''}
+      ${narrative.operational_complexity.primary_consideration ? `
+        <div style="margin-top: 12px; font-size: 12px;"><strong>Primary Consideration:</strong> ${escapeHtml(narrative.operational_complexity.primary_consideration)}</div>
+      ` : ''}
+      ${narrative.operational_complexity.what_to_ask ? `
+        <div style="margin-top: 8px; font-size: 11px; color: #c9a84c;">💡 ${escapeHtml(narrative.operational_complexity.what_to_ask)}</div>
+      ` : ''}
+    ` : ''}
+  </section>
+` : '';
+
   // ============================================================
   // NARRATIVE SECTIONS (from LLM) - Only render if provided
   // ============================================================
@@ -926,6 +1094,12 @@ export function generateDeterministicHtmlReport(hiddenBrief, resumeText = '', na
          ============================================================ -->
     ${complexityAnalysisHtml}
     
+    <!-- ============================================================
+    OPERATIONAL REALITY & COMPLEXITY SECTIONS
+    ============================================================ -->
+${operationalRealityHtml}
+${operationalComplexityHtml}
+
     <!-- ============================================================
          NARRATIVE SECTIONS (from LLM)
          ============================================================ -->

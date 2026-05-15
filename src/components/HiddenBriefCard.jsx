@@ -6,8 +6,8 @@ export default function HiddenBriefCard({
   onApplyToSummary,
   isApplyingBullets,
   isApplyingSummary,
-  onDownloadReport,        // NEW PROP
-  isGeneratingReport       // NEW PROP
+  onDownloadReport,
+  isGeneratingReport
 }) {
   const [expandedSections, setExpandedSections] = useState({
     quality: true,
@@ -18,7 +18,7 @@ export default function HiddenBriefCard({
     repetitions: false,
     unicorn: true,
     complexity: true,
-    operationalReality: true  // ADDED - for 5D matrix section
+    operationalReality: true
   });
 
   const toggleSection = (section) => {
@@ -43,8 +43,8 @@ export default function HiddenBriefCard({
     analysis_limitations,
     unicorn_detection,
     complexity_analysis,
-    operational_reality,           // ADDED - 5D matrix from worker
-    operational_reality_inference  // ADDED - LLM type inferences from STEP 10
+    operational_reality,
+    operational_reality_inference
   } = hiddenBrief;
 
   // Helper to get risk color
@@ -85,6 +85,13 @@ export default function HiddenBriefCard({
     return '#10b981';
   };
 
+  // Helper to get complexity color
+  const getComplexityColor = (score) => {
+    if (score >= 70) return '#ef4444';
+    if (score >= 40) return '#f59e0b';
+    return '#10b981';
+  };
+
   // Helper to get unicorn banner color based on severity
   const getUnicornColor = (severity) => {
     switch(severity) {
@@ -99,6 +106,16 @@ export default function HiddenBriefCard({
   const isCritical = unicorn_detection?.detected && unicorn_detection.severity === 'critical';
   const isWarning = unicorn_detection?.detected && unicorn_detection.severity === 'warning';
   const isInfo = unicorn_detection?.detected && unicorn_detection.severity === 'info';
+
+  // Complexity labels for Operational Complexity Profile (neutral, no stress language)
+  const complexityLabels = {
+    cognitive_stress: 'Complex problem-solving',
+    relational_stress: 'Stakeholder coordination',
+    administrative_stress: 'Process & documentation',
+    ambiguity_stress: 'Role clarity',
+    performance_pressure: 'Deadline expectations',
+    travel_strain: 'Travel requirements'
+  };
 
   // Dimension configuration for 5D matrix
   const dimensionConfig = {
@@ -1159,6 +1176,98 @@ export default function HiddenBriefCard({
                   })}
                 </div>
                 
+                {/* ============================================================
+                    OPERATIONAL COMPLEXITY PROFILE - NEW SECTION (formerly stress topology)
+                    ============================================================ */}
+                {operational_reality.stress_topology && (
+                  <div style={{ marginTop: '20px', marginBottom: '20px' }}>
+                    <div style={{ 
+                      fontSize: '12px', 
+                      fontWeight: '600', 
+                      marginBottom: '12px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <span>🔍</span> Operational Complexity Profile
+                    </div>
+                    
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                      gap: '10px'
+                    }}>
+                      {Object.entries(operational_reality.stress_topology).map(([type, score]) => {
+                        const complexityLabel = complexityLabels[type] || type.replace(/_/g, ' ');
+                        const complexityColor = getComplexityColor(score);
+                        
+                        return (
+                          <div key={type} style={{
+                            padding: '8px 10px',
+                            backgroundColor: 'var(--bg-tertiary)',
+                            borderRadius: '6px',
+                            borderLeft: `3px solid ${complexityColor}`
+                          }}>
+                            <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>
+                              {complexityLabel}
+                            </div>
+                            <div style={{ fontSize: '16px', fontWeight: '700', color: complexityColor }}>
+                              {score}
+                              <span style={{ fontSize: '10px', fontWeight: '400', color: 'var(--text-muted)' }}>/100</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    
+                    {/* Primary Consideration - neutral, no stress language */}
+                    {operational_reality.primary_stress && (
+                      <div style={{
+                        marginTop: '14px',
+                        padding: '12px',
+                        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+                        borderRadius: '6px',
+                        borderLeft: '3px solid #f59e0b'
+                      }}>
+                        <div style={{ fontWeight: '600', fontSize: '12px', marginBottom: '4px' }}>
+                          Primary Consideration: {complexityLabels[operational_reality.primary_stress.type] || operational_reality.primary_stress.label || operational_reality.primary_stress.type?.replace(/_/g, ' ')}
+                        </div>
+                        <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                          💡 Worth asking about in the interview to understand how the team handles this aspect of the role.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                
+                {/* Interaction Warnings */}
+                {operational_reality.interaction_warnings && operational_reality.interaction_warnings.length > 0 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <div style={{ 
+                      fontSize: '12px', 
+                      fontWeight: '600', 
+                      marginBottom: '8px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}>
+                      <span>🔗</span> Risk Interactions
+                    </div>
+                    {operational_reality.interaction_warnings.map((warning, idx) => (
+                      <div key={idx} style={{
+                        padding: '8px 12px',
+                        backgroundColor: 'rgba(245, 158, 11, 0.05)',
+                        borderLeft: '2px solid #f59e0b',
+                        marginBottom: '6px',
+                        borderRadius: '4px',
+                        fontSize: '11px'
+                      }}>
+                        ⚠️ {warning}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
                 {/* Dominant Reality Synthesis */}
                 <div style={{
                   padding: '14px',
@@ -1178,6 +1287,22 @@ export default function HiddenBriefCard({
                     </p>
                   )}
                 </div>
+                
+                {/* Confidence Note */}
+                {operational_reality.confidence && operational_reality.confidence.note && (
+                  <div style={{
+                    marginTop: '12px',
+                    padding: '8px 12px',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    borderRadius: '4px',
+                    fontSize: '10px',
+                    color: 'var(--text-muted)',
+                    fontStyle: 'italic'
+                  }}>
+                    📊 {operational_reality.confidence.note}
+                    {operational_reality.confidence.reliable === false && ' ⚠️ Interpretation should be treated as directional.'}
+                  </div>
+                )}
                 
                 {/* Note about dimensions */}
                 <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '12px', fontStyle: 'italic' }}>

@@ -17,7 +17,8 @@ export default function HiddenBriefCard({
     contradictions: false,
     repetitions: false,
     unicorn: true,
-    complexity: true  // ADDED - for complexity analysis section
+    complexity: true,
+    operationalReality: true  // ADDED - for 5D matrix section
   });
 
   const toggleSection = (section) => {
@@ -41,7 +42,9 @@ export default function HiddenBriefCard({
     recommendation_summary,
     analysis_limitations,
     unicorn_detection,
-    complexity_analysis  // ADDED - new field from worker
+    complexity_analysis,
+    operational_reality,           // ADDED - 5D matrix from worker
+    operational_reality_inference  // ADDED - LLM type inferences from STEP 10
   } = hiddenBrief;
 
   // Helper to get risk color
@@ -68,6 +71,20 @@ export default function HiddenBriefCard({
     }
   };
 
+  // Helper to get dimension score color (0-100)
+  const getDimensionColor = (score) => {
+    if (score >= 70) return '#ef4444';
+    if (score >= 40) return '#f59e0b';
+    return '#10b981';
+  };
+
+  // Helper to get reality score color for badge
+  const getRealityColor = (score) => {
+    if (score >= 70) return '#ef4444';
+    if (score >= 40) return '#f59e0b';
+    return '#10b981';
+  };
+
   // Helper to get unicorn banner color based on severity
   const getUnicornColor = (severity) => {
     switch(severity) {
@@ -82,6 +99,35 @@ export default function HiddenBriefCard({
   const isCritical = unicorn_detection?.detected && unicorn_detection.severity === 'critical';
   const isWarning = unicorn_detection?.detected && unicorn_detection.severity === 'warning';
   const isInfo = unicorn_detection?.detected && unicorn_detection.severity === 'info';
+
+  // Dimension configuration for 5D matrix
+  const dimensionConfig = {
+    bureaucratic_friction: { 
+      icon: '📋', 
+      label: 'Bureaucratic Friction', 
+      description: 'How much of your week will be spent getting permission rather than doing work.'
+    },
+    operational_load: { 
+      icon: '⚡', 
+      label: 'Operational Load', 
+      description: 'How much work is expected vs how much support exists.'
+    },
+    stakeholder_density: { 
+      icon: '🤝', 
+      label: 'Stakeholder Density', 
+      description: 'How many people you need to please to get anything done.'
+    },
+    strategic_ambiguity: { 
+      icon: '🎯', 
+      label: 'Strategic Ambiguity', 
+      description: 'Whether the organization actually knows what they want.'
+    },
+    technical_rigidity: { 
+      icon: '🔧', 
+      label: 'Technical Rigidity', 
+      description: 'How narrow and specific the required expertise is.'
+    }
+  };
 
   return (
     <div className="hidden-brief-card" style={{
@@ -158,7 +204,6 @@ export default function HiddenBriefCard({
           >
             {isApplyingSummary ? 'Applying...' : '📝 Apply to Summary'}
           </button>
-          {/* ADDED: Download Report Button */}
           <button
             onClick={onDownloadReport}
             disabled={isGeneratingReport}
@@ -252,7 +297,7 @@ export default function HiddenBriefCard({
           </div>
         )}
 
-        {/* JD Quality Assessment - NEW SECTION */}
+        {/* JD Quality Assessment */}
         {jd_quality_assessment && (
           <div style={{ marginBottom: '24px' }}>
             <div 
@@ -867,7 +912,7 @@ export default function HiddenBriefCard({
         )}
 
         {/* ============================================================
-            COMPLEXITY ANALYSIS - NEW SECTION
+            COMPLEXITY ANALYSIS (Iceberg Ratio - Existing Section)
             ============================================================ */}
         {complexity_analysis && (
           <div style={{ marginBottom: '24px' }}>
@@ -1005,6 +1050,139 @@ export default function HiddenBriefCard({
                     </ul>
                   </details>
                 )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ============================================================
+            OPERATIONAL REALITY (5D MATRIX) - NEW SECTION
+            ============================================================ */}
+        {operational_reality && (
+          <div style={{ marginBottom: '24px' }}>
+            <div 
+              onClick={() => toggleSection('operationalReality')}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: 'pointer',
+                padding: '10px 0',
+                borderBottom: '1px solid var(--border-light)'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span>📊</span>
+                <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0 }}>Operational Reality Profile</h3>
+                <span style={{
+                  fontSize: '10px',
+                  padding: '2px 10px',
+                  borderRadius: '20px',
+                  backgroundColor: getRealityColor(operational_reality.dominant_reality.score),
+                  color: '#fff'
+                }}>
+                  {operational_reality.dominant_reality.name}: {operational_reality.dominant_reality.score}/100
+                </span>
+              </div>
+              <span>{expandedSections.operationalReality ? '▼' : '▶'}</span>
+            </div>
+            
+            {expandedSections.operationalReality && (
+              <div style={{ padding: '16px 0' }}>
+                
+                {/* 5 Dimension Cards in Responsive Grid */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                  gap: '16px',
+                  marginBottom: '20px'
+                }}>
+                  {Object.entries(operational_reality.dimensions).map(([key, dim]) => {
+                    const config = dimensionConfig[key];
+                    const scoreColor = getDimensionColor(dim.score);
+                    const inference = operational_reality_inference?.[key];
+                    
+                    return (
+                      <div key={key} style={{
+                        padding: '14px',
+                        backgroundColor: 'var(--bg-tertiary)',
+                        borderRadius: '8px',
+                        borderLeft: `3px solid ${scoreColor}`
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                          <span style={{ fontSize: '18px' }}>{config.icon}</span>
+                          <span style={{ fontSize: '12px', fontWeight: '600' }}>{config.label}</span>
+                        </div>
+                        
+                        <div style={{ fontSize: '22px', fontWeight: '700', color: scoreColor }}>
+                          {dim.score}
+                          <span style={{ fontSize: '11px', fontWeight: '400', color: 'var(--text-muted)' }}>/100</span>
+                        </div>
+                        
+                        {dim.signals && dim.signals.length > 0 && (
+                          <div style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                            {dim.signals.slice(0, 2).join(' • ')}
+                          </div>
+                        )}
+                        
+                        <div style={{ fontSize: '11px', marginTop: '8px', lineHeight: '1.4' }}>
+                          {dim.interpretation}
+                        </div>
+                        
+                        {/* LLM Inference Type (if available from STEP 10) */}
+                        {inference && inference.type && (
+                          <div style={{
+                            marginTop: '10px',
+                            padding: '8px',
+                            backgroundColor: 'rgba(198, 164, 63, 0.1)',
+                            borderRadius: '6px',
+                            fontSize: '10px'
+                          }}>
+                            <strong>Type:</strong> {inference.type.replace('_', ' ')}<br />
+                            <span style={{ color: '#c9a84c' }}>{inference.explanation}</span>
+                          </div>
+                        )}
+                        
+                        {/* Interview question from LLM inference */}
+                        {inference && inference.interview_question && (
+                          <div style={{
+                            marginTop: '8px',
+                            fontSize: '10px',
+                            color: 'var(--text-muted)',
+                            fontStyle: 'italic'
+                          }}>
+                            💡 {inference.interview_question}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                
+                {/* Dominant Reality Synthesis */}
+                <div style={{
+                  padding: '14px',
+                  backgroundColor: 'rgba(198, 164, 63, 0.05)',
+                  borderRadius: '8px',
+                  borderLeft: '3px solid #c9a84c'
+                }}>
+                  <strong style={{ fontSize: '13px' }}>🕵️ What This Means for You:</strong>
+                  <p style={{ margin: '8px 0 0 0', fontSize: '13px', lineHeight: '1.5' }}>
+                    {operational_reality.dominant_reality.interpretation}
+                  </p>
+                  
+                  {/* If LLM synthesis is available from STEP 10, use it */}
+                  {operational_reality_inference?.dominant_reality_synthesis && (
+                    <p style={{ margin: '12px 0 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                      {operational_reality_inference.dominant_reality_synthesis}
+                    </p>
+                  )}
+                </div>
+                
+                {/* Note about dimensions */}
+                <p style={{ fontSize: '10px', color: 'var(--text-muted)', marginTop: '12px', fontStyle: 'italic' }}>
+                  Higher scores indicate more challenging conditions in that dimension. Use the interview to verify actual conditions.
+                </p>
               </div>
             )}
           </div>

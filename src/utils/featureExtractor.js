@@ -14,20 +14,110 @@ import { extractMetrics, calculateMetricStrength } from './metricsPatterns.js';
 import { calculateDeterministicBloom, analyzeBulletBloom, getBloomGapAnalysis } from './deterministicBloom.js';
 import { detectSeniorityFromText } from './seniorityDetector.js';
 import { detectIndustry } from './industryKeywords.js';
-import { countTechnicalSkills, TECHNICAL_SKILLS } from './skillDictionary.js';
+import { 
+  countTechnicalSkills, 
+  countTechnicalSkillsByCategory,
+  TECHNICAL_SKILLS 
+} from './skillDictionary.js';
 import { countCertifications, getCertificationDetails, CERTIFICATIONS } from './certifications.js';
-import { countLanguages, detectEducationLevel } from './commonDictionaries.js';
+import { countLanguages, extractLanguagesList, detectEducationLevel } from './commonDictionaries.js';
 import { calculateATSScore, calculateCredibilityScore, calculateSemanticPosition, calculateFitScore } from './scoreCalculator.js';
 import { detectJobHopping, detectCareerGaps } from './dateParser.js';
 import { detectRoleType } from './jobTitles.js';
 import { calculateRIASECDeterministic, formatRIASECForDisplay } from './riasec.js';
+
+// ============================================================
+// SKILL CATEGORIES FOR BREAKDOWN (V4.2 ADDITION)
+// ============================================================
+
+import {
+  PROGRAMMING_LANGUAGES,
+  FRONTEND_SKILLS,
+  BACKEND_SKILLS,
+  ML_AI_SKILLS,
+  DATA_ANALYTICS_SKILLS,
+  CLOUD_DEVOPS_SKILLS,
+  SYSTEMS_SKILLS,
+  CYBERSECURITY_SKILLS,
+  AUTOMATION_SKILLS,
+  HEALTHCARE_SKILLS,
+  PROJECT_MGMT_SKILLS,
+  ERP_CRM_SKILLS,
+  LEGAL_SKILLS,
+  EDUCATION_SKILLS,
+  MANUFACTURING_SKILLS,
+  ENERGY_SKILLS,
+  CONSTRUCTION_SKILLS,
+  AGRICULTURE_SKILLS,
+  HOSPITALITY_SKILLS,
+  GOVERNMENT_SKILLS,
+  RETAIL_SKILLS
+} from './skillDictionary.js';
+
+/**
+ * Counts skills by category for tiered rigidity scoring
+ * @param {string} text - The text to analyze (resume or JD)
+ * @returns {Object} Category counts
+ */
+export function countSkillsByCategory(text) {
+  if (!text || typeof text !== 'string') {
+    return {};
+  }
+  
+  const lowerText = text.toLowerCase();
+  const categoryCounts = {};
+  
+  // Define categories with their skill arrays
+  const categories = {
+    PROGRAMMING_LANGUAGES,
+    FRONTEND_SKILLS,
+    BACKEND_SKILLS,
+    ML_AI_SKILLS,
+    DATA_ANALYTICS_SKILLS,
+    CLOUD_DEVOPS_SKILLS,
+    SYSTEMS_SKILLS,
+    CYBERSECURITY_SKILLS,
+    AUTOMATION_SKILLS,
+    HEALTHCARE_SKILLS,
+    PROJECT_MGMT_SKILLS,
+    ERP_CRM_SKILLS,
+    LEGAL_SKILLS,
+    EDUCATION_SKILLS,
+    MANUFACTURING_SKILLS,
+    ENERGY_SKILLS,
+    CONSTRUCTION_SKILLS,
+    AGRICULTURE_SKILLS,
+    HOSPITALITY_SKILLS,
+    GOVERNMENT_SKILLS,
+    RETAIL_SKILLS
+  };
+  
+  for (const [categoryName, skills] of Object.entries(categories)) {
+    if (!Array.isArray(skills)) continue;
+    
+    let count = 0;
+    for (const skill of skills) {
+      if (!skill || typeof skill !== 'string') continue;
+      const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`\\b${escaped}\\b`, 'i');
+      if (regex.test(lowerText)) {
+        count++;
+      }
+    }
+    if (count > 0) {
+      categoryCounts[categoryName] = count;
+    }
+  }
+  
+  return categoryCounts;
+}
 
 /**
  * Get empty features result for error cases
  */
 function getEmptyFeaturesResult() {
   return {
-    extractor_version: '1.0.0',
+    extractor_version: '1.1.0',
     extraction_time_ms: 0,
     bullets: [],
     bullet_count: 0,
@@ -58,9 +148,11 @@ function getEmptyFeaturesResult() {
     },
     skills_count: 0,
     skills_list: [],
+    skills_breakdown: {},
     certifications_count: 0,
     certifications_list: [],
     languages_count: 0,
+    languages_list: [],
     industry: 'unknown',
     role_type: 'unknown',
     top_achievements: [],
@@ -132,17 +224,19 @@ export function extractAllFeatures(resumeText, jdText = null) {
   // Detect buzzwords
   const buzzwords = detectBuzzwords(resumeText);
   
-  // Detect skills
+  // Detect skills - with category breakdown (V4.2 ADDITION)
   const skillsCount = countTechnicalSkills(resumeText);
   const skillsList = extractSkillsList(resumeText);
+  const skillsBreakdown = countSkillsByCategory(resumeText);
   
   // Detect certifications
   const certDetails = getCertificationDetails(resumeText);
   const certificationsCount = certDetails.total_count || 0;
   const certificationsList = extractCertificationsList(resumeText);
   
-  // Detect languages
+  // Detect languages - with list (V4.2 ADDITION)
   const languagesCount = countLanguages(resumeText);
+  const languagesList = extractLanguagesList(resumeText);
   
   // Detect industry
   const industry = detectIndustry(resumeText);
@@ -195,9 +289,11 @@ export function extractAllFeatures(resumeText, jdText = null) {
     const jdYearsRequired = extractYearsRequired(jdText);
     const jdEducationRequired = extractEducationRequired(jdText);
     const jdSkillsCount = countTechnicalSkills(jdText);
+    const jdSkillsBreakdown = countSkillsByCategory(jdText);
     const jdCertDetails = getCertificationDetails(jdText);
     const jdRoleType = detectRoleType(jdText);
     const jdIndustry = detectIndustry(jdText);
+    const jdLanguagesList = extractLanguagesList(jdText);
     
     // Calculate match rates
     const keywordAnalysis = calculateKeywordMatchRate(resumeText, jdText);
@@ -234,6 +330,8 @@ export function extractAllFeatures(resumeText, jdText = null) {
       years_required: jdYearsRequired,
       education_required: jdEducationRequired,
       skills_count: jdSkillsCount,
+      skills_breakdown: jdSkillsBreakdown,
+      languages_list: jdLanguagesList,
       role_type: jdRoleType,
       industry: jdIndustry,
       responsibilities: jdParsed.responsibilities || [],
@@ -249,7 +347,7 @@ export function extractAllFeatures(resumeText, jdText = null) {
   
   const output = {
     // Version info
-    extractor_version: '1.0.0',
+    extractor_version: '1.1.0',
     extraction_time_ms: Date.now() - startTime,
     
     // Bullet data
@@ -300,12 +398,18 @@ export function extractAllFeatures(resumeText, jdText = null) {
       years_detected: seniority.years_detected || 0
     },
     
-    // Skills & certifications
+    // Skills (with breakdown - V4.2 ADDITION)
     skills_count: skillsCount || 0,
     skills_list: (skillsList || []).slice(0, 30),
+    skills_breakdown: skillsBreakdown,
+    
+    // Certifications
     certifications_count: certificationsCount || 0,
     certifications_list: (certificationsList || []).slice(0, 20),
+    
+    // Languages (with list - V4.2 ADDITION)
     languages_count: languagesCount || 0,
+    languages_list: languagesList,
     
     // Industry & role
     industry: industry || 'unknown',
@@ -352,7 +456,10 @@ export function extractAllFeatures(resumeText, jdText = null) {
       fit_label: fitScore?.label || 'Moderate',
       critical_keywords_missing: jdFeatures.critical_keywords?.missing || [],
       responsibilities: jdFeatures.responsibilities || [],
-      requirements: jdFeatures.requirements || []
+      requirements: jdFeatures.requirements || [],
+      jd_skills_count: jdFeatures.skills_count,
+      jd_skills_breakdown: jdFeatures.skills_breakdown,
+      jd_languages_list: jdFeatures.languages_list
     } : null,
     
     // Buzzwords
@@ -396,7 +503,7 @@ function extractSkillsList(resumeText) {
   }
   
   for (const skill of allSkills) {
-    if (!skill || typeof skill !== 'string') continue; // Skip invalid entries
+    if (!skill || typeof skill !== 'string') continue;
     const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const regex = new RegExp(`\\b${escaped}\\b`, 'i');
     if (regex.test(lowerText)) {
@@ -414,7 +521,6 @@ function extractCertificationsList(resumeText) {
   const certs = new Set();
   const lowerText = resumeText.toLowerCase();
   
-  // Safety check for CERTIFICATIONS
   if (!CERTIFICATIONS || typeof CERTIFICATIONS !== 'object') {
     console.warn('extractCertificationsList: CERTIFICATIONS not available');
     return [];
@@ -423,7 +529,7 @@ function extractCertificationsList(resumeText) {
   for (const category of Object.values(CERTIFICATIONS)) {
     if (!Array.isArray(category)) continue;
     for (const cert of category) {
-      if (!cert || typeof cert !== 'string') continue; // Skip invalid entries
+      if (!cert || typeof cert !== 'string') continue;
       const escaped = cert.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`\\b${escaped}\\b`, 'i');
       if (regex.test(lowerText)) {
@@ -495,7 +601,6 @@ function calculateBloomMultiplier(averageLevel, seniorityLevel) {
  * Extract original summary from resume
  */
 function extractOriginalSummary(resumeText, sections) {
-  // Safety check
   if (!sections) return null;
   if (sections.summary && typeof sections.summary === 'string') {
     return sections.summary.substring(0, 500);
@@ -575,7 +680,6 @@ function calculateKeywordMatchRate(resumeText, jdText) {
 function calculateCertMatchRate(resumeCerts, jdCerts) {
   const resumeCertSet = new Set();
   
-  // Safety check
   if (resumeCerts && resumeCerts.matches) {
     for (const certs of Object.values(resumeCerts.matches)) {
       if (Array.isArray(certs)) {

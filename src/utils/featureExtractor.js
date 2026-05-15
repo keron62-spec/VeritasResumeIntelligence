@@ -16,7 +16,6 @@ import { detectSeniorityFromText } from './seniorityDetector.js';
 import { detectIndustry } from './industryKeywords.js';
 import { 
   countTechnicalSkills, 
-  countTechnicalSkillsByCategory,
   TECHNICAL_SKILLS 
 } from './skillDictionary.js';
 import { countCertifications, getCertificationDetails, CERTIFICATIONS } from './certifications.js';
@@ -27,10 +26,11 @@ import { detectRoleType } from './jobTitles.js';
 import { calculateRIASECDeterministic, formatRIASECForDisplay } from './riasec.js';
 
 // ============================================================
-// SKILL CATEGORIES FOR BREAKDOWN (V4.2 ADDITION)
+// SKILL CATEGORIES FOR BREAKDOWN
 // ============================================================
 
-import {
+// Import category arrays directly from skillDictionary.js
+const {
   PROGRAMMING_LANGUAGES,
   FRONTEND_SKILLS,
   BACKEND_SKILLS,
@@ -52,14 +52,14 @@ import {
   HOSPITALITY_SKILLS,
   GOVERNMENT_SKILLS,
   RETAIL_SKILLS
-} from './skillDictionary.js';
+} = TECHNICAL_SKILLS;
 
 /**
  * Counts skills by category for tiered rigidity scoring
  * @param {string} text - The text to analyze (resume or JD)
  * @returns {Object} Category counts
  */
-export function countSkillsByCategory(text) {
+function countSkillsByCategory(text) {
   if (!text || typeof text !== 'string') {
     return {};
   }
@@ -67,7 +67,7 @@ export function countSkillsByCategory(text) {
   const lowerText = text.toLowerCase();
   const categoryCounts = {};
   
-  // Define categories with their skill arrays
+  // Define categories with their skill arrays (using the imported arrays)
   const categories = {
     PROGRAMMING_LANGUAGES,
     FRONTEND_SKILLS,
@@ -98,6 +98,7 @@ export function countSkillsByCategory(text) {
     let count = 0;
     for (const skill of skills) {
       if (!skill || typeof skill !== 'string') continue;
+      // Escape special regex characters in the skill name
       const escaped = skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       const regex = new RegExp(`\\b${escaped}\\b`, 'i');
       if (regex.test(lowerText)) {

@@ -89,6 +89,29 @@ export function countLanguages(jdText) {
 }
 
 /**
+ * Extracts list of languages mentioned in text (for sending to worker)
+ * @param {string} text - The text to analyze (JD or resume)
+ * @returns {string[]} Array of language names found (capitalized)
+ */
+export function extractLanguagesList(text) {
+  if (!text || typeof text !== 'string') return [];
+  const lowerText = text.toLowerCase();
+  const found = [];
+  
+  for (const language of LANGUAGES) {
+    // Match whole words to avoid false positives
+    const regex = new RegExp(`\\b${escapeRegex(language)}\\b`, 'i');
+    if (regex.test(lowerText)) {
+      // Capitalize first letter for display
+      const capitalized = language.charAt(0).toUpperCase() + language.slice(1);
+      found.push(capitalized);
+    }
+  }
+  
+  return found;
+}
+
+/**
  * Detects the highest education level required in a job description
  * @param {string} jdText - The job description text
  * @returns {string} Education level (phd, masters, bachelors, associates, none)

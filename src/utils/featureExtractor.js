@@ -403,6 +403,8 @@ export function extractAllFeatures(resumeText, jdText = null) {
     skills_count: skillsCount || 0,
     skills_list: (skillsList || []).slice(0, 30),
     skills_breakdown: skillsBreakdown,
+    technical_skills_count: skillsCount || 0,
+    technical_skills_breakdown: skillsBreakdown,
     
     // Certifications
     certifications_count: certificationsCount || 0,

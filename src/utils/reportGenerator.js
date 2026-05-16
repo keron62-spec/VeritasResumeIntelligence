@@ -458,6 +458,40 @@ const operationalComplexityHtml = Object.keys(stressTopology).length > 0 ? `
   </section>
 ` : '';
 
+// ============================================================
+// LLM-GENERATED OPERATIONAL REALITY NARRATIVE (from rubric)
+// ============================================================
+
+const operationalRealityNarrativeHtml = narrative?.operational_reality ? `
+  <section>
+    <h2>Operational Reality Decoded</h2>
+    
+    ${narrative.operational_reality.primary_consideration ? `
+      <div style="margin-bottom: 16px;">
+        <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">Primary Consideration</div>
+        <div style="padding: 10px 14px; background: #f8f7f4; border-radius: 6px; font-size: 13px;">
+          ${escapeHtml(narrative.operational_reality.primary_consideration)}
+        </div>
+      </div>
+    ` : ''}
+    
+    ${narrative.operational_reality.what_to_ask ? `
+      <div style="margin-bottom: 16px;">
+        <div style="font-weight: 600; font-size: 13px; margin-bottom: 6px;">What to Ask</div>
+        <div style="padding: 10px 14px; background: #f8f7f4; border-radius: 6px; font-size: 13px;">
+          💡 ${escapeHtml(narrative.operational_reality.what_to_ask)}
+        </div>
+      </div>
+    ` : ''}
+    
+    ${narrative.operational_reality.bottom_line ? `
+      <div style="margin-top: 16px; padding: 12px 16px; background: rgba(198, 164, 63, 0.08); border-left: 3px solid #c9a84c; border-radius: 4px; font-size: 13px;">
+        <strong>Bottom Line:</strong> ${escapeHtml(narrative.operational_reality.bottom_line)}
+      </div>
+    ` : ''}
+  </section>
+` : '';
+
   // ============================================================
   // NARRATIVE SECTIONS (from LLM) - Only render if provided
   // ============================================================

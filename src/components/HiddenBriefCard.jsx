@@ -112,7 +112,7 @@ export default function HiddenBriefCard({
     cognitive_stress: 'Complex problem-solving',
     relational_stress: 'Stakeholder coordination',
     administrative_stress: 'Process & documentation',
-    ambiguity_stress: 'Role clarity',
+    ambiguity_stress: 'Role Intensity',
     performance_pressure: 'Deadline expectations',
     travel_strain: 'Travel requirements'
   };

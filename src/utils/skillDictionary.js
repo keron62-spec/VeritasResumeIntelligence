@@ -57,8 +57,8 @@ export const PROGRAMMING_LANGUAGES = [
   export const DATA_ANALYTICS_SKILLS = [
     "power bi", "tableau", "looker", "qlik", "metabase", "domo", "sisense", "ibm cognos",
     "crystal reports", "ssrs", "ssis", "ssas", "alteryx", "microstrategy", "sap businessobjects",
-    "thoughtspot", "excel", "vba", "macros", "pivottables", "power query", "google sheets",
-    "google workspace", "microsoft 365", "sharepoint", "teams", "outlook", "word", "powerpoint",
+    "thoughtspot", "vba", "macros", "pivottables", "power query",
+    , "sharepoint", "teams", "powerpoint",
     "visio", "spss", "stata", "sas", "eviews", "minitab", "amos", "nvivo", "atlas.ti",
     "surveymonkey", "qualtrics", "redcap", "dhis2", "openmrs", "epi info", "sas enterprise guide"
   ];

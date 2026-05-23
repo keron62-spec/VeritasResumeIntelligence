@@ -108,6 +108,7 @@ export default function HiddenBriefCard({
   const isInfo = unicorn_detection?.detected && unicorn_detection.severity === 'info';
 
   // Complexity labels for Operational Complexity Profile (neutral, no stress language)
+  // UPDATED: "Role Clarity" → "Role Intensity"
   const complexityLabels = {
     cognitive_stress: 'Complex problem-solving',
     relational_stress: 'Stakeholder coordination',
@@ -245,6 +246,46 @@ export default function HiddenBriefCard({
       </div>
 
       <div style={{ padding: '20px 24px' }}>
+        
+        {/* ============================================================
+            ANALYSIS CONFIDENCE DISPLAY (NEW - V6.2)
+            Based on JD word count (70%/85%/95%)
+            ============================================================ */}
+        {hiddenBrief.confidence_level && (
+          <div style={{ 
+            marginBottom: '24px',
+            padding: '12px 16px',
+            backgroundColor: 'rgba(198, 164, 63, 0.08)',
+            borderRadius: '8px',
+            borderLeft: `4px solid ${
+              hiddenBrief.confidence_level >= 90 ? '#10b981' : 
+              hiddenBrief.confidence_level >= 80 ? '#3b82f6' : '#f59e0b'
+            }`
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Analysis Confidence</span>
+                <div style={{ fontWeight: '700', fontSize: '16px' }}>
+                  {hiddenBrief.confidence_label} ({hiddenBrief.confidence_level}%)
+                </div>
+              </div>
+              <span style={{
+                fontSize: '10px',
+                padding: '4px 10px',
+                borderRadius: '20px',
+                backgroundColor: 'rgba(198, 164, 63, 0.15)',
+                color: '#c9a84c'
+              }}>
+                Based on JD length
+              </span>
+            </div>
+            {hiddenBrief.confidence_note && (
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px', marginBottom: 0 }}>
+                {hiddenBrief.confidence_note}
+              </p>
+            )}
+          </div>
+        )}
         
         {/* ============================================================
             UNICORN DETECTION - CRITICAL SEVERITY (TOP OF CARD)
@@ -664,6 +705,103 @@ export default function HiddenBriefCard({
                     </div>
                   </div>
                 ))}
+                
+                {/* ============================================================
+                    AUTHORITY AMBIGUITY (NEW - V6.2)
+                    Shows detected authority ambiguity from language_pattern
+                    ============================================================ */}
+                {hiddenBrief.language_pattern?.authority_ambiguity && (
+                  <div style={{
+                    padding: '12px',
+                    backgroundColor: hiddenBrief.language_pattern.authority_ambiguity.detected 
+                      ? 'rgba(239, 68, 68, 0.08)' 
+                      : 'var(--bg-tertiary)',
+                    borderRadius: '8px',
+                    marginTop: '12px',
+                    borderLeft: `3px solid ${
+                      hiddenBrief.language_pattern.authority_ambiguity.detected 
+                        ? hiddenBrief.language_pattern.authority_ambiguity.signal_strength === 'high' ? '#ef4444' :
+                          hiddenBrief.language_pattern.authority_ambiguity.signal_strength === 'medium' ? '#f59e0b' : '#10b981'
+                        : 'var(--border-light)'
+                    }`
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span>🔑</span>
+                        <strong style={{ fontSize: '12px' }}>Authority Ambiguity</strong>
+                      </div>
+                      {hiddenBrief.language_pattern.authority_ambiguity.detected ? (
+                        <span style={{
+                          fontSize: '10px',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          backgroundColor: 
+                            hiddenBrief.language_pattern.authority_ambiguity.signal_strength === 'high' ? 'rgba(239, 68, 68, 0.15)' :
+                            hiddenBrief.language_pattern.authority_ambiguity.signal_strength === 'medium' ? 'rgba(245, 158, 11, 0.15)' :
+                            'rgba(16, 185, 129, 0.15)',
+                          color: 
+                            hiddenBrief.language_pattern.authority_ambiguity.signal_strength === 'high' ? '#ef4444' :
+                            hiddenBrief.language_pattern.authority_ambiguity.signal_strength === 'medium' ? '#f59e0b' : '#10b981'
+                        }}>
+                          {hiddenBrief.language_pattern.authority_ambiguity.signal_strength?.toUpperCase()} SEVERITY
+                        </span>
+                      ) : (
+                        <span style={{
+                          fontSize: '10px',
+                          padding: '2px 8px',
+                          borderRadius: '12px',
+                          backgroundColor: 'rgba(100, 116, 139, 0.15)',
+                          color: '#64748b'
+                        }}>
+                          NOT DETECTED
+                        </span>
+                      )}
+                    </div>
+                    
+                    {hiddenBrief.language_pattern.authority_ambiguity.detected && (
+                      <>
+                        <p style={{ fontSize: '12px', marginBottom: '8px' }}>
+                          {hiddenBrief.language_pattern.authority_ambiguity.what_this_pattern_suggests || 
+                           "This role requires navigating political deadlock and influencing outcomes without direct authority."}
+                        </p>
+                        {hiddenBrief.language_pattern.authority_ambiguity.instances_found?.length > 0 && (
+                          <div style={{ marginBottom: '8px' }}>
+                            <div style={{ fontSize: '10px', fontWeight: '600', marginBottom: '4px' }}>Signals detected:</div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                              {hiddenBrief.language_pattern.authority_ambiguity.instances_found.slice(0, 3).map((instance, idx) => (
+                                <span key={idx} style={{
+                                  fontSize: '9px',
+                                  padding: '2px 6px',
+                                  backgroundColor: 'rgba(0,0,0,0.05)',
+                                  borderRadius: '4px',
+                                  color: 'var(--text-muted)'
+                                }}>
+                                  “{instance.length > 40 ? instance.substring(0, 40) + '...' : instance}”
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {hiddenBrief.language_pattern.authority_ambiguity.resume_framing_tip && (
+                          <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                            💡 {hiddenBrief.language_pattern.authority_ambiguity.resume_framing_tip}
+                          </p>
+                        )}
+                        {hiddenBrief.language_pattern.authority_ambiguity.interview_question && (
+                          <p style={{ fontSize: '11px', color: '#c9a84c', marginBottom: 0, fontStyle: 'italic' }}>
+                            📋 Ask: {hiddenBrief.language_pattern.authority_ambiguity.interview_question}
+                          </p>
+                        )}
+                      </>
+                    )}
+                    
+                    {!hiddenBrief.language_pattern.authority_ambiguity.detected && hiddenBrief.language_pattern.authority_ambiguity.detection_note && (
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: 0 }}>
+                        {hiddenBrief.language_pattern.authority_ambiguity.detection_note}
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
             )}
           </div>

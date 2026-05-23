@@ -115,6 +115,39 @@ const [extractedFeatures, setExtractedFeatures] = useState(null);
     // Track whether hidden brief has been triggered for this JD/resume
     const [hiddenBriefTriggered, setHiddenBriefTriggered] = useState(false);
 
+    // ============================================================
+    // DEBUG: HIDDEN BRIEF TRIGGER CHECK WITH LOGS
+    // ============================================================
+    useEffect(() => {
+        console.log('🔍 HIDDEN BRIEF TRIGGER CHECK:', {
+            resultExists: !!result,
+            isComparisonMode,
+            jdLength: jobDescriptionText?.trim().length,
+            minRequired: 500,
+            jdValid: jobDescriptionText && jobDescriptionText.trim().length >= 500,
+            hasAnalysis: !!hiddenBriefAnalysis,
+            isLoading: hiddenBriefLoading,
+            alreadyTriggered: hiddenBriefTriggered,
+            willTrigger: (result && isComparisonMode && jobDescriptionText && jobDescriptionText.trim().length >= 500 && !hiddenBriefAnalysis && !hiddenBriefLoading && !hiddenBriefTriggered)
+        });
+        
+        if (result && isComparisonMode && jobDescriptionText && jobDescriptionText.trim().length >= 500 && !hiddenBriefAnalysis && !hiddenBriefLoading && !hiddenBriefTriggered) {
+            console.log('✅ TRIGGERING hidden brief analysis NOW');
+            console.log('JD Preview (first 200 chars):', jobDescriptionText?.substring(0, 200));
+            console.log('Resume length:', resumeText?.length);
+            setHiddenBriefTriggered(true);
+            analyzeHiddenBrief(jobDescriptionText, resumeText);
+        } else {
+            console.log('❌ Conditions not met for hidden brief trigger');
+            if (!result) console.log('  - result is falsy');
+            if (!isComparisonMode) console.log('  - not in comparison mode');
+            if (!jobDescriptionText || jobDescriptionText.trim().length < 500) console.log('  - JD missing or too short');
+            if (hiddenBriefAnalysis) console.log('  - already have analysis');
+            if (hiddenBriefLoading) console.log('  - already loading');
+            if (hiddenBriefTriggered) console.log('  - already triggered');
+        }
+    }, [result, isComparisonMode, jobDescriptionText, resumeText, hiddenBriefAnalysis, hiddenBriefLoading, hiddenBriefTriggered, analyzeHiddenBrief]);
+
     // Trigger hidden brief analysis after main analysis completes
     useEffect(() => {
         if (result && isComparisonMode && jobDescriptionText && jobDescriptionText.trim().length >= 500 && !hiddenBriefAnalysis && !hiddenBriefLoading && !hiddenBriefTriggered) {
@@ -602,6 +635,13 @@ const analyzeResume = async () => {
                     fallback_used: false
                 };
                 
+                console.log('✅ Analysis complete, result set:', {
+                    hasResult: !!mergedResult,
+                    resultKeys: mergedResult ? Object.keys(mergedResult) : null,
+                    hasBulletAnalysis: !!mergedResult?.bullet_analysis,
+                    hasSummaryAnalysis: !!mergedResult?.summary_analysis
+                });
+                
                 setResult(mergedResult);
                 
             } else {
@@ -628,6 +668,14 @@ const analyzeResume = async () => {
                 
                 setAnalysisStage('📊 Processing your results...');
                 const safeResult = createSafeResult(data.result || data, resumePdfHealth);
+                
+                console.log('✅ Analysis complete, result set:', {
+                    hasResult: !!safeResult,
+                    resultKeys: safeResult ? Object.keys(safeResult) : null,
+                    hasBulletAnalysis: !!safeResult?.bullet_analysis,
+                    hasSummaryAnalysis: !!safeResult?.summary_analysis
+                });
+                
                 setResult(safeResult);
             }
             
@@ -656,6 +704,14 @@ const analyzeResume = async () => {
             
             setAnalysisStage('📊 Processing your results...');
             const safeResult = createSafeResult(data.result || data, resumePdfHealth);
+            
+            console.log('✅ Analysis complete, result set:', {
+                hasResult: !!safeResult,
+                resultKeys: safeResult ? Object.keys(safeResult) : null,
+                hasBulletAnalysis: !!safeResult?.bullet_analysis,
+                hasSummaryAnalysis: !!safeResult?.summary_analysis
+            });
+            
             setResult(safeResult);
             
         } else {
@@ -683,6 +739,14 @@ const analyzeResume = async () => {
             
             setAnalysisStage('📊 Processing your results...');
             const safeResult = createSafeResult(data.result || data, resumePdfHealth);
+            
+            console.log('✅ Analysis complete, result set:', {
+                hasResult: !!safeResult,
+                resultKeys: safeResult ? Object.keys(safeResult) : null,
+                hasBulletAnalysis: !!safeResult?.bullet_analysis,
+                hasSummaryAnalysis: !!safeResult?.summary_analysis
+            });
+            
             setResult(safeResult);
         }
         
@@ -1091,6 +1155,39 @@ const calculateInterviewLikelihood = ({ ats, fit, credibility, alignment, bloomM
                             >
                                 Reset Leniency
                             </button>
+                            
+                            {/* ============================================================ */}
+                            {/* DEBUG MANUAL TEST BUTTON - ADDED FOR HIDDEN BRIEF DEBUGGING */}
+                            {/* ============================================================ */}
+                            {result && isComparisonMode && (
+                                <button 
+                                    onClick={() => {
+                                        console.log('🐛 MANUAL TRIGGER - JD length:', jobDescriptionText?.length);
+                                        console.log('🐛 JD preview (first 200 chars):', jobDescriptionText?.substring(0, 200));
+                                        console.log('🐛 Resume length:', resumeText?.length);
+                                        console.log('🐛 Current hidden brief state:', {
+                                            hasAnalysis: !!hiddenBriefAnalysis,
+                                            isLoading: hiddenBriefLoading,
+                                            alreadyTriggered: hiddenBriefTriggered
+                                        });
+                                        analyzeHiddenBrief(jobDescriptionText, resumeText);
+                                    }}
+                                    style={{
+                                        background: '#ef4444',
+                                        color: 'white',
+                                        border: 'none',
+                                        padding: '6px 12px',
+                                        borderRadius: '6px',
+                                        fontSize: '12px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    🐛 Test Hidden Brief
+                                </button>
+                            )}
+                            {/* ============================================================ */}
+                            {/* END DEBUG MANUAL TEST BUTTON */}
+                            {/* ============================================================ */}
                         </div>
                         
                         {showDebug && rawApiResponse && (

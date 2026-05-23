@@ -58,7 +58,7 @@ export const PROGRAMMING_LANGUAGES = [
     "power bi", "tableau", "looker", "qlik", "metabase", "domo", "sisense", "ibm cognos",
     "crystal reports", "ssrs", "ssis", "ssas", "alteryx", "microstrategy", "sap businessobjects",
     "thoughtspot", "vba", "macros", "pivottables", "power query",
-    , "sharepoint", "teams", "powerpoint",
+    "sharepoint", "teams", "powerpoint",
     "visio", "spss", "stata", "sas", "eviews", "minitab", "amos", "nvivo", "atlas.ti",
     "surveymonkey", "qualtrics", "redcap", "dhis2", "openmrs", "epi info", "sas enterprise guide"
   ];

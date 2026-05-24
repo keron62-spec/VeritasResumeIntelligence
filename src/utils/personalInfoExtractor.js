@@ -33,10 +33,9 @@ function extractName(text) {
         // Check if line looks like a name (2-4 words, no special chars except hyphen/apostrophe)
         const words = line.split(/\s+/);
         if (words.length >= 2 && words.length <= 4) {
-            // Check each word starts with capital letter or is a capital initial
+            // Allow hyphenated names (e.g., "Jean-Pierre")
+            // Allow apostrophes (e.g., "O'Connor")
             const isValidName = words.every(word => {
-                // Allow hyphenated names (e.g., "Jean-Pierre")
-                // Allow apostrophes (e.g., "O'Connor")
                 const cleanWord = word.replace(/[-\']/g, '');
                 return /^[A-Z][a-z]+$/.test(cleanWord) || /^[A-Z]$/.test(word);
             });
@@ -112,23 +111,27 @@ function extractGitHub(text) {
 
 /**
  * Extract portfolio/website URL from resume text
+ * FIXED: Added global flag to regex for matchAll
  * @param {string} text - Full resume text
  * @returns {string} Extracted portfolio URL or empty string
  */
 function extractPortfolio(text) {
     if (!text || typeof text !== 'string') return '';
     
-    // Exclude LinkedIn and GitHub (already handled separately)
-    const portfolioRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9\-]+\.(?:com|org|net|io|co|me|dev|app))(?:\/[\w\-./?%&=]*)?/i;
-    const matches = text.matchAll(portfolioRegex);
+    // FIXED: Added 'g' flag for global matching (required for matchAll)
+    const portfolioRegex = /(?:https?:\/\/)?(?:www\.)?([a-zA-Z0-9\-]+\.(?:com|org|net|io|co|me|dev|app))(?:\/[\w\-./?%&=]*)?/gi;
     
-    for (const match of matches) {
-        const url = match[0];
-        // Skip if it's LinkedIn or GitHub
-        if (!url.toLowerCase().includes('linkedin') && !url.toLowerCase().includes('github')) {
-            // Ensure protocol is present
-            if (url.startsWith('http')) return url;
-            return `https://${url}`;
+    // Use match() instead of matchAll() to avoid the global flag requirement
+    const matches = text.match(portfolioRegex);
+    
+    if (matches) {
+        for (const url of matches) {
+            // Skip if it's LinkedIn or GitHub
+            if (!url.toLowerCase().includes('linkedin') && !url.toLowerCase().includes('github')) {
+                // Ensure protocol is present
+                if (url.startsWith('http')) return url;
+                return `https://${url}`;
+            }
         }
     }
     
@@ -225,7 +228,7 @@ export function validatePersonalInfo(info) {
     
     return {
         isComplete: issues.length === 0,
-        isAcceptable: issues.length <= 1, // Acceptable if only missing one optional field
+        isAcceptable: issues.length <= 1,
         issues,
         score: Math.max(0, 100 - (issues.length * 25))
     };

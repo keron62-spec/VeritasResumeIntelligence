@@ -20,6 +20,7 @@ import BulletAnalyzer from './components/BulletAnalyzer.jsx';
 import ExecutiveEvaluation from './components/ExecutiveEvaluation.jsx';
 import SkillExtractor from './components/SkillExtractor.jsx';
 import HiddenBriefCard from './components/HiddenBriefCard.jsx';
+import ResumeEditor from './components/ResumeEditor.jsx';  // <-- ADDED: Import ResumeEditor
 import { useLeniencyMode } from './hooks/useLeniencyMode.js';
 import { useHiddenBrief } from './hooks/useHiddenBrief.js';
 import { extractDocx } from './utils/parseHelpers.js';
@@ -80,6 +81,11 @@ const [extractedFeatures, setExtractedFeatures] = useState(null);
     // Email State
     const [email, setEmail] = useState('');
     const [emailSent, setEmailSent] = useState(false);
+    
+    // ============================================================
+    // ADDED: Resume Editor visibility state
+    // ============================================================
+    const [showResumeEditor, setShowResumeEditor] = useState(false);
     
     // Recruiter Leniency Mode
     const { 
@@ -815,6 +821,10 @@ const calculateInterviewLikelihood = ({ ats, fit, credibility, alignment, bloomM
         setShowWarning(true);
         // Reset hidden brief state
         setHiddenBriefTriggered(false);
+        // ============================================================
+        // ADDED: Reset resume editor visibility when resetting app
+        // ============================================================
+        setShowResumeEditor(false);
     };
 
     // Helper to check if data exists in raw response
@@ -870,390 +880,431 @@ const calculateInterviewLikelihood = ({ ats, fit, credibility, alignment, bloomM
 
             {result && !loading && (
                 <div className="results-container card">
-                    {/* ATS Eye View Warning - shows at top of results if critical issues exist */}
-                    {pdfIssues && pdfIssues.length > 0 && showWarning && (
-                        <ATSEyeViewWarning 
-                            pdfIssues={pdfIssues}
-                            pdfFile={pdfFile}
-                            onDismiss={dismissWarning}
+                    {/* ============================================================ */}
+                    {/* ADDED: Conditional rendering - Show Editor OR Results */}
+                    {/* ============================================================ */}
+                    {showResumeEditor ? (
+                        <ResumeEditor 
+                            result={result}
+                            jdText={jobDescriptionText}
+                            resumeText={resumeText}
+                            hiddenBriefAnalysis={hiddenBriefAnalysis}
+                            onClose={() => setShowResumeEditor(false)}
                         />
-                    )}
-                    
-                    {/* Leniency Mode Indicator - shows which mode was used */}
-                    {leniencyMode !== 'normal' && (
-                        <div style={{
-                            marginBottom: '20px',
-                            padding: '12px 16px',
-                            backgroundColor: leniencyMode === 'very_strict' ? 'rgba(196, 30, 58, 0.1)' : 
-                                         leniencyMode === 'strict' ? 'rgba(245, 158, 11, 0.1)' :
-                                         'rgba(16, 185, 129, 0.1)',
-                            borderLeft: `4px solid ${leniencyMode === 'very_strict' ? '#c41e3a' : 
-                                                       leniencyMode === 'strict' ? '#f59e0b' : '#10b981'}`,
-                            borderRadius: '4px'
-                        }}>
-                            <div style={{
-                                display: 'flex',
-                                alignItems: 'center',
-                                gap: '12px',
-                                flexWrap: 'wrap'
-                            }}>
-                                <span style={{
-                                    fontSize: '20px'
-                                }}>
-                                    {leniencyMode === 'very_strict' ? '👑' : leniencyMode === 'strict' ? '⚡' : '🌱'}
-                                </span>
-                                <div>
-                                    <div style={{
-                                        fontWeight: '600',
-                                        fontSize: '13px',
-                                        textTransform: 'uppercase',
-                                        letterSpacing: '0.5px',
-                                        color: leniencyMode === 'very_strict' ? '#c41e3a' : 
-                                               leniencyMode === 'strict' ? '#f59e0b' : '#10b981'
-                                    }}>
-                                        {leniencyMode === 'very_strict' ? 'VERY STRICT MODE' : 
-                                         leniencyMode === 'strict' ? 'STRICT MODE' : 'LENIENT MODE'}
-                                    </div>
-                                    <div style={{
-                                        fontSize: '12px',
-                                        color: 'var(--text-muted)',
-                                        marginTop: '2px'
-                                    }}>
-                                        {leniencyMode === 'very_strict' ? 'Elite recruiting simulation • Scores adjusted downward' : 
-                                         leniencyMode === 'strict' ? 'Competitive industry standards • Scores adjusted downward' : 
-                                         'Startup/NGO friendly • Scores adjusted upward'}
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            {/* Leniency Gate Results - shows banner message if gate failures exist */}
-                            {result.leniency_gate_results?.banner_message && (
-                                <div style={{
-                                    marginTop: '12px',
-                                    padding: '8px 12px',
-                                    backgroundColor: 'rgba(239, 68, 68, 0.15)',
-                                    borderRadius: '6px',
-                                    fontSize: '12px',
-                                    color: '#ef4444'
-                                }}>
-                                    ⚠️ {result.leniency_gate_results.banner_message}
-                                </div>
-                            )}
-                            
-                            {/* Leniency Gate Results - shows which gates failed */}
-                            {result.leniency_gate_results?.failures_detected && result.leniency_gate_results.failures_detected.length > 0 && (
-                                <div style={{
-                                    marginTop: '8px',
-                                    display: 'flex',
-                                    gap: '8px',
-                                    flexWrap: 'wrap'
-                                }}>
-                                    {result.leniency_gate_results.failures_detected.map((failure, idx) => (
-                                        <span key={idx} style={{
-                                            fontSize: '10px',
-                                            padding: '2px 8px',
-                                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                            borderRadius: '12px',
-                                            color: '#ef4444'
-                                        }}>
-                                            ❌ {failure.replace(/_/g, ' ').toUpperCase()}
-                                        </span>
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
-                    
-                    <ScoreDashboard 
-                        result={result} 
-                        isComparisonMode={isComparisonMode}
-                        recruiterVerdict={result.recruiter_scan_verdict}
-                    />
-                    
-                    {/* ============================================================ */}
-                    {/* HIDDEN BRIEF INTELLIGENCE CARD - NEW SECTION */}
-                    {/* ============================================================ */}
-                    {isComparisonMode && isJDlongEnough && (
+                    ) : (
                         <>
-                            {hiddenBriefLoading && (
-                                <div style={{
-                                    backgroundColor: 'var(--bg-secondary)',
-                                    borderRadius: '12px',
-                                    padding: '20px',
-                                    marginBottom: '20px',
-                                    textAlign: 'center',
-                                    border: '1px solid var(--border-light)'
-                                }}>
-                                    <div className="spinner" style={{ width: '24px', height: '24px', margin: '0 auto 12px' }}></div>
-                                    <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
-                                        🕵️ Analyzing job description for hidden insights...
-                                    </p>
-                                </div>
-                            )}
-                            
-                            {hiddenBriefError && (
-                                <div style={{
-                                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                                    borderRadius: '12px',
-                                    padding: '16px',
-                                    marginBottom: '20px',
-                                    border: '1px solid #ef4444'
-                                }}>
-                                    <p style={{ fontSize: '13px', color: '#ef4444', margin: 0 }}>
-                                        ⚠️ Hidden brief analysis failed: {hiddenBriefError}
-                                    </p>
-                                </div>
-                            )}
-                            
-                            {hiddenBriefAnalysis && (
-                                <HiddenBriefCard 
-                                    hiddenBrief={hiddenBriefAnalysis}
-                                    onApplyToBullets={handleApplyHiddenBriefToBullets}
-                                    onApplyToSummary={handleApplyHiddenBriefToSummary}
-                                    isApplyingBullets={hbTransformingBullets}
-                                    isApplyingSummary={hbTransformingSummary}
-                                    onDownloadReport={handleDownloadHBReport}
-                                    isGeneratingReport={hbGeneratingReport}
+                            {/* ATS Eye View Warning - shows at top of results if critical issues exist */}
+                            {pdfIssues && pdfIssues.length > 0 && showWarning && (
+                                <ATSEyeViewWarning 
+                                    pdfIssues={pdfIssues}
+                                    pdfFile={pdfFile}
+                                    onDismiss={dismissWarning}
                                 />
                             )}
-                        </>
-                    )}
-                    
-                    {/* Show note when JD is too short for hidden brief */}
-                    {isComparisonMode && jobDescriptionText && jobDescriptionText.trim().length > 0 && jobDescriptionText.trim().length < 500 && (
-                        <div style={{
-                            backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                            borderRadius: '12px',
-                            padding: '12px 16px',
-                            marginBottom: '20px',
-                            borderLeft: '3px solid #f59e0b'
-                        }}>
-                            <p style={{ fontSize: '12px', margin: 0, color: 'var(--text-secondary)' }}>
-                                💡 Job description is under 500 words. Hidden brief analysis requires at least 500 words for reliable insights.
-                            </p>
-                        </div>
-                    )}
-                    {/* ============================================================ */}
-                    {/* END HIDDEN BRIEF SECTION */}
-                    {/* ============================================================ */}
-                    
-                    {/* Summary Analyzer */}
-                    {result.summary_analysis && (
-                        <SummaryAnalyzer summaryAnalysis={result.summary_analysis} />
-                    )}
-                    
-                    <RiasecSection riasec={result.riasec} isComparisonMode={isComparisonMode} />
-                    
-                    <SemanticSection 
-                        semantic_analysis={result.semantic_analysis} 
-                        role_type_detected={result.role_type_detected} 
-                        isComparisonMode={isComparisonMode} 
-                    />
-                    
-                    <CredibilitySection 
-                        credibility_score={result.credibility_score} 
-                        credibility_analysis={result.credibility_analysis} 
-                    />
-                    
-                    {/* Executive Evaluation - shows only when executive modifier is active */}
-                    <ExecutiveEvaluation 
-                        executiveEvaluation={result.executive_evaluation} 
-                        executiveActive={result.executive_modifier_active} 
-                    />
-                    
-                    <BloomSection 
-                        bloom_analysis={result.bloom_analysis} 
-                        isComparisonMode={isComparisonMode}
-                        bloomFlags={result.bloom_analysis?.flags}
-                    />
-                    
-                    <IssuesList 
-                        grammar_issues={result.grammar_issues}
-                        missing_tools={result.missing_tools}
-                        weak_metrics_details={result.weak_metrics_details}
-                        suggested_rewrites={result.suggested_rewrites}
-                    />
-                    
-                    {/* Bullet Analyzer - NEW COMPONENT */}
-                    {result.bullet_analysis && (
-                        <BulletAnalyzer 
-                            bulletAnalysis={result.bullet_analysis} 
-                            isComparisonMode={isComparisonMode}
-                        />
-                    )}
-                    
-                  {/* Skill Extractor - NEW COMPONENT */}
-{result.skill_extractor && (
-    <SkillExtractor 
-        skillExtractor={result.skill_extractor}
-        jdText={jobDescriptionText}
-        resumeText={resumeText}
-    />
-)}
-                    
-                    <div className="results-grid">
-                        <StrengthsAndKeywords 
-                            strengths={result.strengths}
-                            market_positioning={result.market_positioning}
-                            missing_keywords={result.missing_keywords}
-                            role_adjustment_note={result.role_adjustment_note}
-                        />
-                        <RoleMatches 
-                            role_match={result.role_match}
-                            total_ats_score={result.total_ats_score}
-                            position_score={result.semantic_analysis?.position_score || 0}
-                            immediate_fixes={result.immediate_fixes}
-                        />
-                    </div>
-                    
-                    <AllIssuesTable all_issues={result.all_issues} />
-                    
-                    <MetricQuality metric_quality_breakdown={result.metric_quality_breakdown} />
-                    
-                    <ScoreBreakdown 
-                        breakdown={result.breakdown}
-                        buzzwordsDetected={result.buzzwords_detected}
-                    />
-                    
-                    <EmailCapture 
-                        email={email}
-                        setEmail={setEmail}
-                        emailSent={emailSent}
-                        handleEmailSubmit={handleEmailSubmit}
-                    />
-                    
-                    {/* Debug Button Panel (Model Toggle removed from here - now in FileUploadSection) */}
-                    <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
-                        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                            <button 
-                                onClick={toggleDebug}
-                                style={{
-                                    background: 'transparent',
-                                    border: '1px solid var(--text-muted)',
-                                    color: 'var(--text-muted)',
-                                    padding: '6px 12px',
-                                    borderRadius: '6px',
-                                    fontSize: '12px',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                {showDebug ? 'Hide Debug Info' : '🐛 Show Debug Info'}
-                            </button>
                             
-                            {/* Reset Leniency Acknowledgment Button */}
-                            <button 
-                                onClick={resetAcknowledgment}
-                                style={{
-                                    background: 'transparent',
-                                    border: '1px solid var(--text-muted)',
-                                    color: 'var(--text-muted)',
-                                    padding: '6px 12px',
-                                    borderRadius: '6px',
-                                    fontSize: '12px',
-                                    cursor: 'pointer'
-                                }}
-                            >
-                                Reset Leniency
-                            </button>
+                            {/* Leniency Mode Indicator - shows which mode was used */}
+                            {leniencyMode !== 'normal' && (
+                                <div style={{
+                                    marginBottom: '20px',
+                                    padding: '12px 16px',
+                                    backgroundColor: leniencyMode === 'very_strict' ? 'rgba(196, 30, 58, 0.1)' : 
+                                                 leniencyMode === 'strict' ? 'rgba(245, 158, 11, 0.1)' :
+                                                 'rgba(16, 185, 129, 0.1)',
+                                    borderLeft: `4px solid ${leniencyMode === 'very_strict' ? '#c41e3a' : 
+                                                               leniencyMode === 'strict' ? '#f59e0b' : '#10b981'}`,
+                                    borderRadius: '4px'
+                                }}>
+                                    <div style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '12px',
+                                        flexWrap: 'wrap'
+                                    }}>
+                                        <span style={{
+                                            fontSize: '20px'
+                                        }}>
+                                            {leniencyMode === 'very_strict' ? '👑' : leniencyMode === 'strict' ? '⚡' : '🌱'}
+                                        </span>
+                                        <div>
+                                            <div style={{
+                                                fontWeight: '600',
+                                                fontSize: '13px',
+                                                textTransform: 'uppercase',
+                                                letterSpacing: '0.5px',
+                                                color: leniencyMode === 'very_strict' ? '#c41e3a' : 
+                                                       leniencyMode === 'strict' ? '#f59e0b' : '#10b981'
+                                            }}>
+                                                {leniencyMode === 'very_strict' ? 'VERY STRICT MODE' : 
+                                                 leniencyMode === 'strict' ? 'STRICT MODE' : 'LENIENT MODE'}
+                                            </div>
+                                            <div style={{
+                                                fontSize: '12px',
+                                                color: 'var(--text-muted)',
+                                                marginTop: '2px'
+                                            }}>
+                                                {leniencyMode === 'very_strict' ? 'Elite recruiting simulation • Scores adjusted downward' : 
+                                                 leniencyMode === 'strict' ? 'Competitive industry standards • Scores adjusted downward' : 
+                                                 'Startup/NGO friendly • Scores adjusted upward'}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    {/* Leniency Gate Results - shows banner message if gate failures exist */}
+                                    {result.leniency_gate_results?.banner_message && (
+                                        <div style={{
+                                            marginTop: '12px',
+                                            padding: '8px 12px',
+                                            backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                                            borderRadius: '6px',
+                                            fontSize: '12px',
+                                            color: '#ef4444'
+                                        }}>
+                                            ⚠️ {result.leniency_gate_results.banner_message}
+                                        </div>
+                                    )}
+                                    
+                                    {/* Leniency Gate Results - shows which gates failed */}
+                                    {result.leniency_gate_results?.failures_detected && result.leniency_gate_results.failures_detected.length > 0 && (
+                                        <div style={{
+                                            marginTop: '8px',
+                                            display: 'flex',
+                                            gap: '8px',
+                                            flexWrap: 'wrap'
+                                        }}>
+                                            {result.leniency_gate_results.failures_detected.map((failure, idx) => (
+                                                <span key={idx} style={{
+                                                    fontSize: '10px',
+                                                    padding: '2px 8px',
+                                                    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                                    borderRadius: '12px',
+                                                    color: '#ef4444'
+                                                }}>
+                                                    ❌ {failure.replace(/_/g, ' ').toUpperCase()}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            
+                            <ScoreDashboard 
+                                result={result} 
+                                isComparisonMode={isComparisonMode}
+                                recruiterVerdict={result.recruiter_scan_verdict}
+                            />
                             
                             {/* ============================================================ */}
-                            {/* DEBUG MANUAL TEST BUTTON - ADDED FOR HIDDEN BRIEF DEBUGGING */}
+                            {/* HIDDEN BRIEF INTELLIGENCE CARD - NEW SECTION */}
                             {/* ============================================================ */}
-                            {result && isComparisonMode && (
-                                <button 
-                                    onClick={() => {
-                                        console.log('🐛 MANUAL TRIGGER - JD length:', jobDescriptionText?.length);
-                                        console.log('🐛 JD preview (first 200 chars):', jobDescriptionText?.substring(0, 200));
-                                        console.log('🐛 Resume length:', resumeText?.length);
-                                        console.log('🐛 Current hidden brief state:', {
-                                            hasAnalysis: !!hiddenBriefAnalysis,
-                                            isLoading: hiddenBriefLoading,
-                                            alreadyTriggered: hiddenBriefTriggered
-                                        });
-                                        analyzeHiddenBrief(jobDescriptionText, resumeText);
-                                    }}
-                                    style={{
-                                        background: '#ef4444',
-                                        color: 'white',
-                                        border: 'none',
-                                        padding: '6px 12px',
-                                        borderRadius: '6px',
-                                        fontSize: '12px',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    🐛 Test Hidden Brief
-                                </button>
+                            {isComparisonMode && isJDlongEnough && (
+                                <>
+                                    {hiddenBriefLoading && (
+                                        <div style={{
+                                            backgroundColor: 'var(--bg-secondary)',
+                                            borderRadius: '12px',
+                                            padding: '20px',
+                                            marginBottom: '20px',
+                                            textAlign: 'center',
+                                            border: '1px solid var(--border-light)'
+                                        }}>
+                                            <div className="spinner" style={{ width: '24px', height: '24px', margin: '0 auto 12px' }}></div>
+                                            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                                                🕵️ Analyzing job description for hidden insights...
+                                            </p>
+                                        </div>
+                                    )}
+                                    
+                                    {hiddenBriefError && (
+                                        <div style={{
+                                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                            borderRadius: '12px',
+                                            padding: '16px',
+                                            marginBottom: '20px',
+                                            border: '1px solid #ef4444'
+                                        }}>
+                                            <p style={{ fontSize: '13px', color: '#ef4444', margin: 0 }}>
+                                                ⚠️ Hidden brief analysis failed: {hiddenBriefError}
+                                            </p>
+                                        </div>
+                                    )}
+                                    
+                                    {hiddenBriefAnalysis && (
+                                        <HiddenBriefCard 
+                                            hiddenBrief={hiddenBriefAnalysis}
+                                            onApplyToBullets={handleApplyHiddenBriefToBullets}
+                                            onApplyToSummary={handleApplyHiddenBriefToSummary}
+                                            isApplyingBullets={hbTransformingBullets}
+                                            isApplyingSummary={hbTransformingSummary}
+                                            onDownloadReport={handleDownloadHBReport}
+                                            isGeneratingReport={hbGeneratingReport}
+                                        />
+                                    )}
+                                </>
+                            )}
+                            
+                            {/* Show note when JD is too short for hidden brief */}
+                            {isComparisonMode && jobDescriptionText && jobDescriptionText.trim().length > 0 && jobDescriptionText.trim().length < 500 && (
+                                <div style={{
+                                    backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                                    borderRadius: '12px',
+                                    padding: '12px 16px',
+                                    marginBottom: '20px',
+                                    borderLeft: '3px solid #f59e0b'
+                                }}>
+                                    <p style={{ fontSize: '12px', margin: 0, color: 'var(--text-secondary)' }}>
+                                        💡 Job description is under 500 words. Hidden brief analysis requires at least 500 words for reliable insights.
+                                    </p>
+                                </div>
                             )}
                             {/* ============================================================ */}
-                            {/* END DEBUG MANUAL TEST BUTTON */}
+                            {/* END HIDDEN BRIEF SECTION */}
                             {/* ============================================================ */}
-                        </div>
-                        
-                        {showDebug && rawApiResponse && (
-                            <div style={{
-                                marginTop: '15px',
-                                padding: '15px',
-                                backgroundColor: 'var(--bg-tertiary)',
-                                borderRadius: '8px',
-                                border: '1px solid var(--border-light)',
-                                textAlign: 'left',
-                                overflowX: 'auto'
-                            }}>
-                                <h4 style={{ marginBottom: '10px', fontSize: '14px', color: 'var(--text-primary)' }}>
-                                    🔍 Raw API Response
-                                </h4>
-                                <pre style={{
-                                    fontSize: '11px',
-                                    fontFamily: 'monospace',
-                                    whiteSpace: 'pre-wrap',
-                                    wordWrap: 'break-word',
-                                    maxHeight: '400px',
-                                    overflowY: 'auto',
-                                    backgroundColor: 'var(--bg-secondary)',
-                                    padding: '10px',
-                                    borderRadius: '4px',
-                                    color: 'var(--text-secondary)'
-                                }}>
-                                    {JSON.stringify(rawApiResponse, null, 2)}
-                                </pre>
-                                
-                                <div style={{ marginTop: '15px' }}>
-                                    <h5 style={{ marginBottom: '8px', fontSize: '12px', color: 'var(--text-primary)' }}>
-                                        📋 Key Fields Check:
-                                    </h5>
-                                    <ul style={{ fontSize: '11px', listStyle: 'none', paddingLeft: '0' }}>
-                                        <li>📌 all_issues: {debugFieldCheck('all_issues')}</li>
-                                        <li>📌 immediate_fixes: {debugFieldCheck('immediate_fixes')}</li>
-                                        <li>📌 strengths: {debugFieldCheck('strengths')}</li>
-                                        <li>📌 missing_tools: {debugFieldCheck('missing_tools')}</li>
-                                        <li>📌 grammar_issues: {debugFieldCheck('grammar_issues')}</li>
-                                        <li>📌 weak_metrics_details: {debugFieldCheck('weak_metrics_details')}</li>
-                                        <li>📌 suggested_rewrites: {debugFieldCheck('suggested_rewrites')}</li>
-                                    </ul>
-                                </div>
-                                
-                                <div style={{ marginTop: '15px' }}>
-                                    <h5 style={{ marginBottom: '8px', fontSize: '12px', color: 'var(--text-primary)' }}>
-                                        🔧 Next Steps:
-                                    </h5>
-                                    <ul style={{ fontSize: '11px', listStyle: 'none', paddingLeft: '0' }}>
-                                        <li>• If field shows "MISSING" → Data is not in the response</li>
-                                        <li>• If field shows "X items" but not displaying → Check component mapping</li>
-                                        <li>• Take a screenshot of the raw JSON and share it</li>
-                                    </ul>
-                                </div>
+                            
+                            {/* Summary Analyzer */}
+                            {result.summary_analysis && (
+                                <SummaryAnalyzer summaryAnalysis={result.summary_analysis} />
+                            )}
+                            
+                            <RiasecSection riasec={result.riasec} isComparisonMode={isComparisonMode} />
+                            
+                            <SemanticSection 
+                                semantic_analysis={result.semantic_analysis} 
+                                role_type_detected={result.role_type_detected} 
+                                isComparisonMode={isComparisonMode} 
+                            />
+                            
+                            <CredibilitySection 
+                                credibility_score={result.credibility_score} 
+                                credibility_analysis={result.credibility_analysis} 
+                            />
+                            
+                            {/* Executive Evaluation - shows only when executive modifier is active */}
+                            <ExecutiveEvaluation 
+                                executiveEvaluation={result.executive_evaluation} 
+                                executiveActive={result.executive_modifier_active} 
+                            />
+                            
+                            <BloomSection 
+                                bloom_analysis={result.bloom_analysis} 
+                                isComparisonMode={isComparisonMode}
+                                bloomFlags={result.bloom_analysis?.flags}
+                            />
+                            
+                            <IssuesList 
+                                grammar_issues={result.grammar_issues}
+                                missing_tools={result.missing_tools}
+                                weak_metrics_details={result.weak_metrics_details}
+                                suggested_rewrites={result.suggested_rewrites}
+                            />
+                            
+                            {/* Bullet Analyzer - NEW COMPONENT */}
+                            {result.bullet_analysis && (
+                                <BulletAnalyzer 
+                                    bulletAnalysis={result.bullet_analysis} 
+                                    isComparisonMode={isComparisonMode}
+                                />
+                            )}
+                            
+                          {/* Skill Extractor - NEW COMPONENT */}
+            {result.skill_extractor && (
+                <SkillExtractor 
+                    skillExtractor={result.skill_extractor}
+                    jdText={jobDescriptionText}
+                    resumeText={resumeText}
+                />
+            )}
+                            
+                            <div className="results-grid">
+                                <StrengthsAndKeywords 
+                                    strengths={result.strengths}
+                                    market_positioning={result.market_positioning}
+                                    missing_keywords={result.missing_keywords}
+                                    role_adjustment_note={result.role_adjustment_note}
+                                />
+                                <RoleMatches 
+                                    role_match={result.role_match}
+                                    total_ats_score={result.total_ats_score}
+                                    position_score={result.semantic_analysis?.position_score || 0}
+                                    immediate_fixes={result.immediate_fixes}
+                                />
                             </div>
-                        )}
-                    </div>
-                    
-                    <button 
-                        onClick={resetApp} 
-                        className="analyze-btn" 
-                        style={{ backgroundColor: 'var(--text-muted)', marginTop: '16px' }}
-                    >
-                        Scan Another Resume
-                    </button>
+                            
+                            <AllIssuesTable all_issues={result.all_issues} />
+                            
+                            <MetricQuality metric_quality_breakdown={result.metric_quality_breakdown} />
+                            
+                            <ScoreBreakdown 
+                                breakdown={result.breakdown}
+                                buzzwordsDetected={result.buzzwords_detected}
+                            />
+                            
+                            <EmailCapture 
+                                email={email}
+                                setEmail={setEmail}
+                                emailSent={emailSent}
+                                handleEmailSubmit={handleEmailSubmit}
+                            />
+                            
+                            {/* Debug Button Panel (Model Toggle removed from here - now in FileUploadSection) */}
+                            <div style={{ marginTop: '24px', borderTop: '1px solid var(--border-light)', paddingTop: '20px' }}>
+                                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                                    <button 
+                                        onClick={toggleDebug}
+                                        style={{
+                                            background: 'transparent',
+                                            border: '1px solid var(--text-muted)',
+                                            color: 'var(--text-muted)',
+                                            padding: '6px 12px',
+                                            borderRadius: '6px',
+                                            fontSize: '12px',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        {showDebug ? 'Hide Debug Info' : '🐛 Show Debug Info'}
+                                    </button>
+                                    
+                                    {/* Reset Leniency Acknowledgment Button */}
+                                    <button 
+                                        onClick={resetAcknowledgment}
+                                        style={{
+                                            background: 'transparent',
+                                            border: '1px solid var(--text-muted)',
+                                            color: 'var(--text-muted)',
+                                            padding: '6px 12px',
+                                            borderRadius: '6px',
+                                            fontSize: '12px',
+                                            cursor: 'pointer'
+                                        }}
+                                    >
+                                        Reset Leniency
+                                    </button>
+                                    
+                                    {/* ============================================================ */}
+                                    {/* ADDED: Edit Resume Button */}
+                                    {/* ============================================================ */}
+                                    <button 
+                                        onClick={() => setShowResumeEditor(true)}
+                                        style={{
+                                            background: '#c9a84c',
+                                            color: '#1a1f2e',
+                                            border: 'none',
+                                            padding: '6px 12px',
+                                            borderRadius: '6px',
+                                            fontSize: '12px',
+                                            fontWeight: '500',
+                                            cursor: 'pointer',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '6px'
+                                        }}
+                                    >
+                                        ✏️ Edit Resume
+                                    </button>
+                                    {/* ============================================================ */}
+                                    
+                                    {/* ============================================================ */}
+                                    {/* DEBUG MANUAL TEST BUTTON - ADDED FOR HIDDEN BRIEF DEBUGGING */}
+                                    {/* ============================================================ */}
+                                    {result && isComparisonMode && (
+                                        <button 
+                                            onClick={() => {
+                                                console.log('🐛 MANUAL TRIGGER - JD length:', jobDescriptionText?.length);
+                                                console.log('🐛 JD preview (first 200 chars):', jobDescriptionText?.substring(0, 200));
+                                                console.log('🐛 Resume length:', resumeText?.length);
+                                                console.log('🐛 Current hidden brief state:', {
+                                                    hasAnalysis: !!hiddenBriefAnalysis,
+                                                    isLoading: hiddenBriefLoading,
+                                                    alreadyTriggered: hiddenBriefTriggered
+                                                });
+                                                analyzeHiddenBrief(jobDescriptionText, resumeText);
+                                            }}
+                                            style={{
+                                                background: '#ef4444',
+                                                color: 'white',
+                                                border: 'none',
+                                                padding: '6px 12px',
+                                                borderRadius: '6px',
+                                                fontSize: '12px',
+                                                cursor: 'pointer'
+                                            }}
+                                        >
+                                            🐛 Test Hidden Brief
+                                        </button>
+                                    )}
+                                    {/* ============================================================ */}
+                                    {/* END DEBUG MANUAL TEST BUTTON */}
+                                    {/* ============================================================ */}
+                                </div>
+                                
+                                {showDebug && rawApiResponse && (
+                                    <div style={{
+                                        marginTop: '15px',
+                                        padding: '15px',
+                                        backgroundColor: 'var(--bg-tertiary)',
+                                        borderRadius: '8px',
+                                        border: '1px solid var(--border-light)',
+                                        textAlign: 'left',
+                                        overflowX: 'auto'
+                                    }}>
+                                        <h4 style={{ marginBottom: '10px', fontSize: '14px', color: 'var(--text-primary)' }}>
+                                            🔍 Raw API Response
+                                        </h4>
+                                        <pre style={{
+                                            fontSize: '11px',
+                                            fontFamily: 'monospace',
+                                            whiteSpace: 'pre-wrap',
+                                            wordWrap: 'break-word',
+                                            maxHeight: '400px',
+                                            overflowY: 'auto',
+                                            backgroundColor: 'var(--bg-secondary)',
+                                            padding: '10px',
+                                            borderRadius: '4px',
+                                            color: 'var(--text-secondary)'
+                                        }}>
+                                            {JSON.stringify(rawApiResponse, null, 2)}
+                                        </pre>
+                                        
+                                        <div style={{ marginTop: '15px' }}>
+                                            <h5 style={{ marginBottom: '8px', fontSize: '12px', color: 'var(--text-primary)' }}>
+                                                📋 Key Fields Check:
+                                            </h5>
+                                            <ul style={{ fontSize: '11px', listStyle: 'none', paddingLeft: '0' }}>
+                                                <li>📌 all_issues: {debugFieldCheck('all_issues')}</li>
+                                                <li>📌 immediate_fixes: {debugFieldCheck('immediate_fixes')}</li>
+                                                <li>📌 strengths: {debugFieldCheck('strengths')}</li>
+                                                <li>📌 missing_tools: {debugFieldCheck('missing_tools')}</li>
+                                                <li>📌 grammar_issues: {debugFieldCheck('grammar_issues')}</li>
+                                                <li>📌 weak_metrics_details: {debugFieldCheck('weak_metrics_details')}</li>
+                                                <li>📌 suggested_rewrites: {debugFieldCheck('suggested_rewrites')}</li>
+                                            </ul>
+                                        </div>
+                                        
+                                        <div style={{ marginTop: '15px' }}>
+                                            <h5 style={{ marginBottom: '8px', fontSize: '12px', color: 'var(--text-primary)' }}>
+                                                🔧 Next Steps:
+                                            </h5>
+                                            <ul style={{ fontSize: '11px', listStyle: 'none', paddingLeft: '0' }}>
+                                                <li>• If field shows "MISSING" → Data is not in the response</li>
+                                                <li>• If field shows "X items" but not displaying → Check component mapping</li>
+                                                <li>• Take a screenshot of the raw JSON and share it</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            <button 
+                                onClick={resetApp} 
+                                className="analyze-btn" 
+                                style={{ backgroundColor: 'var(--text-muted)', marginTop: '16px' }}
+                            >
+                                Scan Another Resume
+                            </button>
+                        </>
+                    )}
+                    {/* ============================================================ */}
+                    {/* END CONDITIONAL RENDERING */}
+                    {/* ============================================================ */}
                 </div>
             )}
             

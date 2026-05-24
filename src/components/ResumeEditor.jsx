@@ -1,8 +1,6 @@
 // src/components/ResumeEditor.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
 import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
-import { extractPersonalInfo, formatContactLine } from '../utils/personalInfoExtractor.js';
 
 // ============================================================
 // DETERMINISTIC SCORING LIBRARIES
@@ -17,6 +15,7 @@ import { detectBuzzwords } from '../utils/buzzwords.js';
 import { calculateMetricStrength } from '../utils/metricsPatterns.js';
 import { calculateRIASECDeterministic } from '../utils/riasec.js';
 import { countTechnicalSkills } from '../utils/skillDictionary.js';
+import { extractPersonalInfo, formatContactLine } from '../utils/personalInfoExtractor.js';
 
 // Register fonts for PDF
 Font.register({
@@ -229,6 +228,7 @@ function extractJDFeatures(jdText) {
     }
     
     // Estimate JD Bloom level (refined to avoid "lead" over-inflation)
+    let jdBloomLevel = 3.5;
     const responsibilitiesText = (sections.responsibilities || []).join(' ').toLowerCase();
     
     // Executive requires multiple strong signals
@@ -286,16 +286,10 @@ function calculateSkillsMatchRate(resumeSkills, jdText) {
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
-export default function ResumeEditor() {
-    const location = useLocation();
-    const navigate = useNavigate();
-    
+export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAnalysis, onClose }) {
     // ============================================================
-    // STATE - Data from navigation
+    // STATE - Data from props
     // ============================================================
-    const { result, jdText, hiddenBriefAnalysis } = location.state || {};
-    
-    // Extract data from result
     const bulletAnalysis = result?.bullet_analysis;
     const summaryAnalysis = result?.summary_analysis;
     const skillExtractor = result?.skill_extractor;
@@ -438,31 +432,14 @@ export default function ResumeEditor() {
             setEducation(result.education);
         }
         
-        // ============================================================
-        // EXTRACT PERSONAL INFO - PRIORITY ORDER:
-        // 1. Use existing result.personal_info if available
-        // 2. Fall back to extracting from resume text in location.state
-        // 3. Extract from raw resume text in result
-        // ============================================================
+        // Extract personal info from result or resume text
         if (result?.personal_info) {
-            // Already have extracted personal info
             setPersonalInfo(result.personal_info);
-        } else if (location.state?.resumeText) {
-            // Extract from resume text passed via navigation state
-            const extracted = extractPersonalInfo(location.state.resumeText);
+        } else if (resumeText) {
+            const extracted = extractPersonalInfo(resumeText);
             setPersonalInfo(extracted);
-        } else if (result?.resume_text) {
-            // Extract from resume text in result object
-            const extracted = extractPersonalInfo(result.resume_text);
-            setPersonalInfo(extracted);
-        } else if (bulletAnalysis?.bullets && bulletAnalysis.bullets.length > 0) {
-            // Last resort: try to extract from first few bullets (less reliable)
-            const firstBulletText = bulletAnalysis.bullets[0]?.original_text || '';
-            const firstFewLines = firstBulletText.split('\n').slice(0, 5).join('\n');
-            const extracted = extractPersonalInfo(firstFewLines);
-            if (extracted.name) setPersonalInfo(extracted);
         }
-    }, [bulletAnalysis, summaryAnalysis, skillExtractor, jdText, result, location.state]);
+    }, [bulletAnalysis, summaryAnalysis, skillExtractor, jdText, result, resumeText]);
     
     // ============================================================
     // TRACK CHANGES (Fixed closure with useCallback)
@@ -575,7 +552,6 @@ export default function ResumeEditor() {
     // BULLET EDITING
     // ============================================================
     const updateBullet = (id, newText) => {
-        const oldText = bullets.find(b => b.id === id)?.text;
         setBullets(prev => prev.map(b => b.id === id ? { ...b, text: newText } : b));
         trackChange('bullet', id, newText);
         saveSnapshot();
@@ -768,12 +744,11 @@ export default function ResumeEditor() {
     // GROUP BULLETS BY ROLE
     // ============================================================
     const groupedBullets = groupBulletsByRole(bullets);
+    const currentTemplate = TEMPLATES[selectedTemplate];
     
     // ============================================================
     // RENDER
     // ============================================================
-    const currentTemplate = TEMPLATES[selectedTemplate];
-    
     return (
         <div style={{ 
             display: 'flex', 
@@ -1000,7 +975,7 @@ export default function ResumeEditor() {
                         </button>
                         <button onClick={saveDraft} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>💾 Save Draft</button>
                         <button onClick={loadDraft} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>📂 Load Draft</button>
-                        <button onClick={() => navigate(-1)} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>← Back</button>
+                        <button onClick={() => onClose && onClose()} className="btn-secondary" style={{ padding: '6px 12px', fontSize: '12px' }}>← Back to Analysis</button>
                     </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                         <button onClick={exportPDF} disabled={isGeneratingPDF} className="btn-primary" style={{ padding: '6px 16px', fontSize: '12px' }}>

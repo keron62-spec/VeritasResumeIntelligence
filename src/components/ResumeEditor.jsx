@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Document, Page, Text, View, StyleSheet, Font } from '@react-pdf/renderer';
+import { extractPersonalInfo, formatContactLine } from '../utils/personalInfoExtractor.js';
 
 // ============================================================
 // DETERMINISTIC SCORING LIBRARIES
@@ -437,11 +438,31 @@ export default function ResumeEditor() {
             setEducation(result.education);
         }
         
-        // Extract personal info from result if available
+        // ============================================================
+        // EXTRACT PERSONAL INFO - PRIORITY ORDER:
+        // 1. Use existing result.personal_info if available
+        // 2. Fall back to extracting from resume text in location.state
+        // 3. Extract from raw resume text in result
+        // ============================================================
         if (result?.personal_info) {
+            // Already have extracted personal info
             setPersonalInfo(result.personal_info);
+        } else if (location.state?.resumeText) {
+            // Extract from resume text passed via navigation state
+            const extracted = extractPersonalInfo(location.state.resumeText);
+            setPersonalInfo(extracted);
+        } else if (result?.resume_text) {
+            // Extract from resume text in result object
+            const extracted = extractPersonalInfo(result.resume_text);
+            setPersonalInfo(extracted);
+        } else if (bulletAnalysis?.bullets && bulletAnalysis.bullets.length > 0) {
+            // Last resort: try to extract from first few bullets (less reliable)
+            const firstBulletText = bulletAnalysis.bullets[0]?.original_text || '';
+            const firstFewLines = firstBulletText.split('\n').slice(0, 5).join('\n');
+            const extracted = extractPersonalInfo(firstFewLines);
+            if (extracted.name) setPersonalInfo(extracted);
         }
-    }, [bulletAnalysis, summaryAnalysis, skillExtractor, jdText, result]);
+    }, [bulletAnalysis, summaryAnalysis, skillExtractor, jdText, result, location.state]);
     
     // ============================================================
     // TRACK CHANGES (Fixed closure with useCallback)

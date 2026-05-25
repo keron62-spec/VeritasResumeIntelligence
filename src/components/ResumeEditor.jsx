@@ -789,6 +789,41 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
     }, [historyIndex]);
     
     // ============================================================
+    // UNDO/REDO FUNCTIONS - Defined here before they're used in JSX
+    // ============================================================
+    const undo = useCallback(() => {
+        if (historyIndex > 0) {
+            const snapshot = stateHistory[historyIndex - 1];
+            setRoles(snapshot.roles || []);
+            setSummary(snapshot.summary || '');
+            setSkills(snapshot.skills || []);
+            setPersonalInfo(snapshot.personalInfo || { name: '', email: '', phone: '', linkedin: '', location: '' });
+            setEducation(snapshot.education || []);
+            setCertifications(snapshot.certifications || []);
+            setProjects(snapshot.projects || []);
+            setPublications(snapshot.publications || []);
+            setCustomSections(snapshot.customSections || []);
+            setHistoryIndex(prev => prev - 1);
+        }
+    }, [historyIndex, stateHistory]);
+    
+    const redo = useCallback(() => {
+        if (historyIndex < stateHistory.length - 1) {
+            const snapshot = stateHistory[historyIndex + 1];
+            setRoles(snapshot.roles || []);
+            setSummary(snapshot.summary || '');
+            setSkills(snapshot.skills || []);
+            setPersonalInfo(snapshot.personalInfo || { name: '', email: '', phone: '', linkedin: '', location: '' });
+            setEducation(snapshot.education || []);
+            setCertifications(snapshot.certifications || []);
+            setProjects(snapshot.projects || []);
+            setPublications(snapshot.publications || []);
+            setCustomSections(snapshot.customSections || []);
+            setHistoryIndex(prev => prev + 1);
+        }
+    }, [historyIndex, stateHistory]);
+    
+    // ============================================================
     // REFS
     // ============================================================
     const debounceTimer = useRef(null);

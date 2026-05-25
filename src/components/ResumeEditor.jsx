@@ -36,79 +36,191 @@ Font.register({
 });
 
 // ============================================================
-// PDF STYLES (text-based, ATS-friendly)
+// TEMPLATE STYLES (10 Total)
 // ============================================================
-const createPDFStyles = (template) => {
-    const styles = {
-        page: {
-            padding: 50,
-            fontSize: 11,
-            fontFamily: template === 'classic' ? 'Times-Roman' : template === 'executive' ? 'PlayfairDisplay' : template === 'modern' ? 'Inter' : 'Arial',
-            lineHeight: 1.5
+const TEMPLATES = {
+    // ============================================================
+    // EXISTING TEMPLATES (4)
+    // ============================================================
+    classic: {
+        name: 'Classic Corporate',
+        icon: '📄',
+        fontFamily: "'Times New Roman', 'Georgia', serif",
+        headerStyle: { borderBottom: '2px solid #1a1a1a', textTransform: 'uppercase', letterSpacing: '2px' },
+        sectionStyle: { borderBottom: '1px solid #1a1a1a', textTransform: 'uppercase', letterSpacing: '1px' }
+    },
+    modern: {
+        name: 'Modern Minimal',
+        icon: '✨',
+        fontFamily: "'Inter', sans-serif",
+        headerStyle: { color: '#c9a84c', fontWeight: 600 },
+        sectionStyle: { color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600 }
+    },
+    executive: {
+        name: 'Executive',
+        icon: '👑',
+        fontFamily: "'Playfair Display', serif",
+        headerStyle: { color: '#2c1810', borderTop: '6px solid #c9a84c', paddingTop: '20px' },
+        sectionStyle: { color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '3px', fontWeight: 700 }
+    },
+    ats: {
+        name: 'ATS Optimized',
+        icon: '🤖',
+        fontFamily: "'Arial', sans-serif",
+        headerStyle: { fontWeight: 700 },
+        sectionStyle: { backgroundColor: '#f0f0f0', padding: '6px 10px', fontWeight: 700, textTransform: 'uppercase' }
+    },
+
+    // ============================================================
+    // NEW TEMPLATES (6)
+    // ============================================================
+    
+    // 5. Veritas Signature - Brand default, replaces classic/modern/executive for most users
+    veritas_signature: {
+        name: 'Veritas Signature',
+        icon: '👁️',
+        fontFamily: "'Inter', sans-serif",
+        headerStyle: { textAlign: 'center', marginBottom: '24px' },
+        nameStyle: {
+            fontFamily: "'Playfair Display', serif",
+            fontSize: 32,
+            fontWeight: '800',
+            color: '#1a1f2e'
         },
-        header: {
-            textAlign: 'center',
-            marginBottom: 20,
-            borderBottom: template === 'classic' ? 2 : template === 'executive' ? 1 : 1,
-            borderBottomColor: template === 'classic' ? '#000' : '#c9a84c',
-            paddingBottom: 10
-        },
-        name: {
-            fontSize: 24,
-            fontWeight: 'bold',
-            marginBottom: 5,
+        sectionStyle: {
+            color: '#c9a84c',
+            borderBottom: '1px solid #e6e4dd',
             textTransform: 'uppercase',
-            letterSpacing: template === 'classic' ? 2 : 1
+            letterSpacing: '2px',
+            fontWeight: 600,
+            marginTop: 24,
+            marginBottom: 12,
+            paddingBottom: 4
         },
-        contactRow: {
-            fontSize: 9,
-            color: '#666',
-            textAlign: 'center',
-            marginTop: 5
-        },
-        sectionTitle: {
-            fontSize: 14,
+        roleHeader: { fontWeight: '700', color: '#1a1f2e', fontSize: 12 },
+        bullet: { marginLeft: 14, marginBottom: 6, color: '#374151', lineHeight: 1.6 }
+    },
+
+    // 6. Consultancy - McKinsey/BCG/Bain style with right-aligned dates
+    consultancy: {
+        name: 'Consulting',
+        icon: '📊',
+        fontFamily: "'Helvetica', 'Arial', sans-serif",
+        headerStyle: { borderBottom: '2px solid #000', paddingBottom: 8, marginBottom: 15 },
+        nameStyle: { fontSize: 18, fontWeight: 'bold', marginBottom: 3 },
+        sectionStyle: {
+            fontSize: 8,
             fontWeight: 'bold',
-            marginTop: 15,
+            textTransform: 'uppercase',
+            letterSpacing: 1.5,
+            borderBottom: '0.5px solid #000',
+            paddingBottom: 2,
+            marginTop: 16,
+            marginBottom: 6
+        },
+        roleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' },
+        roleHeader: { fontSize: 10.5, fontWeight: 'bold' },
+        dateText: { textAlign: 'right', fontSize: 9.5 },
+        companyText: { fontSize: 9, color: '#4a4a4a', fontStyle: 'italic', marginBottom: 4 },
+        bullet: { fontSize: 9.5, marginLeft: 8, marginBottom: 4, lineHeight: 1.4 }
+    },
+
+    // 7. Diplomat - UN/WHO/PAHO/IDB institutional style
+    diplomat: {
+        name: 'International Development',
+        icon: '🌐',
+        fontFamily: "'Helvetica', 'Arial', sans-serif",
+        headerStyle: { marginBottom: 20 },
+        nameStyle: {
+            fontSize: 20,
+            fontWeight: 'bold',
+            letterSpacing: 3,
+            textTransform: 'uppercase',
+            color: '#1a3a5c'
+        },
+        sectionStyle: {
+            fontSize: 9,
+            fontWeight: 'bold',
+            textTransform: 'uppercase',
+            letterSpacing: 2,
+            color: '#1a3a5c',
+            borderBottom: '0.5px solid #1a3a5c',
+            paddingBottom: 3,
+            marginTop: 18,
+            marginBottom: 8
+        },
+        roleHeader: { fontSize: 11, fontWeight: 'bold' },
+        companyText: { fontSize: 9, color: '#4a4a4a', fontStyle: 'italic' },
+        bullet: { fontSize: 10, marginLeft: 10, marginBottom: 5, lineHeight: 1.5 }
+    },
+
+    // 8. Ivy League - Harvard style MBA/law/finance
+    harvard: {
+        name: 'Ivy League',
+        icon: '🏛️',
+        fontFamily: "'Garamond', 'Times New Roman', serif",
+        headerStyle: { textAlign: 'center', borderBottom: '1px solid #000', paddingBottom: 8, marginBottom: 12 },
+        nameStyle: { fontSize: 24, fontWeight: 'bold', textTransform: 'uppercase' },
+        sectionStyle: {
+            borderBottom: '1px solid #000',
+            textTransform: 'uppercase',
+            fontWeight: 'bold',
+            marginTop: 16,
             marginBottom: 8,
+            fontSize: 12
+        },
+        roleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontWeight: 'bold', marginTop: 8 },
+        roleHeader: { fontWeight: 'bold' },
+        companyText: { fontStyle: 'italic', fontWeight: 'normal' },
+        dateText: { textAlign: 'right', fontWeight: 'normal' },
+        bullet: { marginLeft: 16, marginBottom: 2, fontSize: 10 }
+    },
+
+    // 9. Silicon Valley Tech - FAANG/Engineer style (merged Technical + FAANG)
+    faang: {
+        name: 'Silicon Valley Tech',
+        icon: '💻',
+        fontFamily: "'Roboto Mono', 'Courier New', monospace",
+        headerStyle: { textAlign: 'left', marginBottom: 16 },
+        nameStyle: { fontSize: 28, fontWeight: '900', letterSpacing: '-0.5px' },
+        contactRow: { textAlign: 'left', color: '#4b5563', marginBottom: 16 },
+        sectionStyle: {
+            color: '#2563eb',
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+            fontWeight: 700,
+            marginTop: 20,
+            marginBottom: 10
+        },
+        skillChip: { backgroundColor: 'transparent', padding: 0, marginRight: 8, fontWeight: 'bold' },
+        bullet: { marginLeft: 14, marginBottom: 4, fontSize: 9.5 }
+    },
+
+    // 10. Legal/Bar - Conservative, citation-friendly format
+    legal: {
+        name: 'Legal',
+        icon: '⚖️',
+        fontFamily: "'Times New Roman', 'Georgia', serif",
+        headerStyle: { textAlign: 'center', marginBottom: 20 },
+        nameStyle: { fontSize: 26, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 2 },
+        sectionStyle: {
+            fontSize: 11,
+            fontWeight: 'bold',
             textTransform: 'uppercase',
             letterSpacing: 1,
-            backgroundColor: template === 'ats' ? '#f0f0f0' : 'transparent',
-            padding: template === 'ats' ? 4 : 0
+            borderTop: '1px solid #000',
+            borderBottom: '1px solid #000',
+            paddingTop: 4,
+            paddingBottom: 4,
+            marginTop: 20,
+            marginBottom: 12
         },
-        bullet: {
-            marginLeft: 12,
-            marginBottom: 6,
-            fontSize: 10
-        },
-        roleHeader: {
-            fontWeight: 'bold',
-            marginTop: 10,
-            marginBottom: 4,
-            fontSize: 11
-        },
-        companyText: {
-            fontSize: 10,
-            color: '#666',
-            marginBottom: 6,
-            fontStyle: 'italic'
-        },
-        skillsContainer: {
-            flexDirection: 'row',
-            flexWrap: 'wrap',
-            marginTop: 8,
-            gap: 6
-        },
-        skillChip: {
-            fontSize: 9,
-            padding: 4,
-            backgroundColor: '#f0f0f0',
-            marginRight: 6,
-            marginBottom: 6
-        }
-    };
-    return StyleSheet.create(styles);
-};
+        roleHeader: { fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase' },
+        companyText: { fontSize: 10, fontStyle: 'italic', marginBottom: 4 },
+        bullet: { marginLeft: 16, marginBottom: 4, fontSize: 10, lineHeight: 1.4 },
+        publicationStyle: { marginLeft: 16, marginBottom: 2, fontSize: 9, fontStyle: 'italic', color: '#4a4a4a' }
+    }
+}
 
 // ============================================================
 // PDF Document Component

@@ -1,533 +1,793 @@
 // src/utils/bulletParser.js
 
 /**
- * Enhanced bullet point and section parser for resumes
- * Extracts: Work Experience, Education, Skills, Certifications, Projects, 
- *           Publications, Volunteer, Awards, Languages, and Custom sections
- * 100% deterministic using pattern matching and section detection
+ * Enhanced bullet point extractor with robust pattern matching
+ * Supports multiple resume formats, section detection, date extraction
+ * Creates IDs matching LLM format: {SECTION_CODE}_{ROLE_INDEX}_{BULLET_INDEX}
  */
 
 // ============================================================
-// SECTION HEADERS (Case insensitive)
+// SECTION HEADERS (Widest possible range)
 // ============================================================
+
 const SECTION_HEADERS = {
-  // Core Sections
-  work_experience: [
-      'work experience', 'experience', 'employment', 'work history',
-      'professional experience', 'career history', 'relevant experience',
-      'professional background', 'work', 'employment history'
-  ],
-  education: [
-      'education', 'academic background', 'qualifications', 'education history',
-      'degrees', 'academic credentials', 'schooling', 'educational background'
-  ],
-  skills: [
-      'skills', 'technical skills', 'core competencies', 'expertise',
-      'skills summary', 'competencies', 'professional skills', 'key skills',
-      'technology skills', 'technical proficiencies'
-  ],
-  
-  // Specialized Sections
-  certifications: [
-      'certifications', 'certificates', 'professional certifications', 'licenses',
-      'certification', 'licenses & certifications', 'credentials',
-      'industry certifications', 'professional licenses'
-  ],
-  projects: [
-      'projects', 'key projects', 'personal projects', 'project portfolio',
-      'featured projects', 'academic projects', 'side projects'
-  ],
-  publications: [
-      'publications', 'papers', 'articles', 'research publications',
-      'published work', 'books', 'journal articles', 'conference papers',
-      'white papers', 'technical publications'
-  ],
-  volunteer: [
-      'volunteer', 'volunteer experience', 'community service', 'volunteer work',
-      'civic engagement', 'community involvement', 'pro bono'
-  ],
-  awards: [
-      'awards', 'honors', 'recognition', 'achievements',
-      'honors & awards', 'accolades', 'distinctions'
-  ],
-  languages: [
-      'languages', 'language proficiency', 'foreign languages',
-      'spoken languages', 'language skills'
-  ],
-  
-  // Leadership & Organizations
-  leadership: [
-      'leadership', 'leadership experience', 'board memberships',
-      'executive leadership', 'team leadership'
-  ],
-  organizations: [
-      'organizations', 'professional affiliations', 'memberships',
-      'association memberships', 'professional organizations'
-  ],
-  
-  // Conference & Speaking
-  speaking: [
-      'speaking engagements', 'conferences', 'presentations',
-      'invited talks', 'keynote speeches', 'workshops'
-  ],
-  
-  // Patents & Intellectual Property
-  patents: [
-      'patents', 'intellectual property', 'ip', 'patent applications',
-      'registered patents', 'patent filings'
-  ],
-  
-  // Other Common Sections
-  interests: [
-      'interests', 'hobbies', 'personal interests', 'activities'
-  ],
-  references: [
-      'references', 'professional references', 'available upon request'
-  ]
+  work_experience: {
+      codes: ['WE'],
+      patterns: [
+          // Standard
+          'work experience', 'experience', 'employment', 'work history',
+          'professional experience', 'career history', 'relevant experience',
+          // Markdown
+          '## experience', '## work experience', '### experience', '# experience',
+          '**experience**', '*experience*',
+          // Uppercase
+          'experience', 'work experience', 'professional experience',
+          // With colon
+          'experience:', 'work experience:', 'employment:',
+          // With underline (detected separately in parsing)
+      ],
+      detectUnderline: true,
+      caseInsensitive: true
+  },
+  projects: {
+      codes: ['PR'],
+      patterns: [
+          'projects', 'personal projects', 'key projects', 'project portfolio',
+          '## projects', '**projects**', 'projects:',
+          'featured projects', 'side projects', 'open source projects'
+      ],
+      detectUnderline: true,
+      caseInsensitive: true
+  },
+  volunteer: {
+      codes: ['VO'],
+      patterns: [
+          'volunteer', 'volunteer experience', 'community service', 'volunteer work',
+          '## volunteer', '**volunteer**', 'volunteer:',
+          'community involvement', 'pro bono'
+      ],
+      detectUnderline: true,
+      caseInsensitive: true
+  },
+  internships: {
+      codes: ['IN'],
+      patterns: [
+          'internships', 'internship', 'intern experience',
+          '## internships', '**internships**', 'internships:'
+      ],
+      detectUnderline: true,
+      caseInsensitive: true
+  },
+  leadership: {
+      codes: ['LD'],
+      patterns: [
+          'leadership', 'leadership experience', 'board memberships', 'leadership roles',
+          '## leadership', '**leadership**', 'leadership:',
+          'executive leadership', 'team leadership'
+      ],
+      detectUnderline: true,
+      caseInsensitive: true
+  },
+  education: {
+      codes: ['ED'],
+      patterns: [
+          'education', 'academic background', 'qualifications', 'degrees',
+          'education history', '## education', '**education**', 'education:',
+          'academic history', 'educational background'
+      ],
+      detectUnderline: true,
+      caseInsensitive: true
+  },
+  skills: {
+      codes: ['SK'],
+      patterns: [
+          'skills', 'technical skills', 'core competencies', 'expertise',
+          'competencies', 'skills summary', 'tools & technologies',
+          '## skills', '**skills**', 'skills:',
+          'key skills', 'professional skills', 'technology stack'
+      ],
+      detectUnderline: true,
+      caseInsensitive: true
+  },
+  certifications: {
+      codes: ['CE'],
+      patterns: [
+          'certifications', 'certificates', 'licenses', 'professional certifications',
+          '## certifications', '**certifications**', 'certifications:',
+          'certification', 'licenses & certifications'
+      ],
+      detectUnderline: true,
+      caseInsensitive: true
+  },
+  publications: {
+      codes: ['PU'],
+      patterns: [
+          'publications', 'papers', 'articles', 'research publications',
+          '## publications', '**publications**', 'publications:',
+          'selected publications', 'peer-reviewed publications'
+      ],
+      detectUnderline: true,
+      caseInsensitive: true
+  },
+  awards: {
+      codes: ['AW'],
+      patterns: [
+          'awards', 'honors', 'recognition', 'achievements',
+          '## awards', '**awards**', 'awards:',
+          'honors & awards', 'recognition & awards'
+      ],
+      detectUnderline: true,
+      caseInsensitive: true
+  },
+  languages: {
+      codes: ['LA'],
+      patterns: [
+          'languages', 'language skills', 'spoken languages',
+          '## languages', '**languages**', 'languages:',
+          'language proficiency'
+      ],
+      detectUnderline: true,
+      caseInsensitive: true
+  }
 };
 
 // ============================================================
-// COMMON BULLET CHARACTERS
+// SECTION CODE MAPPING (for ID generation)
 // ============================================================
-const BULLET_CHARS = ['•', '·', '●', '◦', '➢', '➤', '►', '‣', '-', '*', '+', '→', '✓', '✔', '▪', '▫'];
+
+const SECTION_TO_CODE = {
+  'work_experience': 'WE',
+  'projects': 'PR',
+  'volunteer': 'VO',
+  'internships': 'IN',
+  'leadership': 'LD',
+  'education': 'ED',
+  'skills': 'SK',
+  'certifications': 'CE',
+  'publications': 'PU',
+  'awards': 'AW',
+  'languages': 'LA'
+};
 
 // ============================================================
-// DATE PARSING HELPER
+// DATE PATTERNS
 // ============================================================
+
+const DATE_PATTERNS = [
+  // MM/YYYY - MM/YYYY (your format)
+  { regex: /(\d{1,2}\/\d{4})\s*[-–—]\s*(\d{1,2}\/\d{4}|Present|Current)/i, hasMonth: true },
+  // YYYY-MM - YYYY-MM
+  { regex: /(\d{4}-\d{1,2})\s*[-–—]\s*(\d{4}-\d{1,2}|Present|Current)/i, hasMonth: true },
+  // Month YYYY - Month YYYY
+  { regex: /([A-Za-z]+\s+\d{4})\s*[-–—]\s*([A-Za-z]+\s+\d{4}|Present|Current)/i, hasMonth: true },
+  // YYYY - YYYY
+  { regex: /(\d{4})\s*[-–—]\s*(\d{4}|Present|Current)/i, hasMonth: false },
+  // Single date with Present
+  { regex: /(\d{4})\s*[-–—]\s*(Present|Current)/i, hasMonth: false },
+  // MM/YYYY only (current role without end date)
+  { regex: /^(\d{1,2}\/\d{4})$/i, hasMonth: true, isSingle: true },
+  // YYYY only
+  { regex: /^(\d{4})$/i, hasMonth: false, isSingle: true }
+];
+
+// Months mapping for parsing
+const MONTHS = {
+  jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3,
+  apr: 4, april: 4, may: 5, jun: 6, june: 6, jul: 7, july: 7,
+  aug: 8, august: 8, sep: 9, sept: 9, september: 9, oct: 10, october: 10,
+  nov: 11, november: 11, dec: 12, december: 12
+};
+
+// ============================================================
+// HELPER: Parse Date
+// ============================================================
+
 function parseDate(dateStr) {
-  if (!dateStr) return null;
-  const str = dateStr.trim().toLowerCase();
+  if (!dateStr || typeof dateStr !== 'string') return { year: null, month: null, original: '' };
   
-  if (str === 'present' || str === 'current' || str === 'now') {
-      return { year: new Date().getFullYear(), month: new Date().getMonth() + 1, isPresent: true };
-  }
+  const normalized = dateStr.trim();
   
-  // Month Year format: "Jan 2020", "January 2020"
-  const monthYearMatch = str.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|january|february|march|april|may|june|july|august|september|october|november|december)[a-z]*\s+(\d{4})/i);
-  if (monthYearMatch) {
-      const months = { jan:1, january:1, feb:2, february:2, mar:3, march:3, apr:4, april:4, may:5, jun:6, june:6, jul:7, july:7, aug:8, august:8, sep:9, september:9, oct:10, october:10, nov:11, november:11, dec:12, december:12 };
-      const month = months[monthYearMatch[1].toLowerCase().substring(0, 3)];
-      const year = parseInt(monthYearMatch[2]);
-      return { year, month, isPresent: false };
-  }
-  
-  // Year only: "2020"
-  const yearMatch = str.match(/^(\d{4})$/);
-  if (yearMatch) {
-      return { year: parseInt(yearMatch[1]), month: 6, isPresent: false };
-  }
-  
-  // ISO format: "2020-01"
-  const isoMatch = str.match(/(\d{4})[-/](\d{1,2})/);
-  if (isoMatch) {
-      return { year: parseInt(isoMatch[1]), month: parseInt(isoMatch[2]), isPresent: false };
-  }
-  
-  return null;
-}
-
-// ============================================================
-// PARSE JOB HEADER (Company, Role, Dates, Location)
-// ============================================================
-function parseJobHeader(lines, startIdx) {
-  let currentIdx = startIdx;
-  let company = null;
-  let location = null;
-  let startDate = null;
-  let endDate = null;
-  let role = null;
-  
-  const headerLine = lines[currentIdx];
-  
-  // Try to extract dates first
-  const datePattern = /(\d{1,2}\/\d{4}|\d{4}-\d{2}|\w+\s+\d{4})\s*[-–—]\s*(\d{1,2}\/\d{4}|\d{4}-\d{2}|\w+\s+\d{4}|Present|Current)/i;
-  const dateMatch = headerLine.match(datePattern);
-  if (dateMatch) {
-      startDate = parseDate(dateMatch[1]);
-      endDate = parseDate(dateMatch[2]);
-  }
-  
-  // Remove dates from string for parsing company/location
-  let remaining = headerLine.replace(datePattern, '').trim();
-  
-  // Split by common separators
-  const parts = remaining.split(/[•·●◦➢➤►‣|,;]/).map(p => p.trim()).filter(p => p.length > 0);
-  
-  if (parts.length >= 1) company = parts[0];
-  if (parts.length >= 2) location = parts[1];
-  
-  // Next line often contains role title (if not already captured)
-  if (currentIdx + 1 < lines.length) {
-      const roleLine = lines[currentIdx + 1].trim();
-      const isRoleLine = !BULLET_CHARS.some(c => roleLine.startsWith(c)) && roleLine.length > 0 && roleLine.length < 100;
-      if (isRoleLine) {
-          role = roleLine;
-          currentIdx++;
+  for (const pattern of DATE_PATTERNS) {
+      const match = normalized.match(pattern.regex);
+      if (match) {
+          if (pattern.hasMonth) {
+              let month = null;
+              let year = null;
+              
+              // Handle MM/YYYY format
+              if (match[1].match(/\d{1,2}\/\d{4}/)) {
+                  const parts = match[1].split('/');
+                  month = parseInt(parts[0]);
+                  year = parseInt(parts[1]);
+              }
+              // Handle Month YYYY format
+              else if (match[1].match(/[A-Za-z]+\s+\d{4}/)) {
+                  const parts = match[1].split(' ');
+                  month = MONTHS[parts[0].toLowerCase().substring(0, 3)];
+                  year = parseInt(parts[1]);
+              }
+              // Handle YYYY-MM format
+              else if (match[1].match(/\d{4}-\d{1,2}/)) {
+                  const parts = match[1].split('-');
+                  year = parseInt(parts[0]);
+                  month = parseInt(parts[1]);
+              }
+              
+              // Parse end date if present
+              let endYear = null, endMonth = null;
+              if (match[2] && match[2] !== 'Present' && match[2] !== 'Current') {
+                  if (match[2].match(/\d{1,2}\/\d{4}/)) {
+                      const parts = match[2].split('/');
+                      endMonth = parseInt(parts[0]);
+                      endYear = parseInt(parts[1]);
+                  } else if (match[2].match(/[A-Za-z]+\s+\d{4}/)) {
+                      const parts = match[2].split(' ');
+                      endMonth = MONTHS[parts[0].toLowerCase().substring(0, 3)];
+                      endYear = parseInt(parts[1]);
+                  } else if (match[2].match(/\d{4}-\d{1,2}/)) {
+                      const parts = match[2].split('-');
+                      endYear = parseInt(parts[0]);
+                      endMonth = parseInt(parts[1]);
+                  } else if (match[2].match(/\d{4}/)) {
+                      endYear = parseInt(match[2]);
+                  }
+              }
+              
+              return {
+                  startYear: year,
+                  startMonth: month,
+                  endYear: endYear,
+                  endMonth: endMonth,
+                  isPresent: match[2] === 'Present' || match[2] === 'Current',
+                  original: normalized
+              };
+          } else {
+              const year = parseInt(match[1]);
+              let endYear = null;
+              let isPresent = false;
+              
+              if (match[2]) {
+                  if (match[2] === 'Present' || match[2] === 'Current') {
+                      isPresent = true;
+                  } else {
+                      endYear = parseInt(match[2]);
+                  }
+              }
+              
+              return {
+                  startYear: year,
+                  startMonth: null,
+                  endYear: endYear,
+                  endMonth: null,
+                  isPresent: isPresent,
+                  original: normalized
+              };
+          }
       }
   }
   
-  return {
-      company,
-      location,
-      role,
-      startDate,
-      endDate,
-      nextIndex: currentIdx + 1
+  return { year: null, month: null, original: normalized };
+}
+
+// ============================================================
+// HELPER: Extract Date Range from Text
+// ============================================================
+
+function extractDateRange(text) {
+  for (const pattern of DATE_PATTERNS) {
+      const match = text.match(pattern.regex);
+      if (match) {
+          return {
+              hasDates: true,
+              start: match[1],
+              end: match[2] || null,
+              isPresent: match[2] === 'Present' || match[2] === 'Current'
+          };
+      }
+  }
+  return { hasDates: false, start: null, end: null, isPresent: false };
+}
+
+// ============================================================
+// HELPER: Check if Line is a Section Header
+// ============================================================
+
+function isSectionHeader(line, sectionType = null) {
+  const trimmed = line.trim();
+  const lowerLine = trimmed.toLowerCase();
+  
+  // Remove markdown formatting for comparison
+  const cleanLine = lowerLine.replace(/^#{1,6}\s*/, '').replace(/[*_]/g, '');
+  
+  const sectionsToCheck = sectionType ? [sectionType] : Object.keys(SECTION_HEADERS);
+  
+  for (const section of sectionsToCheck) {
+      const config = SECTION_HEADERS[section];
+      if (!config) continue;
+      
+      for (const pattern of config.patterns) {
+          const cleanPattern = pattern.toLowerCase().replace(/^#{1,6}\s*/, '').replace(/[*_]/g, '');
+          if (cleanLine === cleanPattern || cleanLine.startsWith(cleanPattern + ':') || cleanLine.startsWith(cleanPattern + ' ')) {
+              return { isHeader: true, sectionType: section, code: SECTION_TO_CODE[section] };
+          }
+      }
+  }
+  
+  // Check for underline-style headers (e.g., "Experience" then "=========" on next line)
+  // This is handled in the main parsing loop
+  
+  return { isHeader: false, sectionType: null, code: null };
+}
+
+// ============================================================
+// HELPER: Check if Line is a Bullet Point
+// ============================================================
+
+function isBulletLine(line) {
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return { isBullet: false, text: '', bulletChar: null };
+  
+  // Check for common bullet characters
+  const bulletChars = ['•', '·', '●', '◦', '➢', '➤', '►', '‣', '-', '—', '–', '*', '+'];
+  for (const char of bulletChars) {
+      if (trimmed.startsWith(char) || trimmed.startsWith(char + ' ')) {
+          return { 
+              isBullet: true, 
+              text: trimmed.replace(new RegExp(`^${char.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`), '').trim(),
+              bulletChar: char
+          };
+      }
+  }
+  
+  // Check for numbered bullets (1., 1), (1), etc.)
+  const numberedMatch = trimmed.match(/^(\d+)[\.\)]\s+/);
+  if (numberedMatch) {
+      return { 
+          isBullet: true, 
+          text: trimmed.replace(/^\d+[\.\)]\s+/, '').trim(),
+          bulletChar: numberedMatch[1] + '.'
+      };
+  }
+  
+  // Check for lettered bullets (a., b., etc.)
+  const letteredMatch = trimmed.match(/^([a-z])[\.\)]\s+/i);
+  if (letteredMatch) {
+      return { 
+          isBullet: true, 
+          text: trimmed.replace(/^[a-z][\.\)]\s+/i, '').trim(),
+          bulletChar: letteredMatch[1] + '.'
+      };
+  }
+  
+  // Check for roman numeral bullets (i., ii., etc.)
+  const romanMatch = trimmed.match(/^[ivx]+[\.\)]\s+/i);
+  if (romanMatch) {
+      return { 
+          isBullet: true, 
+          text: trimmed.replace(/^[ivx]+[\.\)]\s+/i, '').trim(),
+          bulletChar: romanMatch[0].trim()
+      };
+  }
+  
+  // Fallback: line starts with capital letter, isn't a section header, and is substantial length
+  const headerCheck = isSectionHeader(trimmed);
+  if (!headerCheck.isHeader && trimmed.match(/^[A-Z][a-z]/) && trimmed.length > 20) {
+      return { isBullet: true, text: trimmed, bulletChar: null };
+  }
+  
+  return { isBullet: false, text: '', bulletChar: null };
+}
+
+// ============================================================
+// HELPER: Check if Line is Blank
+// ============================================================
+
+function isBlankLine(line) {
+  return line.trim().length === 0;
+}
+
+// ============================================================
+// HELPER: Parse Job Entry (Company, Role, Dates, Location)
+// ============================================================
+
+function parseJobEntry(lines, startIdx) {
+  let currentIdx = startIdx;
+  let company = null;
+  let role = null;
+  let location = null;
+  let startDate = null;
+  let endDate = null;
+  let isPresent = false;
+  
+  // Collect next 10 lines to analyze
+  const contextLines = [];
+  for (let i = 0; i < Math.min(10, lines.length - currentIdx); i++) {
+      contextLines.push(lines[currentIdx + i]);
+  }
+  
+  if (contextLines.length === 0) return { company, role, location, startDate, endDate, isPresent, nextIndex: currentIdx };
+  
+  // ============================================================
+  // PATTERN 1: Your format - Company, then Date, then Role, then Location
+  // ============================================================
+  let lineIdx = 0;
+  
+  // Company line (often bolded or starts with capital letter, not a date)
+  if (contextLines[lineIdx] && contextLines[lineIdx].trim().length > 0 && !contextLines[lineIdx].match(/\d{4}/)) {
+      const headerCheck = isSectionHeader(contextLines[lineIdx]);
+      if (!headerCheck.isHeader) {
+          company = contextLines[lineIdx].trim();
+          lineIdx++;
+          
+          // Next line: Date range
+          if (lineIdx < contextLines.length && contextLines[lineIdx]) {
+              const dateResult = extractDateRange(contextLines[lineIdx]);
+              if (dateResult.hasDates) {
+                  const parsedStart = parseDate(dateResult.start);
+                  const parsedEnd = parseDate(dateResult.end);
+                  startDate = dateResult.start;
+                  endDate = dateResult.end;
+                  isPresent = dateResult.isPresent;
+                  lineIdx++;
+                  
+                  // Next line: Role
+                  if (lineIdx < contextLines.length && contextLines[lineIdx] && contextLines[lineIdx].trim().length > 0) {
+                      const bulletCheck = isBulletLine(contextLines[lineIdx]);
+                      if (!bulletCheck.isBullet) {
+                          role = contextLines[lineIdx].trim();
+                          lineIdx++;
+                          
+                          // Next line: Location (optional)
+                          if (lineIdx < contextLines.length && contextLines[lineIdx] && contextLines[lineIdx].trim().length > 0) {
+                              const nextBulletCheck = isBulletLine(contextLines[lineIdx]);
+                              if (!nextBulletCheck.isBullet && contextLines[lineIdx].trim().length < 50) {
+                                  location = contextLines[lineIdx].trim();
+                                  lineIdx++;
+                              }
+                          }
+                      }
+                  }
+              }
+          }
+      }
+  }
+  
+  // ============================================================
+  // PATTERN 2: Company | Role | Date format (pipe-separated)
+  // ============================================================
+  if (!company && contextLines[0]) {
+      const pipeMatch = contextLines[0].match(/^(.+?)\s*[|\-]\s*(.+?)\s*[|\-]\s*(.+)$/);
+      if (pipeMatch) {
+          company = pipeMatch[1].trim();
+          role = pipeMatch[2].trim();
+          const dateResult = extractDateRange(pipeMatch[3]);
+          if (dateResult.hasDates) {
+              startDate = dateResult.start;
+              endDate = dateResult.end;
+              isPresent = dateResult.isPresent;
+          }
+          lineIdx = 1;
+      }
+  }
+  
+  // ============================================================
+  // PATTERN 3: Role at Company format
+  // ============================================================
+  if (!company && contextLines[0]) {
+      const atMatch = contextLines[0].match(/^(.+?)\s+at\s+(.+?)(?:\s*[|\-]\s*(.+))?$/i);
+      if (atMatch) {
+          role = atMatch[1].trim();
+          company = atMatch[2].trim();
+          if (atMatch[3]) {
+              const dateResult = extractDateRange(atMatch[3]);
+              if (dateResult.hasDates) {
+                  startDate = dateResult.start;
+                  endDate = dateResult.end;
+                  isPresent = dateResult.isPresent;
+              }
+          }
+          lineIdx = 1;
+      }
+  }
+  
+  // ============================================================
+  // PATTERN 4: Comma-separated: Role, Company, Location, Date
+  // ============================================================
+  if (!company && contextLines[0]) {
+      const commaMatch = contextLines[0].match(/^([^,]+),\s*([^,]+)(?:,\s*([^,]+))?(?:,\s*(.+))?$/);
+      if (commaMatch) {
+          role = commaMatch[1].trim();
+          company = commaMatch[2].trim();
+          if (commaMatch[3]) location = commaMatch[3].trim();
+          if (commaMatch[4]) {
+              const dateResult = extractDateRange(commaMatch[4]);
+              if (dateResult.hasDates) {
+                  startDate = dateResult.start;
+                  endDate = dateResult.end;
+                  isPresent = dateResult.isPresent;
+              }
+          }
+          lineIdx = 1;
+      }
+  }
+  
+  // ============================================================
+  // PATTERN 5: Company on one line, Role on next, Date on third
+  // ============================================================
+  if (!company && contextLines[0] && contextLines[1]) {
+      const firstLineCheck = isBulletLine(contextLines[0]);
+      const secondLineCheck = isBulletLine(contextLines[1]);
+      
+      if (!firstLineCheck.isBullet && !secondLineCheck.isBullet && contextLines[0].trim().length > 0) {
+          company = contextLines[0].trim();
+          role = contextLines[1].trim();
+          
+          // Check third line for date
+          if (contextLines[2]) {
+              const dateResult = extractDateRange(contextLines[2]);
+              if (dateResult.hasDates) {
+                  startDate = dateResult.start;
+                  endDate = dateResult.end;
+                  isPresent = dateResult.isPresent;
+                  lineIdx = 3;
+              } else {
+                  lineIdx = 2;
+              }
+          } else {
+              lineIdx = 2;
+          }
+      }
+  }
+  
+  // Calculate next index
+  const nextIndex = startIdx + lineIdx;
+  
+  return { 
+      company, 
+      role, 
+      location, 
+      startDate, 
+      endDate, 
+      isPresent,
+      nextIndex: Math.min(nextIndex, lines.length)
   };
 }
 
 // ============================================================
-// PARSE BULLETS FROM A BLOCK OF TEXT
+// MAIN FUNCTION: Extract Bullets from Block with Context
 // ============================================================
-function extractBulletsFromBlock(blockText, section, context = {}) {
+
+function extractBulletsFromBlock(blockText, sectionType, sectionCode, existingContext = {}) {
   const bullets = [];
   const lines = blockText.split('\n');
-  
-  let currentCompany = context.company || null;
-  let currentRole = context.role || null;
+  let roleIndex = 0;
+  let currentCompany = existingContext.company || null;
+  let currentRole = existingContext.role || null;
+  let currentLocation = existingContext.location || null;
+  let currentStartDate = existingContext.startDate || null;
+  let currentEndDate = existingContext.endDate || null;
   let bulletIndex = 1;
-  let isParsingBullets = true;
+  let i = 0;
   
-  for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (line.length === 0) continue;
+  while (i < lines.length) {
+      const line = lines[i];
+      const trimmed = line.trim();
       
-      // Check if this line starts a new job entry (contains company pattern)
-      const hasCompanyIndicator = /[A-Z][a-z]+\s+(Agency|Limited|Group|Organization|Company|Corp|Inc|Ltd|PLC|LLC|University|College|Institute)/i.test(line);
-      const hasDateRange = /\d{4}\s*[-–—]\s*\d{4}|\d{4}\s*[-–—]\s*Present/i.test(line);
-      
-      if ((hasCompanyIndicator || hasDateRange) && section === 'work_experience' && isParsingBullets) {
-          const jobInfo = parseJobHeader(lines, i);
-          currentCompany = jobInfo.company || currentCompany;
-          currentRole = jobInfo.role || currentRole;
-          i = jobInfo.nextIndex - 1;
-          bulletIndex = 1;
+      if (trimmed.length === 0) {
+          i++;
           continue;
       }
       
-      // Check if line starts with a bullet character
-      let isBullet = false;
-      let bulletChar = null;
-      for (const bc of BULLET_CHARS) {
-          if (line.startsWith(bc) || line.startsWith(bc + ' ') || line.startsWith(bc + '\t')) {
-              isBullet = true;
-              bulletChar = bc;
-              break;
-          }
+      // Check if this line starts a new job entry
+      const bulletCheck = isBulletLine(line);
+      const headerCheck = isSectionHeader(line);
+      
+      // If it's a section header, stop processing this block
+      if (headerCheck.isHeader && headerCheck.sectionType !== sectionType) {
+          break;
       }
       
-      // Also detect numbered bullets (1., 2., etc.)
-      const numberedMatch = line.match(/^(\d+)\.\s/);
-      if (numberedMatch) {
-          isBullet = true;
-          bulletChar = numberedMatch[1] + '.';
-      }
-      
-      if (isBullet) {
-          let bulletText = line;
-          if (bulletChar) {
-              bulletText = bulletText.replace(new RegExp(`^${bulletChar.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`), '');
-          }
+      // Try to parse as job entry (not a bullet)
+      if (!bulletCheck.isBullet && !headerCheck.isHeader && trimmed.length > 0) {
+          const jobInfo = parseJobEntry(lines, i);
           
+          if (jobInfo.company || jobInfo.role) {
+              // Save previous role's bullets before starting new one
+              if (currentCompany || currentRole) {
+                  roleIndex++;
+                  bulletIndex = 1;
+              }
+              
+              currentCompany = jobInfo.company || currentCompany;
+              currentRole = jobInfo.role || currentRole;
+              currentLocation = jobInfo.location || currentLocation;
+              currentStartDate = jobInfo.startDate || currentStartDate;
+              currentEndDate = jobInfo.endDate || currentEndDate;
+              
+              i = jobInfo.nextIndex;
+              continue;
+          }
+      }
+      
+      // Check if line is a bullet point
+      if (bulletCheck.isBullet) {
           bullets.push({
-              id: `${section.substring(0, 2).toUpperCase()}_${currentCompany ? currentCompany.replace(/\s/g, '_').substring(0, 20) : 'unknown'}_${bulletIndex}`,
-              section: section,
+              id: `${sectionCode}_${roleIndex + 1}_${bulletIndex}`,
+              section: sectionType,
               company: currentCompany,
               role: currentRole,
-              original_text: bulletText,
-              bullet_index: bulletIndex
+              location: currentLocation,
+              startDate: currentStartDate,
+              endDate: currentEndDate,
+              original_text: bulletCheck.text,
+              bullet_index: bulletIndex,
+              bullet_char: bulletCheck.bulletChar
           });
           bulletIndex++;
-      } else if (section === 'skills') {
-          // For skills section, treat comma-separated or space-separated lists
-          const skillsFromLine = extractSkillsFromLine(line);
-          for (const skill of skillsFromLine) {
-              bullets.push({
-                  id: `${section.substring(0, 2).toUpperCase()}_skill_${bulletIndex}`,
-                  section: section,
-                  company: null,
-                  role: null,
-                  original_text: skill,
-                  bullet_index: bulletIndex
-              });
-              bulletIndex++;
-          }
-      } else if (section === 'certifications') {
-          // For certifications, each line might be a certification or comma-separated
-          const certsFromLine = extractCertificationsFromLine(line);
-          for (const cert of certsFromLine) {
-              bullets.push({
-                  id: `${section.substring(0, 2).toUpperCase()}_cert_${bulletIndex}`,
-                  section: section,
-                  company: null,
-                  role: null,
-                  original_text: cert,
-                  bullet_index: bulletIndex
-              });
-              bulletIndex++;
-          }
-      } else if (section === 'publications') {
-          // For publications, each line is likely a citation
-          if (line.length > 15) {
-              bullets.push({
-                  id: `${section.substring(0, 2).toUpperCase()}_pub_${bulletIndex}`,
-                  section: section,
-                  company: null,
-                  role: null,
-                  original_text: line,
-                  bullet_index: bulletIndex,
-                  citation: line
-              });
-              bulletIndex++;
+          i++;
+          continue;
+      }
+      
+      // Check for multi-line bullet continuation
+      // If we have an active bullet and this line isn't a blank line or new bullet
+      if (bullets.length > 0 && trimmed.length > 0 && !bulletCheck.isBullet && !isBlankLine(line)) {
+          const lastBullet = bullets[bullets.length - 1];
+          const nextLineCheck = i + 1 < lines.length ? isBulletLine(lines[i + 1]) : { isBullet: false };
+          
+          // Continue appending until we hit a blank line or new bullet
+          if (!nextLineCheck.isBullet && !isBlankLine(lines[i + 1] || '')) {
+              lastBullet.original_text += ' ' + trimmed;
+              i++;
+              continue;
           }
       }
+      
+      i++;
   }
   
   return bullets;
 }
 
 // ============================================================
-// EXTRACT SKILLS FROM A LINE (comma-separated or space-separated)
+// MAIN FUNCTION: Extract All Bullets from Resume Text
 // ============================================================
-function extractSkillsFromLine(line) {
-  const skills = [];
-  
-  // Check if comma-separated
-  if (line.includes(',')) {
-      const parts = line.split(',');
-      for (const part of parts) {
-          const skill = part.trim();
-          if (skill.length > 1 && skill.length < 50) {
-              skills.push(skill);
-          }
-      }
-  } else {
-      // Try to detect common skill patterns
-      const words = line.split(/\s+/);
-      let currentSkill = [];
-      for (const word of words) {
-          if (word.length > 2 && /[A-Za-z]/.test(word)) {
-              currentSkill.push(word);
-          } else if (currentSkill.length > 0) {
-              if (currentSkill.length > 0) {
-                  skills.push(currentSkill.join(' '));
-                  currentSkill = [];
-              }
-          }
-      }
-      if (currentSkill.length > 0) {
-          skills.push(currentSkill.join(' '));
-      }
+
+export function extractBullets(resumeText) {
+  if (!resumeText || typeof resumeText !== 'string') {
+      return { bullets: [], sections: {}, total_count: 0 };
   }
   
-  return skills;
-}
-
-// ============================================================
-// EXTRACT CERTIFICATIONS FROM A LINE
-// ============================================================
-function extractCertificationsFromLine(line) {
-  const certs = [];
+  const lines = resumeText.split('\n');
+  const allBullets = [];
+  const sections = {};
+  let currentSection = null;
+  let currentSectionCode = null;
+  let currentSectionStart = 0;
   
-  if (line.includes(',')) {
-      const parts = line.split(',');
-      for (const part of parts) {
-          const cert = part.trim();
-          if (cert.length > 2 && cert.length < 60) {
-              certs.push(cert);
-          }
-      }
-  } else if (line.includes(';')) {
-      const parts = line.split(';');
-      for (const part of parts) {
-          const cert = part.trim();
-          if (cert.length > 2 && cert.length < 60) {
-              certs.push(cert);
-          }
-      }
-  } else {
-      certs.push(line.trim());
-  }
-  
-  return certs;
-}
-
-// ============================================================
-// EXTRACT METADATA FROM BLOCK (dates, location, etc.)
-// ============================================================
-function extractMetadataFromBlock(blockText, section) {
-  const metadata = {
-      startDate: null,
-      endDate: null,
-      location: null,
-      institution: null,
-      degree: null
-  };
-  
-  const lines = blockText.split('\n');
-  for (const line of lines) {
-      const trimmed = line.trim();
-      
-      // Extract dates
-      const datePattern = /(\d{4})\s*[-–—]\s*(\d{4}|\bPresent\b)/i;
-      const dateMatch = trimmed.match(datePattern);
-      if (dateMatch) {
-          metadata.startDate = dateMatch[1];
-          metadata.endDate = dateMatch[2] === 'Present' ? 'Present' : dateMatch[2];
-      }
-      
-      // For education section, try to extract degree and institution
-      if (section === 'education') {
-          const degreeMatch = trimmed.match(/^(Bachelor|Master|PhD|Associate|B\.S\.|B\.A\.|M\.S\.|M\.A\.|MBA|MPH|MDP)/i);
-          if (degreeMatch) {
-              metadata.degree = trimmed;
-          }
-          
-          // Look for "University", "College", "Institute", "School"
-          const institutionMatch = trimmed.match(/([A-Z][a-z]+ (?:University|College|Institute|School))/i);
-          if (institutionMatch) {
-              metadata.institution = institutionMatch[1];
-          }
-      }
-  }
-  
-  return metadata;
-}
-
-// ============================================================
-// DETECT SECTION BOUNDARIES IN RESUME
-// ============================================================
-function detectSectionBoundaries(lines) {
-  const boundaries = [];
+  // First pass: identify section boundaries
+  const sectionBoundaries = [];
   
   for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim().toLowerCase();
+      const line = lines[i].trim();
+      if (line.length === 0) continue;
       
-      for (const [sectionName, headers] of Object.entries(SECTION_HEADERS)) {
-          for (const header of headers) {
-              // Match exact header or header followed by colon
-              if (line === header || line === header + ':' || line.startsWith(header + ' ') || line.startsWith(header + '\t')) {
-                  boundaries.push({ index: i, section: sectionName, line: line });
-                  break;
+      const headerCheck = isSectionHeader(line);
+      if (headerCheck.isHeader) {
+          sectionBoundaries.push({ 
+              index: i, 
+              section: headerCheck.sectionType, 
+              code: headerCheck.code,
+              line: line 
+          });
+      }
+      
+      // Check for underline-style headers (e.g., "Experience" then "=========")
+      if (i + 1 < lines.length && line.match(/^[A-Za-z\s]+$/) && lines[i + 1].match(/^[=\-]{3,}$/)) {
+          const sectionName = line.trim().toLowerCase();
+          for (const [sectionType, config] of Object.entries(SECTION_HEADERS)) {
+              for (const pattern of config.patterns) {
+                  const cleanPattern = pattern.toLowerCase().replace(/^#{1,6}\s*/, '');
+                  if (sectionName === cleanPattern || sectionName.startsWith(cleanPattern)) {
+                      sectionBoundaries.push({ 
+                          index: i, 
+                          section: sectionType, 
+                          code: SECTION_TO_CODE[sectionType],
+                          line: line 
+                      });
+                      break;
+                  }
               }
           }
       }
   }
   
   // Sort boundaries by line index
-  boundaries.sort((a, b) => a.index - b.index);
-  return boundaries;
-}
-
-// ============================================================
-// EXTRACT TEXT FOR A SECTION
-// ============================================================
-function extractSectionText(lines, startIdx, endIdx) {
-  return lines.slice(startIdx, endIdx).join('\n');
-}
-
-// ============================================================
-// MAIN FUNCTION: EXTRACT ALL SECTIONS FROM RESUME
-// ============================================================
-export function extractBullets(resumeText) {
-  if (!resumeText || typeof resumeText !== 'string') {
-      return { bullets: [], sections: {}, total_count: 0, categorized: {} };
-  }
+  sectionBoundaries.sort((a, b) => a.index - b.index);
   
-  const lines = resumeText.split('\n');
-  const sectionBoundaries = detectSectionBoundaries(lines);
-  
-  const sections = {};
-  const categorizedBullets = {
-      work_experience: [],
-      education: [],
-      skills: [],
-      certifications: [],
-      projects: [],
-      publications: [],
-      volunteer: [],
-      awards: [],
-      languages: [],
-      leadership: [],
-      organizations: [],
-      speaking: [],
-      patents: [],
-      interests: [],
-      references: [],
-      other: []
-  };
-  
-  const allBullets = [];
-  
-  // Extract content for each section
+  // Extract bullets for each section
   for (let i = 0; i < sectionBoundaries.length; i++) {
       const boundary = sectionBoundaries[i];
       const nextBoundary = sectionBoundaries[i + 1];
       const startIdx = boundary.index + 1;
       const endIdx = nextBoundary ? nextBoundary.index : lines.length;
       
-      const sectionText = extractSectionText(lines, startIdx, endIdx);
+      const sectionText = lines.slice(startIdx, endIdx).join('\n');
       sections[boundary.section] = sectionText;
       
-      // Extract bullets from this section
-      const metadata = extractMetadataFromBlock(sectionText, boundary.section);
-      const context = { company: metadata.institution, role: metadata.degree };
-      const bullets = extractBulletsFromBlock(sectionText, boundary.section, context);
+      // Extract bullets from this section with context
+      const context = {
+          company: null,
+          role: null,
+          location: null,
+          startDate: null,
+          endDate: null
+      };
       
-      // Add to categorized collections
-      if (categorizedBullets[boundary.section]) {
-          categorizedBullets[boundary.section].push(...bullets);
-      } else {
-          categorizedBullets.other.push(...bullets);
-      }
-      
+      const bullets = extractBulletsFromBlock(sectionText, boundary.section, boundary.code, context);
       allBullets.push(...bullets);
   }
   
   // If no sections detected, try to extract bullets from entire text
   if (allBullets.length === 0) {
-      const bullets = extractBulletsFromBlock(resumeText, 'unknown', {});
+      const bullets = extractBulletsFromBlock(resumeText, 'unknown', 'OT', {});
       allBullets.push(...bullets);
-      categorizedBullets.other.push(...bullets);
+  }
+  
+  // Add metadata to each bullet
+  for (let i = 0; i < allBullets.length; i++) {
+      const bullet = allBullets[i];
+      bullet.original_index = i;
+      bullet.has_metric = detectMetrics(bullet.original_text);
+      bullet.word_count = bullet.original_text.split(/\s+/).length;
   }
   
   return {
       bullets: allBullets,
       sections: sections,
-      categorized: categorizedBullets,
-      total_count: allBullets.length,
-      section_summary: {
-          work_experience: categorizedBullets.work_experience.length,
-          education: categorizedBullets.education.length,
-          skills: categorizedBullets.skills.length,
-          certifications: categorizedBullets.certifications.length,
-          projects: categorizedBullets.projects.length,
-          publications: categorizedBullets.publications.length,
-          volunteer: categorizedBullets.volunteer.length,
-          awards: categorizedBullets.awards.length,
-          languages: categorizedBullets.languages.length,
-          other: categorizedBullets.other.length
-      }
+      total_count: allBullets.length
   };
 }
 
 // ============================================================
-// GROUP BULLETS BY ROLE (for Work Experience section)
+// HELPER: Detect if bullet contains metrics
 // ============================================================
+
+function detectMetrics(text) {
+  if (!text) return false;
+  return (
+      /\d+%/.test(text) ||           // Percentage
+      /\$\d+/.test(text) ||           // Dollar amount
+      /\d+\s*(million|billion|thousand|k|m)/i.test(text) || // Scale
+      /\d+\s*(people|user|customer|employee|staff|member)/i.test(text) || // Volume
+      /\d+\s*(countries?|states?|locations?|sites?)/i.test(text) // Geographic
+  );
+}
+
+// ============================================================
+// HELPER: Group Bullets by Role/Company
+// ============================================================
+
 export function groupBulletsByRole(bullets) {
+  if (!bullets || bullets.length === 0) return [];
+  
   const groups = [];
   let currentGroup = null;
   
-  // Filter only work experience bullets
-  const workBullets = bullets.filter(b => b.section === 'work_experience' || b.section === 'work_experience' || b.section === 'Work Experience');
-  
-  for (const bullet of workBullets) {
-      if (!currentGroup || currentGroup.company !== bullet.company || currentGroup.role !== bullet.role) {
+  for (const bullet of bullets) {
+      if (!currentGroup || 
+          currentGroup.company !== bullet.company || 
+          currentGroup.role !== bullet.role ||
+          currentGroup.section !== bullet.section) {
+          
           if (currentGroup) groups.push(currentGroup);
+          
           currentGroup = {
+              section: bullet.section,
               company: bullet.company,
               role: bullet.role,
-              section: bullet.section,
+              location: bullet.location,
+              startDate: bullet.startDate,
+              endDate: bullet.endDate,
               bullets: []
           };
       }
@@ -540,36 +800,26 @@ export function groupBulletsByRole(bullets) {
 }
 
 // ============================================================
-// HELPER: Get all skills as simple array
+// HELPER: Generate ID for a bullet (matching LLM format)
 // ============================================================
-export function getSkillsArray(resumeText) {
-  const result = extractBullets(resumeText);
-  return result.categorized.skills.map(s => s.original_text);
+
+export function generateBulletId(section, roleIndex, bulletIndex) {
+  const sectionCode = SECTION_TO_CODE[section] || 'OT';
+  return `${sectionCode}_${roleIndex}_${bulletIndex}`;
 }
 
 // ============================================================
-// HELPER: Get all certifications as simple array
+// HELPER: Parse ID back to components
 // ============================================================
-export function getCertificationsArray(resumeText) {
-  const result = extractBullets(resumeText);
-  return result.categorized.certifications.map(c => c.original_text);
-}
 
-// ============================================================
-// HELPER: Get all projects with their bullets
-// ============================================================
-export function getProjectsWithBullets(resumeText) {
-  const result = extractBullets(resumeText);
-  return result.categorized.projects.map(p => ({
-      name: p.original_text,
-      bullets: []
-  }));
-}
-
-// ============================================================
-// HELPER: Get all publications
-// ============================================================
-export function getPublicationsArray(resumeText) {
-  const result = extractBullets(resumeText);
-  return result.categorized.publications.map(p => p.citation || p.original_text);
+export function parseBulletId(id) {
+  const match = id.match(/^([A-Z]{2})_(\d+)_(\d+)$/);
+  if (match) {
+      return {
+          sectionCode: match[1],
+          roleIndex: parseInt(match[2]),
+          bulletIndex: parseInt(match[3])
+      };
+  }
+  return null;
 }

@@ -5,7 +5,7 @@
  * Outputs a compact JSON object to send to the worker
  */
 
-import { extractBullets, groupBulletsByRole } from './bulletParser.js';
+import { parseResume, groupBulletsByJob } from './bulletParser.js';
 import { detectSections, getSection } from './sectionDetector.js';
 import { parseJobDescription, extractYearsRequired, extractEducationRequired } from './jdParser.js';
 import { analyzeVerbs, getVerbCategory } from './verbs.js';
@@ -196,7 +196,7 @@ export function extractAllFeatures(resumeText, jdText = null) {
   // ============================================================
   
   // Extract bullets
-  const bulletResult = extractBullets(resumeText);
+  const bulletResult = parseResume(resumeText);
   const bullets = bulletResult.bullets || [];
   const bulletGroups = groupBulletsByRole(bullets);
   

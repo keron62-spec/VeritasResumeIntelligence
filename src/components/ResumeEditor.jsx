@@ -7,7 +7,7 @@ import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
 // ============================================================
 import { calculateATSScore, calculateFitScore, calculateCredibilityScore, calculateSemanticPosition } from '../utils/scoreCalculator.js';
 import { calculateDeterministicBloom, analyzeBulletBloom } from '../utils/deterministicBloom.js';
-import { extractBullets, groupBulletsByRole } from '../utils/bulletParser.js';
+import { parseResume, groupBulletsByJob } from '../utils/bulletParser.js';
 import { detectSeniorityFromText } from '../utils/seniorityDetector.js';
 import { parseJobDescription, extractEducationRequired, extractYearsRequired as extractJDYears } from '../utils/jdParser.js';
 import { analyzeVerbs } from '../utils/verbs.js';
@@ -836,29 +836,28 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
 useEffect(() => {
     if (!resumeText) return;
     
-    console.log('🔍 Parsing resume text, length:', resumeText.length);
+    console.log('🔍 ========== RESUME EDITOR PARSING ==========');
+    console.log('🔍 Resume text length:', resumeText.length);
+    console.log('🔍 First 500 chars:', resumeText.substring(0, 500));
     
-    // STEP 1: ALWAYS use parser to extract ALL bullets from original resume
-    const parsed = extractBullets(resumeText);
-    console.log('🔍 Parser found:', {
-        jobs: parsed.jobs?.length,
-        bullets: parsed.bullets?.length,
-        skills: parsed.skills?.length,
-        education: parsed.education?.length
-    });
+    // STEP 1: ALWAYS use new parser to extract ALL content from original resume
+    const parsed = parseResume(resumeText);
+    console.log('🔍 Parser results:', parsed.stats);
+    console.log('🔍 Jobs found:', parsed.jobs?.length);
+    console.log('🔍 Bullets found total:', parsed.allBullets?.length);
     
     // STEP 2: Build roles from parser jobs (THIS IS THE SOURCE OF TRUTH)
-    const parsedRoles = (parsed.jobs || []).map(job => ({
-        id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-        title: job.role || 'Untitled Role',
+    const parsedRoles = (parsed.jobs || []).map((job, jobIndex) => ({
+        id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${jobIndex}-${Math.random()}`,
+        title: job.title || 'Untitled Role',
         company: job.company || 'Unknown Company',
-        startDate: job.startDate || '',
-        endDate: job.endDate || '',
-        bullets: (job.bullets || []).map((bullet, idx) => ({
-            id: bullet.id || `bullet_${idx}`,
-            text: bullet.text || bullet.original_text,
-            original: bullet.text || bullet.original_text,
-            veritas: null,  // Will be filled from LLM if available
+        startDate: job.dates || '',
+        endDate: '',
+        bullets: (job.bullets || []).map((bulletText, bulletIndex) => ({
+            id: crypto.randomUUID ? crypto.randomUUID() : `bullet_${jobIndex}_${bulletIndex}_${Date.now()}`,
+            text: bulletText,
+            original: bulletText,
+            veritas: null,      // Will be filled from LLM if available
             hiddenBrief: null,  // Will be filled from LLM if available
             showAlternatives: false
         }))
@@ -866,67 +865,109 @@ useEffect(() => {
     
     setRoles(parsedRoles);
     console.log('🔍 Roles set from parser:', parsedRoles.length, 'roles');
+    console.log('🔍 Total bullets in roles:', parsedRoles.reduce((acc, role) => acc + role.bullets.length, 0));
     
-    // STEP 3: Skills and education from parser
+    // STEP 3: Skills from parser
     if (parsed.skills && parsed.skills.length > 0) {
-        setSkills(parsed.skills.map(s => s.text));
+        console.log('🔍 Skills from parser:', parsed.skills.length);
+        setSkills(parsed.skills);
+    } else {
+        console.log('⚠️ No skills found by parser, trying fallback extractor');
+        const fallbackSkills = extractSkillsFromText(resumeText);
+        setSkills(fallbackSkills);
     }
     
+    // STEP 4: Education from parser
     if (parsed.education && parsed.education.length > 0) {
-        setEducation(parsed.education.map(edu => ({
-            id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+        console.log('🔍 Education from parser:', parsed.education.length);
+        setEducation(parsed.education.map((edu, idx) => ({
+            id: crypto.randomUUID ? crypto.randomUUID() : `edu_${idx}_${Date.now()}`,
             degree: edu.text || '',
             institution: '',
-            year: edu.year || ''
+            year: ''
         })));
+    } else {
+        console.log('⚠️ No education found by parser, trying fallback extractor');
+        const fallbackEducation = extractEducationFromText(resumeText);
+        setEducation(fallbackEducation);
     }
     
-    // STEP 4: ENRICH with LLM transformations (OPTIONAL - does not replace bullets)
+    // STEP 5: ENRICH with LLM transformations (OPTIONAL - does not replace bullets)
     if (bulletAnalysis?.bullets && bulletAnalysis.bullets.length > 0) {
         console.log('🔍 Enriching with LLM transformations for', bulletAnalysis.bullets.length, 'bullets');
         
         setRoles(prevRoles => {
             const updatedRoles = JSON.parse(JSON.stringify(prevRoles));
+            let matchedCount = 0;
             
             for (const transformed of bulletAnalysis.bullets) {
-                // Try to match by ID first, then by text content
+                // Try to match by original text content (most reliable)
+                let matched = false;
                 for (const role of updatedRoles) {
                     const bulletIndex = role.bullets.findIndex(b => 
-                        b.id === transformed.id || 
-                        b.original === transformed.original_text
+                        b.original === transformed.original_text ||
+                        b.original.includes(transformed.original_text?.substring(0, 50)) ||
+                        transformed.original_text?.includes(b.original.substring(0, 50))
                     );
                     if (bulletIndex !== -1) {
                         role.bullets[bulletIndex].veritas = transformed.transformed_text;
                         role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
+                        matched = true;
+                        matchedCount++;
                         break;
                     }
                 }
+                if (!matched) {
+                    console.log('⚠️ Could not match LLM bullet to original:', transformed.original_text?.substring(0, 50));
+                }
             }
+            console.log('🔍 Matched', matchedCount, 'of', bulletAnalysis.bullets.length, 'LLM bullets to originals');
             return updatedRoles;
         });
     }
     
-    // STEP 5: Initialize summary from LLM (optional)
+    // STEP 6: Initialize summary from LLM (optional)
     if (summaryAnalysis) {
         const originalText = summaryAnalysis.original_text || '';
         const veritasText = summaryAnalysis.veritas_transformed_summary || '';
         const hbText = summaryAnalysis.hb_transformed_summary || '';
         setSummary(originalText);
         summaryVersionsRef.current = { original: originalText, veritas: veritasText, hiddenBrief: hbText };
+        console.log('🔍 Summary loaded, length:', originalText.length);
     }
     
-    // STEP 6: Certifications, Projects, Publications (use your existing extractors)
-    const parsedCertifications = extractCertificationsFromText(resumeText);
-    setCertifications(parsedCertifications);
+    // STEP 7: Certifications, Projects, Publications from parser or extractors
+    if (parsed.certifications && parsed.certifications.length > 0) {
+        console.log('🔍 Certifications from parser:', parsed.certifications.length);
+        setCertifications(parsed.certifications);
+    } else {
+        const fallbackCertifications = extractCertificationsFromText(resumeText);
+        setCertifications(fallbackCertifications);
+    }
     
-    const parsedProjects = extractProjectsFromText(resumeText);
-    setProjects(parsedProjects);
+    if (parsed.projects && parsed.projects.length > 0) {
+        console.log('🔍 Projects from parser:', parsed.projects.length);
+        setProjects(parsed.projects);
+    } else {
+        const fallbackProjects = extractProjectsFromText(resumeText);
+        setProjects(fallbackProjects);
+    }
     
-    const parsedPublications = extractPublicationsFromText(resumeText);
-    setPublications(parsedPublications);
+    if (parsed.publications && parsed.publications.length > 0) {
+        console.log('🔍 Publications from parser:', parsed.publications.length);
+        setPublications(parsed.publications);
+    } else {
+        const fallbackPublications = extractPublicationsFromText(resumeText);
+        setPublications(fallbackPublications);
+    }
     
     // Save initial snapshot
-    setTimeout(() => saveSnapshot(), 100);
+    setTimeout(() => {
+        saveSnapshot();
+        console.log('🔍 Initial snapshot saved');
+    }, 100);
+    
+    console.log('🔍 ========== PARSING COMPLETE ==========');
     
 }, [resumeText, bulletAnalysis, summaryAnalysis, skillExtractor]);
     

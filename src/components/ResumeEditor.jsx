@@ -830,132 +830,105 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
     const previewRef = useRef(null);
     const summaryVersionsRef = useRef({ original: '', veritas: '', hiddenBrief: '' });
     
-      // ============================================================
-    // PARSE ORIGINAL RESUME (Always use original as source)
-    // ============================================================
-    useEffect(() => {
-        if (resumeText) {
-            // Extract personal info
-            const extracted = extractPersonalInfo(resumeText);
-            setPersonalInfo(extracted);
+// ============================================================
+// PARSE ORIGINAL RESUME - PARSER IS THE SOURCE OF TRUTH
+// ============================================================
+useEffect(() => {
+    if (!resumeText) return;
+    
+    console.log('🔍 Parsing resume text, length:', resumeText.length);
+    
+    // STEP 1: ALWAYS use parser to extract ALL bullets from original resume
+    const parsed = extractBullets(resumeText);
+    console.log('🔍 Parser found:', {
+        jobs: parsed.jobs?.length,
+        bullets: parsed.bullets?.length,
+        skills: parsed.skills?.length,
+        education: parsed.education?.length
+    });
+    
+    // STEP 2: Build roles from parser jobs (THIS IS THE SOURCE OF TRUTH)
+    const parsedRoles = (parsed.jobs || []).map(job => ({
+        id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+        title: job.role || 'Untitled Role',
+        company: job.company || 'Unknown Company',
+        startDate: job.startDate || '',
+        endDate: job.endDate || '',
+        bullets: (job.bullets || []).map((bullet, idx) => ({
+            id: bullet.id || `bullet_${idx}`,
+            text: bullet.text || bullet.original_text,
+            original: bullet.text || bullet.original_text,
+            veritas: null,  // Will be filled from LLM if available
+            hiddenBrief: null,  // Will be filled from LLM if available
+            showAlternatives: false
+        }))
+    }));
+    
+    setRoles(parsedRoles);
+    console.log('🔍 Roles set from parser:', parsedRoles.length, 'roles');
+    
+    // STEP 3: Skills and education from parser
+    if (parsed.skills && parsed.skills.length > 0) {
+        setSkills(parsed.skills.map(s => s.text));
+    }
+    
+    if (parsed.education && parsed.education.length > 0) {
+        setEducation(parsed.education.map(edu => ({
+            id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+            degree: edu.text || '',
+            institution: '',
+            year: edu.year || ''
+        })));
+    }
+    
+    // STEP 4: ENRICH with LLM transformations (OPTIONAL - does not replace bullets)
+    if (bulletAnalysis?.bullets && bulletAnalysis.bullets.length > 0) {
+        console.log('🔍 Enriching with LLM transformations for', bulletAnalysis.bullets.length, 'bullets');
+        
+        setRoles(prevRoles => {
+            const updatedRoles = JSON.parse(JSON.stringify(prevRoles));
             
-            // ============================================================
-            // USE ENHANCED PARSER - extracts jobs with bullets, skills, education
-            // ============================================================
-            const parsed = extractBullets(resumeText);
-            console.log('🔍 Parser output:', {
-                jobs: parsed.jobs?.length,
-                bullets: parsed.bullets?.length,
-                skills: parsed.skills?.length,
-                education: parsed.education?.length
-            });
-            
-            // ============================================================
-            // USE JOBS DIRECTLY FROM PARSER (already grouped with bullets and dates)
-            // ============================================================
-            const parsedRoles = (parsed.jobs || []).map(job => ({
-                id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-                title: job.role || 'Untitled Role',
-                company: job.company || 'Unknown Company',
-                startDate: job.startDate || '',
-                endDate: job.endDate || '',
-                bullets: (job.bullets || []).map((bullet, idx) => ({
-                    id: bullet.id || `bullet_${idx}`,
-                    text: bullet.text || bullet.original_text,
-                    original: bullet.text || bullet.original_text,
-                    veritas: null,
-                    hiddenBrief: null,
-                    showAlternatives: false
-                }))
-            }));
-            setRoles(parsedRoles);
-            
-            // ============================================================
-            // USE SKILLS FROM PARSER (extracted from Skills section)
-            // ============================================================
-            if (parsed.skills && parsed.skills.length > 0) {
-                setSkills(parsed.skills.map(s => s.text));
-            } else if (skillExtractor?.resume_skills_extracted) {
-                setSkills(skillExtractor.resume_skills_extracted.map(s => s.skill));
-            } else {
-                const extractedSkills = extractSkillsFromText(resumeText);
-                setSkills(extractedSkills);
-            }
-            
-            // ============================================================
-            // USE EDUCATION FROM PARSER (extracted with year detection)
-            // ============================================================
-            if (parsed.education && parsed.education.length > 0) {
-                setEducation(parsed.education.map(edu => ({
-                    id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-                    degree: edu.text || '',
-                    institution: '',
-                    year: edu.year || ''
-                })));
-            } else {
-                // Fallback to old extraction method if parser didn't find anything
-                const parsedEducation = extractEducationFromText(resumeText);
-                setEducation(parsedEducation);
-            }
-            
-            // ============================================================
-            // MERGE TRANSFORMED VERSIONS FROM LLM (if available)
-            // ============================================================
-            if (bulletAnalysis?.bullets && bulletAnalysis.bullets.length > 0) {
-                setRoles(prevRoles => {
-                    const updatedRoles = JSON.parse(JSON.stringify(prevRoles));
-                    for (const transformed of bulletAnalysis.bullets) {
-                        for (const role of updatedRoles) {
-                            // Match by stable hash ID or by text content
-                            const bulletIndex = role.bullets.findIndex(b => 
-                                b.id === transformed.id || 
-                                b.original === transformed.original_text
-                            );
-                            if (bulletIndex !== -1) {
-                                role.bullets[bulletIndex].veritas = transformed.transformed_text;
-                                role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
-                            }
-                        }
+            for (const transformed of bulletAnalysis.bullets) {
+                // Try to match by ID first, then by text content
+                for (const role of updatedRoles) {
+                    const bulletIndex = role.bullets.findIndex(b => 
+                        b.id === transformed.id || 
+                        b.original === transformed.original_text
+                    );
+                    if (bulletIndex !== -1) {
+                        role.bullets[bulletIndex].veritas = transformed.transformed_text;
+                        role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
+                        break;
                     }
-                    return updatedRoles;
-                });
+                }
             }
-            
-            // ============================================================
-            // INITIALIZE SUMMARY (from LLM analysis)
-            // ============================================================
-            if (summaryAnalysis) {
-                const originalText = summaryAnalysis.original_text || '';
-                const veritasText = summaryAnalysis.veritas_transformed_summary || '';
-                const hbText = summaryAnalysis.hb_transformed_summary || '';
-                setSummary(originalText);
-                summaryVersionsRef.current = { original: originalText, veritas: veritasText, hiddenBrief: hbText };
-            }
-            
-            // ============================================================
-            // PARSE CERTIFICATIONS (from LLM or fallback)
-            // ============================================================
-            const parsedCertifications = extractCertificationsFromText(resumeText);
-            setCertifications(parsedCertifications);
-            
-            // ============================================================
-            // PARSE PROJECTS (from LLM or fallback)
-            // ============================================================
-            const parsedProjects = extractProjectsFromText(resumeText);
-            setProjects(parsedProjects);
-            
-            // ============================================================
-            // PARSE PUBLICATIONS (from LLM or fallback)
-            // ============================================================
-            const parsedPublications = extractPublicationsFromText(resumeText);
-            setPublications(parsedPublications);
-            
-            // ============================================================
-            // SAVE INITIAL SNAPSHOT FOR UNDO/REDO
-            // ============================================================
-            setTimeout(() => saveSnapshot(), 100);
-        }
-    }, [resumeText, bulletAnalysis, summaryAnalysis, skillExtractor]);
+            return updatedRoles;
+        });
+    }
+    
+    // STEP 5: Initialize summary from LLM (optional)
+    if (summaryAnalysis) {
+        const originalText = summaryAnalysis.original_text || '';
+        const veritasText = summaryAnalysis.veritas_transformed_summary || '';
+        const hbText = summaryAnalysis.hb_transformed_summary || '';
+        setSummary(originalText);
+        summaryVersionsRef.current = { original: originalText, veritas: veritasText, hiddenBrief: hbText };
+    }
+    
+    // STEP 6: Certifications, Projects, Publications (use your existing extractors)
+    const parsedCertifications = extractCertificationsFromText(resumeText);
+    setCertifications(parsedCertifications);
+    
+    const parsedProjects = extractProjectsFromText(resumeText);
+    setProjects(parsedProjects);
+    
+    const parsedPublications = extractPublicationsFromText(resumeText);
+    setPublications(parsedPublications);
+    
+    // Save initial snapshot
+    setTimeout(() => saveSnapshot(), 100);
+    
+}, [resumeText, bulletAnalysis, summaryAnalysis, skillExtractor]);
     
     // ============================================================
     // JD Features

@@ -1,539 +1,698 @@
-// src/utils/simpleResumeParser.js
+// src/utils/bulletParser.js
+// Production parser built for ResumeEditor.jsx state shape
 
-/**
- * SIMPLE RESUME PARSER - WITH DEBUGGING LOGS
- * 
- * Philosophy: 
- * - Do ONE thing: extract sections, jobs, and bullets
- * - No complex entity association
- * - Return raw structure, let UI handle enrichment
- * - Fault-tolerant - if one section fails, others still work
- * - Extensive console logging for debugging
- */
+const DEBUG = false;
+const log = DEBUG ? console.log.bind(console) : () => {};
 
-// Section headers to split on (case insensitive, exact or starts with)
-const SECTION_HEADERS = {
-    experience: ['experience', 'work experience', 'employment', 'professional experience', 'career history'],
-    education: ['education', 'academic background', 'qualifications', 'education history'],
-    skills: ['skills', 'technical skills', 'core competencies', 'expertise', 'tools & technologies'],
-    projects: ['projects', 'personal projects', 'key projects', 'project portfolio'],
-    certifications: ['certifications', 'certificates', 'licenses', 'professional certifications'],
-    publications: ['publications', 'papers', 'articles']
+// ==========================================
+// PATTERNS
+// ==========================================
+
+const SECTION_PATTERNS = {
+  experience: [
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?(?:professional\s+)?(?:work\s+)?experience\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?employment\s*(?:history)?\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?career\s+(?:history|experience)\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?relevant\s+experience\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?selected\s+experience\s*[:;]?\s*$/i,
+  ],
+  education: [
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?education\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?academic\s+(?:background|history)\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?qualifications\s*[:;]?\s*$/i,
+  ],
+  skills: [
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?skills?\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?technical\s+skills?\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?core\s+competencies\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?expertise\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?tools?\s*(?:and|&)\s*technologies\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?proficiencies\s*[:;]?\s*$/i,
+  ],
+  projects: [
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?projects?\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?personal\s+projects?\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?key\s+projects?\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?project\s+portfolio\s*[:;]?\s*$/i,
+  ],
+  certifications: [
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?certifications?\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?certificates?\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?licenses?\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?professional\s+certifications?\s*[:;]?\s*$/i,
+  ],
+  publications: [
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?publications?\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?papers?\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?research\s*[:;]?\s*$/i,
+  ],
+  summary: [
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?summary\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?professional\s+summary\s*[:;]?\s*$/i,
+    /^(?:[\s•·●◦➢➤►‣\-*]*\s*)?profile\s*[:;]?\s*$/i,
+  ]
 };
 
-// Bullet characters (including dash with space)
 const BULLET_PATTERNS = [
-    /^[•·●◦➢➤►‣]\s+/,           // Bullet characters
-    /^[\-\*\+]\s+/,               // Dash, asterisk, plus with space
-    /^\d+[\.\)]\s+/,              // Numbered: "1. " or "1) "
-    /^[a-zA-Z][\.\)]\s+/,         // Lettered: "a. " or "a) "
-    /^\[\s*\]\s+/,                // Checkbox: "[ ] "
-    /^✓\s+/,                      // Checkmark
-    /^►\s+/,                      // Arrow
+  /^[\s]*[•·●◦➢➤►‣✓✔]\s+/,
+  /^[\s]*[\-\*\+]\s+/,
+  /^[\s]*\d+[\.\)]\s+/,
+  /^[\s]*[a-zA-Z][\.\)]\s+/,
+  /^[\s]*\[\s*[xX\s]?\]\s+/,
+  /^[\s]*[→⇒›>]\s+/,
 ];
 
-/**
- * Checks if a line starts with a bullet character
- */
+const DATE_REGEXES = [
+  /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(?:19|20)\d{2}\s*[-–—]\s*(?:[A-Za-z]{3,9}\s+(?:19|20)\d{2}|Present|Current|Ongoing|Now)\b/i,
+  /\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(?:19|20)\d{2}\b/i,
+  /\b\d{1,2}\/(?:19|20)\d{2}\s*[-–—]\s*(?:\d{1,2}\/(?:19|20)\d{2}|Present|Current|Ongoing|Now)\b/i,
+  /\b\d{1,2}\/(?:19|20)\d{2}\b/,
+  /\b(?:19|20)\d{2}\s*[-–—]\s*(?:(?:19|20)\d{2}|Present|Current|Ongoing|Now)\b/i,
+  /\b(?:19|20)\d{2}\b/,
+  /\b(?:Present|Current|Ongoing|Now)\b/i,
+];
+
+const COMPANY_KEYWORDS = /\b(?:inc\.?|llc|ltd\.?|corp\.?|corporation|university|college|institute|school|agency|health|organization|foundation|group|consulting|partners|llp|plc|gmbh|co\.?)\b/i;
+
+const DEGREE_PATTERNS = [
+  { regex: /\b(B\.?S\.?|Bachelor(?:'s|s)?\s+(?:of\s+)?(?:Science|Arts|Engineering|Business|Technology)|B\.?A\.?|B\.?E\.?|B\.?Tech|B\.?S\.?c\.?)\b/i, type: 'Bachelor' },
+  { regex: /\b(M\.?S\.?|Master(?:'s|s)?\s+(?:of\s+)?(?:Science|Arts|Engineering|Business)|M\.?A\.?|M\.?E\.?|M\.?Tech|MBA|M\.?B\.?A\.?)\b/i, type: 'Master' },
+  { regex: /\b(Ph\.?D\.?|Doctorate|D\.?Sc\.?|Doctor\s+of\s+Philosophy)\b/i, type: 'PhD' },
+  { regex: /\b(A\.?S\.?|Associate(?:'s|s)?|A\.?A\.?)\b/i, type: 'Associate' },
+  { regex: /\b(High\s+School|Diploma|GED|Certificate)\b/i, type: 'Other' },
+];
+
+// ==========================================
+// UTILITIES
+// ==========================================
+
+function normalizeText(text) {
+  return text
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function isBulletLine(line) {
-    const trimmed = line.trim();
-    if (!trimmed) return false;
-    // Special: "Present" or dates are not bullets
-    if (trimmed === 'Present' || trimmed === 'Current') return false;
-    if (trimmed.match(/^\d{1,2}\/\d{4}/)) return false;
-    
-    for (const pattern of BULLET_PATTERNS) {
-        if (pattern.test(trimmed)) return true;
-    }
-    return false;
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  return BULLET_PATTERNS.some(p => p.test(trimmed));
 }
 
-/**
- * Removes bullet characters from the start of a line
- */
 function cleanBulletText(line) {
-    const trimmed = line.trim();
-    for (const pattern of BULLET_PATTERNS) {
-        if (pattern.test(trimmed)) {
-            const cleaned = trimmed.replace(pattern, '').trim();
-            console.log(`  🔹 Cleaned bullet: "${trimmed.substring(0, 50)}..." → "${cleaned.substring(0, 50)}..."`);
-            return cleaned;
-        }
-    }
-    return trimmed;
+  const trimmed = line.trim();
+  for (const p of BULLET_PATTERNS) {
+    if (p.test(trimmed)) return trimmed.replace(p, '').trim();
+  }
+  return trimmed;
 }
 
-/**
- * Checks if a line looks like a date (for job separation)
- */
 function isDateLine(line) {
-    const trimmed = line.trim();
-    // MM/YYYY, MM/YYYY - MM/YYYY, YYYY, etc.
-    const result = /^\d{1,2}\/\d{4}/.test(trimmed) || 
-           /^\d{4}\s*[-–—]\s*\d{4}/.test(trimmed) ||
-           /^\d{4}$/.test(trimmed) ||
-           /(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{4}/i.test(trimmed);
-    
-    if (result) {
-        console.log(`  📅 Date line detected: "${trimmed}"`);
-    }
-    return result;
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  return DATE_REGEXES.some(r => r.test(trimmed));
 }
 
-/**
- * Parses a job header line to extract company and title
- * Handles common formats: "Company - Title", "Company | Title", "Company, Title"
- */
-function parseJobHeader(line) {
-    console.log(`  🏷️ Parsing job header: "${line}"`);
-    const trimmed = line.trim();
-    
-    // Pattern 1: "Company - Title"
-    let match = trimmed.match(/^(.+?)\s+[-–—]\s+(.+)$/);
-    if (match) {
-        console.log(`    ✓ Pattern 1 (Company - Title): company="${match[1].trim()}", title="${match[2].trim()}"`);
-        return { company: match[1].trim(), title: match[2].trim() };
-    }
-    
-    // Pattern 2: "Company | Title"
-    match = trimmed.match(/^(.+?)\s+\|\s+(.+)$/);
-    if (match) {
-        console.log(`    ✓ Pattern 2 (Company | Title): company="${match[1].trim()}", title="${match[2].trim()}"`);
-        return { company: match[1].trim(), title: match[2].trim() };
-    }
-    
-    // Pattern 3: "Title at Company"
-    match = trimmed.match(/^(.+?)\s+at\s+(.+)$/i);
-    if (match) {
-        console.log(`    ✓ Pattern 3 (Title at Company): company="${match[2].trim()}", title="${match[1].trim()}"`);
-        return { company: match[2].trim(), title: match[1].trim() };
-    }
-    
-    // Pattern 4: "Title, Company" (comma separated)
-    match = trimmed.match(/^(.+?),\s*(.+)$/);
-    if (match) {
-        // Guess which is company vs title based on length and keywords
-        const first = match[1].trim();
-        const second = match[2].trim();
-        const companyKeywords = /inc|llc|ltd|corp|university|agency|health|organization|foundation|group|consulting/i;
-        
-        if (companyKeywords.test(second) || second.length > first.length) {
-            console.log(`    ✓ Pattern 4 (Title, Company): company="${second}", title="${first}"`);
-            return { company: second, title: first };
-        }
-        console.log(`    ✓ Pattern 4 (Company, Title): company="${first}", title="${second}"`);
-        return { company: first, title: second };
-    }
-    
-    // Pattern 5: Just a single line - treat as company or title only
-    console.log(`    ⚠️ No pattern matched, treating as title only: "${trimmed}"`);
-    return { company: null, title: trimmed };
+function extractDateFromText(text) {
+  for (const r of DATE_REGEXES) {
+    const m = text.match(r);
+    if (m) return m[0];
+  }
+  return '';
 }
 
-/**
- * Splits resume text into sections based on headers
- */
+function normalizeDate(dateStr) {
+  if (!dateStr) return '';
+  return dateStr
+    .replace(/[–—]/g, '-')
+    .replace(/\s*-\s*/g, ' - ')
+    .trim();
+}
+
+function isSectionHeader(line) {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  for (const patterns of Object.values(SECTION_PATTERNS)) {
+    for (const p of patterns) {
+      if (p.test(trimmed)) return true;
+    }
+  }
+  return false;
+}
+
+// ==========================================
+// JOB HEADER LOGIC
+// ==========================================
+
+function parseJobHeader(headerText) {
+  let trimmed = headerText.trim();
+  if (!trimmed) return { company: '', title: '' };
+
+  // Strip embedded dates so they don't pollute company/title
+  const embeddedDate = extractDateFromText(trimmed);
+  if (embeddedDate) {
+    trimmed = trimmed.replace(embeddedDate, '').replace(/[,\-–—|]\s*$/, '').trim();
+  }
+
+  // "Title at Company"
+  let m = trimmed.match(/^(.+?)\s+at\s+(.+)$/i);
+  if (m) return { company: m[2].trim(), title: m[1].trim() };
+
+  // "Company | Title" or "Company - Title"
+  m = trimmed.match(/^(.+?)\s+[-–—|]\s+(.+)$/);
+  if (m) {
+    const [first, second] = [m[1].trim(), m[2].trim()];
+    const firstIsCompany = COMPANY_KEYWORDS.test(first) && !COMPANY_KEYWORDS.test(second);
+    const secondIsCompany = COMPANY_KEYWORDS.test(second) && !COMPANY_KEYWORDS.test(first);
+    if (secondIsCompany) return { company: second, title: first };
+    if (firstIsCompany) return { company: first, title: second };
+    return { company: first, title: second };
+  }
+
+  // "Title, Company"
+  m = trimmed.match(/^(.+?),\s*(.+)$/);
+  if (m) {
+    const [first, second] = [m[1].trim(), m[2].trim()];
+    const secondIsCompany = COMPANY_KEYWORDS.test(second) && !COMPANY_KEYWORDS.test(first);
+    const firstIsCompany = COMPANY_KEYWORDS.test(first) && !COMPANY_KEYWORDS.test(second);
+    if (secondIsCompany) return { company: second, title: first };
+    if (firstIsCompany) return { company: first, title: second };
+    if (second.length < first.length) return { company: second, title: first };
+    return { company: first, title: second };
+  }
+
+  if (COMPANY_KEYWORDS.test(trimmed)) return { company: trimmed, title: '' };
+  return { company: '', title: trimmed };
+}
+
+function isJobHeaderLine(line, nextLine, prevWasBullet) {
+  const trimmed = line.trim();
+  if (!trimmed || isBulletLine(trimmed) || isDateLine(trimmed) || isSectionHeader(trimmed)) return false;
+
+  // Strong signals
+  if (/\s[-–—|]\s/.test(trimmed)) return true;
+  if (/\s+at\s+/i.test(trimmed)) return true;
+  if (nextLine && isDateLine(nextLine)) return true;
+
+  // Contains company keywords and date
+  if (COMPANY_KEYWORDS.test(trimmed) && extractDateFromText(trimmed)) return true;
+
+  // After bullets, require more structure to avoid swallowing continuations
+  if (prevWasBullet) {
+    if (trimmed.length < 50 && (trimmed.includes(',') || COMPANY_KEYWORDS.test(trimmed))) return true;
+  }
+
+  return false;
+}
+
+function isContinuationLine(line, prevBulletText) {
+  const trimmed = line.trim();
+  if (!trimmed) return false;
+  if (isBulletLine(trimmed) || isDateLine(trimmed) || isSectionHeader(trimmed)) return false;
+  if (isJobHeaderLine(trimmed, '', true)) return false;
+
+  const prevEnded = prevBulletText ? prevBulletText.trim().slice(-1) : '';
+  if ([':', ',', ';'].includes(prevEnded)) return true;
+  if (/^[a-z]/.test(trimmed)) return true;
+  if (trimmed.length < 40 && !/[.!?]$/.test(trimmed)) return true;
+
+  return false;
+}
+
+// ==========================================
+// SECTION SPLITTING
+// ==========================================
+
 function splitIntoSections(text) {
-    console.log('\n📑 STEP 1: Splitting into sections...');
-    const lines = text.split('\n');
-    const sections = {
-        experience: [],
-        education: [],
-        skills: [],
-        projects: [],
-        certifications: [],
-        publications: [],
-        unknown: []
-    };
-    
-    let currentSection = 'unknown';
-    let i = 0;
-    
-    while (i < lines.length) {
-        const line = lines[i].trim();
-        const lineLower = line.toLowerCase();
-        
-        // Check for section headers
-        let foundSection = null;
-        for (const [sectionName, headers] of Object.entries(SECTION_HEADERS)) {
-            for (const header of headers) {
-                if (lineLower === header || lineLower.startsWith(header + ':') || lineLower.startsWith(header + ' ')) {
-                    foundSection = sectionName;
-                    console.log(`  📌 Found section header: "${line}" → ${sectionName}`);
-                    break;
-                }
-            }
-            if (foundSection) break;
-        }
-        
-        if (foundSection) {
-            currentSection = foundSection;
-            i++;
-            continue;
-        }
-        
-        // Add line to current section
-        if (line) {
-            sections[currentSection].push(lines[i]);
-        }
-        i++;
+  log('📑 Splitting into sections...');
+  const lines = text.split('\n');
+  const sections = {
+    experience: [], education: [], skills: [], projects: [],
+    certifications: [], publications: [], summary: [], unknown: []
+  };
+  let current = 'unknown';
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      sections[current].push(line);
+      continue;
     }
-    
-    // Log section stats
-    console.log('\n  Section stats:');
-    for (const [name, content] of Object.entries(sections)) {
-        console.log(`    ${name}: ${content.length} lines`);
+
+    let found = null;
+    for (const [name, patterns] of Object.entries(SECTION_PATTERNS)) {
+      for (const p of patterns) {
+        if (p.test(trimmed)) { found = name; break; }
+      }
+      if (found) break;
     }
-    
-    return sections;
+
+    if (found) {
+      current = found;
+      log(`  Section: ${found}`);
+      continue;
+    }
+
+    sections[current].push(line);
+  }
+
+  return sections;
 }
 
-/**
- * Extracts job blocks from experience section text
- * Jobs are separated by blank lines or date lines followed by content
- */
-function extractJobBlocks(experienceLines) {
-    console.log('\n💼 STEP 2: Extracting job blocks from experience section...');
-    console.log(`  Total experience lines: ${experienceLines.length}`);
-    
-    const jobs = [];
-    let currentJobLines = [];
-    let i = 0;
-    
-    while (i < experienceLines.length) {
-        const line = experienceLines[i];
-        const trimmed = line.trim();
-        const nextLine = i + 1 < experienceLines.length ? experienceLines[i + 1].trim() : '';
-        
-        // Check if this line starts a new job (has date on same line or next line)
-        const hasDateOnThisLine = isDateLine(trimmed);
-        const hasDateOnNextLine = isDateLine(nextLine);
-        
-        // Empty line indicates job separator
-        if (trimmed === '') {
-            if (currentJobLines.length > 0) {
-                console.log(`  📄 Job block ${jobs.length + 1} completed (${currentJobLines.length} lines)`);
-                jobs.push([...currentJobLines]);
-                currentJobLines = [];
-            }
-            i++;
-            continue;
+// ==========================================
+// EXPERIENCE PARSER
+// ==========================================
+
+function parseExperience(lines) {
+  log('💼 Parsing experience...');
+  if (!lines.length) return [];
+
+  const jobs = [];
+  let currentJob = null;
+  let state = 'seeking_header';
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    const nextLine = i + 1 < lines.length ? lines[i + 1].trim() : '';
+
+    if (!trimmed) {
+      if (state === 'in_bullets' && currentJob && currentJob.bullets.length > 0) {
+        if (isJobHeaderLine(nextLine, lines[i + 2] ? lines[i + 2].trim() : '', true)) {
+          jobs.push(currentJob);
+          currentJob = null;
+          state = 'seeking_header';
         }
-        
-        // New job starts if we have content and hit a date line
-        const isPotentialJobStart = !isBulletLine(trimmed) && !isDateLine(trimmed) && trimmed.length < 60;
-        
-        if (currentJobLines.length > 0 && (hasDateOnThisLine || (isPotentialJobStart && hasDateOnNextLine))) {
-            console.log(`  📄 Job block ${jobs.length + 1} completed (${currentJobLines.length} lines)`);
-            jobs.push([...currentJobLines]);
-            currentJobLines = [];
+      }
+      continue;
+    }
+
+    const isBul = isBulletLine(trimmed);
+    const isDate = isDateLine(trimmed);
+    const isHead = isJobHeaderLine(trimmed, nextLine, state === 'in_bullets');
+
+    if (state === 'seeking_header') {
+      if (isHead) {
+        currentJob = createJob();
+        populateJobHeader(currentJob, trimmed);
+        state = 'in_header';
+      } else if (isDate) {
+        currentJob = createJob();
+        currentJob.dates = normalizeDate(trimmed);
+        state = 'in_header';
+      } else if (isBul) {
+        currentJob = createJob();
+        currentJob.bullets.push(cleanBulletText(trimmed));
+        state = 'in_bullets';
+      }
+      continue;
+    }
+
+    if (state === 'in_header') {
+      if (isDate) {
+        currentJob.dates = normalizeDate(trimmed);
+      } else if (isBul) {
+        currentJob.bullets.push(cleanBulletText(trimmed));
+        state = 'in_bullets';
+      } else if (isHead) {
+        jobs.push(currentJob);
+        currentJob = createJob();
+        populateJobHeader(currentJob, trimmed);
+      } else {
+        const dateInLine = extractDateFromText(trimmed);
+        if (dateInLine) {
+          currentJob.dates = normalizeDate(dateInLine);
+        } else if (!currentJob.title && !currentJob.company) {
+          const parsed = parseJobHeader(trimmed);
+          if (parsed.title || parsed.company) {
+            currentJob.title = parsed.title;
+            currentJob.company = parsed.company;
+          }
         }
-        
-        currentJobLines.push(experienceLines[i]);
-        i++;
+      }
+      continue;
     }
-    
-    if (currentJobLines.length > 0) {
-        console.log(`  📄 Job block ${jobs.length + 1} completed (${currentJobLines.length} lines)`);
-        jobs.push(currentJobLines);
+
+    if (state === 'in_bullets') {
+      if (isHead) {
+        jobs.push(currentJob);
+        currentJob = createJob();
+        populateJobHeader(currentJob, trimmed);
+        state = 'in_header';
+      } else if (isDate) {
+        jobs.push(currentJob);
+        currentJob = createJob();
+        currentJob.dates = normalizeDate(trimmed);
+        state = 'in_header';
+      } else if (isBul) {
+        currentJob.bullets.push(cleanBulletText(trimmed));
+      } else {
+        const lastBullet = currentJob.bullets[currentJob.bullets.length - 1] || '';
+        if (isContinuationLine(trimmed, lastBullet)) {
+          currentJob.bullets[currentJob.bullets.length - 1] += ' ' + trimmed;
+        } else {
+          currentJob.bullets.push(trimmed);
+        }
+      }
     }
-    
-    console.log(`\n  Total job blocks found: ${jobs.length}`);
-    return jobs;
+  }
+
+  if (currentJob) jobs.push(currentJob);
+
+  for (const job of jobs) {
+    if (!job.dates && job.header) {
+      const d = extractDateFromText(job.header);
+      if (d) job.dates = normalizeDate(d);
+    }
+    if (job.dates) {
+      const parts = job.dates.split(' - ');
+      job.startDate = parts[0] || '';
+      job.endDate = parts[1] || '';
+    }
+  }
+
+  log(`  Jobs: ${jobs.length}`);
+  return jobs;
 }
 
-/**
- * Parses a job block into { header, dates, bullets }
- */
-function parseJobBlock(jobLines, jobIndex) {
-    console.log(`\n  🔍 Parsing Job Block #${jobIndex + 1}:`);
-    let header = '';
-    let dates = '';
-    const bulletLines = [];
-    let foundBullet = false;
-    
-    for (let i = 0; i < jobLines.length; i++) {
-        const line = jobLines[i];
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        
-        console.log(`    Line ${i + 1}: "${trimmed.substring(0, 60)}${trimmed.length > 60 ? '...' : ''}"`);
-        
-        // Check if it's a date line (separate line or part of header)
-        if (isDateLine(trimmed)) {
-            dates = trimmed;
-            console.log(`      → Detected as DATE line`);
-            continue;
-        }
-        
-        // Check if it's a bullet point
-        if (isBulletLine(trimmed)) {
-            foundBullet = true;
-            const cleaned = cleanBulletText(trimmed);
-            bulletLines.push(cleaned);
-            console.log(`      → Detected as BULLET (${bulletLines.length})`);
-            continue;
-        }
-        
-        // Not a bullet and not a date - part of header (but only if we haven't found bullets yet)
-        if (!foundBullet && !isDateLine(trimmed)) {
-            if (header) {
-                header += ' ' + trimmed;
-                console.log(`      → Appended to HEADER: "${trimmed.substring(0, 40)}..."`);
-            } else {
-                header = trimmed;
-                console.log(`      → Set as HEADER: "${trimmed.substring(0, 40)}..."`);
-            }
-        } else if (foundBullet) {
-            // Multi-line bullet continuation
-            const lastIndex = bulletLines.length - 1;
-            if (lastIndex >= 0) {
-                const oldText = bulletLines[lastIndex];
-                bulletLines[lastIndex] += ' ' + trimmed;
-                console.log(`      → Appended to BULLET ${lastIndex + 1}: "${trimmed.substring(0, 40)}..."`);
-            }
-        }
-    }
-    
-    console.log(`    📊 Parsed result:`);
-    console.log(`      Header: "${header.substring(0, 80)}${header.length > 80 ? '...' : ''}"`);
-    console.log(`      Dates: "${dates}"`);
-    console.log(`      Bullets found: ${bulletLines.length}`);
-    
-    // Parse header into company and title
-    const { company, title } = parseJobHeader(header);
-    
-    console.log(`      Company: "${company || '(not detected)'}"`);
-    console.log(`      Title: "${title || '(not detected)'}"`);
-    
-    return {
-        header,
-        company: company || '',
-        title: title || '',
-        dates,
-        bullets: bulletLines
-    };
+function createJob() {
+  return { title: '', company: '', dates: '', startDate: '', endDate: '', bullets: [], header: '' };
 }
 
-/**
- * MAIN FUNCTION: Parse resume into structured data
- * Returns a simple, reliable structure that always contains all bullets
- */
+function populateJobHeader(job, line) {
+  const parsed = parseJobHeader(line);
+  job.title = parsed.title;
+  job.company = parsed.company;
+  job.header = line.trim();
+  const embeddedDate = extractDateFromText(line);
+  if (embeddedDate) job.dates = normalizeDate(embeddedDate);
+}
+
+// ==========================================
+// EDUCATION PARSER
+// ==========================================
+
+function parseEducation(lines) {
+  log('🎓 Parsing education...');
+  const entries = [];
+  let buffer = [];
+
+  const flush = () => {
+    if (!buffer.length) return;
+    const text = buffer.join(' ').trim();
+    buffer = [];
+    if (!text) return;
+
+    let degree = '';
+    let institution = '';
+    let year = '';
+    let field = '';
+
+    const dateMatch = extractDateFromText(text);
+    if (dateMatch) year = dateMatch;
+
+    for (const dp of DEGREE_PATTERNS) {
+      const m = text.match(dp.regex);
+      if (m) { degree = m[0]; break; }
+    }
+
+    let remaining = text.replace(degree, '').replace(year, '').replace(/[,\-–—|]\s*$/, '').trim();
+
+    const instPatterns = [
+      /(?:at|from)\s+([^,;]+)/i,
+      /([^,;]+(?:University|College|Institute|School|Academy)[^,;]*)/i,
+    ];
+    for (const p of instPatterns) {
+      const m = remaining.match(p);
+      if (m) { institution = m[1].trim(); break; }
+    }
+
+    if (!institution) {
+      const phrases = remaining.split(/[,;]/).map(p => p.trim()).filter(p => p.length > 3);
+      if (phrases.length) institution = phrases.reduce((a, b) => a.length > b.length ? a : b);
+    }
+
+    if (degree && institution) {
+      const between = text.replace(degree, '').replace(institution, '').replace(year, '').trim();
+      const cleaned = between.replace(/^[,\-–—|]\s*/, '').replace(/[,\-–—|]\s*$/, '').trim();
+      if (cleaned && cleaned.length > 3 && cleaned.length < 100) field = cleaned;
+    }
+
+    entries.push({ text, degree, institution, year, field });
+  };
+
+  for (const line of lines) {
+    if (line.trim() === '') flush();
+    else buffer.push(line.trim());
+  }
+  flush();
+
+  log(`  Education: ${entries.length}`);
+  return entries;
+}
+
+// ==========================================
+// SKILLS PARSER
+// ==========================================
+
+function parseSkills(lines) {
+  log('🔧 Parsing skills...');
+  const raw = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    let text = isBulletLine(trimmed) ? cleanBulletText(trimmed) : trimmed;
+    text = text.replace(/^[^:]+:\s*/, '');
+
+    const parts = text.split(/[,;|•·●◦➢➤►‣]/)
+      .map(p => p.trim())
+      .filter(p => p && p.length > 1 && p.length < 50);
+
+    raw.push(...parts);
+  }
+
+  const seen = new Set();
+  const unique = [];
+  for (const s of raw) {
+    const cleaned = s.replace(/\.$/, '').trim();
+    const lc = cleaned.toLowerCase();
+    if (!seen.has(lc) && cleaned.length > 1) {
+      seen.add(lc);
+      unique.push(cleaned);
+    }
+  }
+
+  log(`  Skills: ${unique.length}`);
+  return unique;
+}
+
+// ==========================================
+// CERTIFICATIONS PARSER
+// ==========================================
+
+function parseCertifications(lines) {
+  log('🏆 Parsing certifications...');
+  const out = [];
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+
+    const text = isBulletLine(trimmed) ? cleanBulletText(trimmed) : trimmed;
+    const date = extractDateFromText(text) || '';
+    let body = text;
+    if (date) body = body.replace(date, '').replace(/[,\-–—|]\s*$/, '').trim();
+
+    let name = body;
+    let issuer = '';
+    const m = body.match(/^(.+?)\s+(?:[-–—|]\s+|,\s+)(.+)$/);
+    if (m) {
+      name = m[1].trim();
+      issuer = m[2].trim();
+    }
+
+    let formatted = name;
+    if (issuer) formatted += ` (${issuer})`;
+    if (date) formatted += ` - ${date}`;
+
+    out.push(formatted);
+  }
+
+  log(`  Certifications: ${out.length}`);
+  return out;
+}
+
+// ==========================================
+// PROJECTS PARSER
+// ==========================================
+
+function parseProjects(lines) {
+  log('🚀 Parsing projects...');
+  if (!lines.length) return [];
+
+  const nonEmpty = lines.filter(l => l.trim());
+  const bulletRatio = nonEmpty.filter(l => isBulletLine(l)).length / (nonEmpty.length || 1);
+  const isBulletList = bulletRatio > 0.6;
+
+  const projects = [];
+  let current = null;
+
+  const pushCurrent = () => {
+    if (current && (current.name || current.bullets.length)) projects.push(current);
+    current = null;
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) { pushCurrent(); continue; }
+
+    if (isBulletLine(trimmed)) {
+      if (!current) current = { name: '', bullets: [] };
+      current.bullets.push(cleanBulletText(trimmed));
+    } else {
+      if (!current || current.bullets.length > 0) {
+        pushCurrent();
+        current = { name: trimmed, bullets: [] };
+      } else {
+        current.name = trimmed;
+      }
+    }
+  }
+  pushCurrent();
+
+  if (isBulletList && projects.length === 1 && projects[0].name === '' && projects[0].bullets.length > 1) {
+    return projects[0].bullets.map(b => ({ name: '', bullets: [b] }));
+  }
+
+  log(`  Projects: ${projects.length}`);
+  return projects;
+}
+
+// ==========================================
+// PUBLICATIONS PARSER
+// ==========================================
+
+function parsePublications(lines) {
+  log('📝 Parsing publications...');
+  const out = [];
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    out.push(isBulletLine(trimmed) ? cleanBulletText(trimmed) : trimmed);
+  }
+  return out;
+}
+
+// ==========================================
+// MAIN EXPORT
+// ==========================================
+
 export function parseResume(resumeText) {
-    console.log('\n🔍 ========== SIMPLE RESUME PARSER ==========');
-    console.log(`📄 Input text length: ${resumeText?.length || 0} characters`);
-    console.log(`📄 First 200 chars: ${resumeText?.substring(0, 200)}...`);
-    
-    if (!resumeText || typeof resumeText !== 'string') {
-        console.error('❌ Invalid input: resumeText is empty or not a string');
-        return {
-            success: false,
-            error: 'No resume text provided',
-            sections: {},
-            jobs: [],
-            skills: [],
-            education: [],
-            projects: [],
-            certifications: [],
-            publications: [],
-            allBullets: [],
-            stats: { jobCount: 0, bulletCount: 0, skillCount: 0, educationCount: 0 }
-        };
-    }
-    
-    // Step 1: Split into sections
-    const sections = splitIntoSections(resumeText);
-    
-    // Step 2: Extract jobs from experience section
-    const jobBlocks = extractJobBlocks(sections.experience);
-    const jobs = jobBlocks.map((block, idx) => parseJobBlock(block, idx));
-    
-    console.log(`\n📊 Total jobs parsed: ${jobs.length}`);
-    
-    // Step 3: Parse skills section
-    console.log('\n🔧 STEP 3: Parsing skills section...');
-    const skills = [];
-    for (const line of sections.skills) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
-        console.log(`  Processing skill line: "${trimmed.substring(0, 60)}..."`);
-        
-        // Check for comma-separated skills
-        if (trimmed.includes(',')) {
-            const parts = trimmed.split(',').map(p => p.trim()).filter(p => p);
-            console.log(`    → Comma-separated: found ${parts.length} skills`);
-            skills.push(...parts);
-        } 
-        // Check for bullet-separated skills (with bullets)
-        else if (isBulletLine(trimmed)) {
-            const cleaned = cleanBulletText(trimmed);
-            console.log(`    → Bullet format: "${cleaned}"`);
-            skills.push(cleaned);
-        }
-        // Check for pipe-separated
-        else if (trimmed.includes('|')) {
-            const parts = trimmed.split('|').map(p => p.trim()).filter(p => p);
-            console.log(`    → Pipe-separated: found ${parts.length} skills`);
-            skills.push(...parts);
-        }
-        // Check for bullet characters as separators (•)
-        else if (trimmed.includes('•')) {
-            const parts = trimmed.split('•').map(p => p.trim()).filter(p => p);
-            console.log(`    → Bullet-char separated: found ${parts.length} skills`);
-            skills.push(...parts);
-        }
-        else if (trimmed.length > 0) {
-            console.log(`    → Plain text: "${trimmed}"`);
-            skills.push(trimmed);
-        }
-    }
-    
-    // Deduplicate skills
-    const uniqueSkills = [...new Set(skills)];
-    console.log(`\n  Total skills found: ${skills.length} (${uniqueSkills.length} unique)`);
-    
-    // Step 4: Parse education section
-    console.log('\n🎓 STEP 4: Parsing education section...');
-    const education = sections.education
-        .filter(line => line.trim())
-        .map(line => {
-            console.log(`  Education line: "${line.trim().substring(0, 60)}..."`);
-            return { text: line.trim() };
-        });
-    console.log(`  Total education entries: ${education.length}`);
-    
-    // Step 5: Parse projects section
-    console.log('\n🚀 STEP 5: Parsing projects section...');
-    const projectBlocks = extractJobBlocks(sections.projects);
-    const projects = projectBlocks.map((block, idx) => {
-        console.log(`  Project #${idx + 1}:`);
-        const parsed = parseJobBlock(block, idx);
-        return {
-            name: parsed.title || parsed.header,
-            bullets: parsed.bullets
-        };
-    });
-    console.log(`  Total projects found: ${projects.length}`);
-    
-    // Step 6: Certifications
-    console.log('\n🏆 STEP 6: Parsing certifications...');
-    const certifications = sections.certifications
-        .filter(line => line.trim())
-        .map(line => {
-            console.log(`  Certification: "${line.trim().substring(0, 60)}..."`);
-            return line.trim();
-        });
-    console.log(`  Total certifications: ${certifications.length}`);
-    
-    // Step 7: Publications
-    console.log('\n📝 STEP 7: Parsing publications...');
-    const publications = sections.publications
-        .filter(line => line.trim())
-        .map(line => {
-            console.log(`  Publication: "${line.trim().substring(0, 60)}..."`);
-            return line.trim();
-        });
-    console.log(`  Total publications: ${publications.length}`);
-    
-    // Generate a flat list of all bullets with their job context
-    console.log('\n📋 Generating flat bullet list...');
-    let bulletId = 1;
-    const allBullets = [];
-    
-    for (let i = 0; i < jobs.length; i++) {
-        const job = jobs[i];
-        console.log(`  Job #${i + 1}: "${job.title}" @ "${job.company}" - ${job.bullets.length} bullets`);
-        for (let j = 0; j < job.bullets.length; j++) {
-            allBullets.push({
-                id: `bullet_${bulletId++}`,
-                original_text: job.bullets[j],
-                company: job.company,
-                role: job.title,
-                startDate: job.dates,
-                section: 'Work Experience'
-            });
-            console.log(`    Bullet ${j + 1}: "${job.bullets[j].substring(0, 60)}..."`);
-        }
-    }
-    
-    const stats = {
-        jobCount: jobs.length,
-        bulletCount: allBullets.length,
-        skillCount: uniqueSkills.length,
-        educationCount: education.length,
-        projectCount: projects.length,
-        certificationCount: certifications.length,
-        publicationCount: publications.length
-    };
-    
-    console.log('\n📊 FINAL STATS:');
-    console.log(`  Jobs: ${stats.jobCount}`);
-    console.log(`  Bullets: ${stats.bulletCount}`);
-    console.log(`  Skills: ${stats.skillCount}`);
-    console.log(`  Education: ${stats.educationCount}`);
-    console.log(`  Projects: ${stats.projectCount}`);
-    console.log(`  Certifications: ${stats.certificationCount}`);
-    console.log(`  Publications: ${stats.publicationCount}`);
-    console.log('\n🔍 ========== PARSING COMPLETE ==========\n');
-    
+  log('🔍 ========== RESUME PARSER ==========');
+
+  if (!resumeText || typeof resumeText !== 'string') {
     return {
-        success: true,
-        sections,
-        jobs,
-        skills: uniqueSkills,
-        education,
-        projects,
-        certifications,
-        publications,
-        allBullets,
-        stats
+      success: false,
+      error: 'No resume text provided',
+      jobs: [], skills: [], education: [], certifications: [],
+      projects: [], publications: [], allBullets: [],
+      stats: { jobCount: 0, bulletCount: 0, skillCount: 0, educationCount: 0 }
     };
+  }
+
+  const normalized = normalizeText(resumeText);
+  const sections = splitIntoSections(normalized);
+
+  const jobs = parseExperience(sections.experience);
+  const skills = parseSkills(sections.skills);
+  const education = parseEducation(sections.education);
+  const certifications = parseCertifications(sections.certifications);
+  const projects = parseProjects(sections.projects);
+  const publications = parsePublications(sections.publications);
+
+  let bulletId = 1;
+  const allBullets = [];
+
+  for (const job of jobs) {
+    for (const b of job.bullets) {
+      allBullets.push({
+        id: `bullet_${bulletId++}`,
+        original_text: b,
+        company: job.company,
+        role: job.title,
+        startDate: job.startDate,
+        section: 'Work Experience'
+      });
+    }
+  }
+
+  for (const project of projects) {
+    for (const b of project.bullets) {
+      allBullets.push({
+        id: `bullet_${bulletId++}`,
+        original_text: b,
+        company: project.name,
+        role: 'Project',
+        startDate: '',
+        section: 'Projects'
+      });
+    }
+  }
+
+  const stats = {
+    jobCount: jobs.length,
+    bulletCount: allBullets.length,
+    skillCount: skills.length,
+    educationCount: education.length,
+    projectCount: projects.length,
+    certificationCount: certifications.length,
+    publicationCount: publications.length
+  };
+
+  log('📊 Stats:', stats);
+  return {
+    success: true,
+    jobs,
+    skills,
+    education,
+    certifications,
+    projects,
+    publications,
+    allBullets,
+    stats
+  };
 }
 
-/**
- * Group bullets by role/company for display in editor
- */
+// ==========================================
+// BACKWARD COMPATIBILITY EXPORTS
+// ==========================================
+
 export function groupBulletsByJob(bullets) {
-    console.log('\n📦 Grouping bullets by job...');
-    const groups = [];
-    const groupMap = new Map();
-    
-    for (const bullet of bullets) {
-        const key = `${bullet.company}|${bullet.role}`;
-        if (!groupMap.has(key)) {
-            groupMap.set(key, {
-                company: bullet.company,
-                role: bullet.role,
-                bullets: []
-            });
-        }
-        groupMap.get(key).bullets.push(bullet.original_text);
-    }
-    
-    for (const group of groupMap.values()) {
-        groups.push(group);
-    }
-    
-    console.log(`  Created ${groups.length} job groups`);
-    return groups;
+  const groups = [];
+  const map = new Map();
+  for (const b of bullets) {
+    const key = `${b.company}|${b.role}`;
+    if (!map.has(key)) map.set(key, { company: b.company, role: b.role, bullets: [] });
+    map.get(key).bullets.push(b.original_text);
+  }
+  for (const g of map.values()) groups.push(g);
+  return groups;
 }
 
-/**
- * Legacy export for backward compatibility
- */
 export function extractBullets(resumeText) {
-    console.warn('⚠️ extractBullets() is deprecated. Use parseResume() instead.');
-    const parsed = parseResume(resumeText);
-    return {
-        bullets: parsed.allBullets,
-        jobs: parsed.jobs,
-        skills: parsed.skills.map(s => ({ text: s })),
-        education: parsed.education,
-        total_count: parsed.allBullets.length
-    };
+  const parsed = parseResume(resumeText);
+  return {
+    bullets: parsed.allBullets,
+    jobs: parsed.jobs,
+    skills: parsed.skills.map(s => ({ text: s })),
+    education: parsed.education,
+    total_count: parsed.allBullets.length
+  };
 }
 
 export function groupBulletsByRole(bullets) {
-    console.warn('⚠️ groupBulletsByRole() is deprecated. Use groupBulletsByJob() instead.');
-    return groupBulletsByJob(bullets);
+  return groupBulletsByJob(bullets);
 }

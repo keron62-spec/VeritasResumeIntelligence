@@ -1465,77 +1465,133 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         }
     };
 
-    const acceptAIResults = () => {
-        if (!aiParsedData) return;
-        
-        // Get the original bullet analysis for enrichment
-        const originalBulletAnalysis = bulletAnalysis?.bullets || [];
-        
-        // Apply roles from AI parser, then enrich with Veritas/Hidden Brief
-        let newRoles = aiParsedData.roles || [];
-        
-        // ENRICH AI PARSED BULLETS WITH VERITAS AND HIDDEN BRIEF VERSIONS
-        if (originalBulletAnalysis.length > 0 && newRoles.length > 0) {
-            console.log('🔍 Enriching AI parsed bullets with Veritas/Hidden Brief versions');
-            
-            newRoles = JSON.parse(JSON.stringify(newRoles));
-            let matchedCount = 0;
-            
-            for (const transformed of originalBulletAnalysis) {
-                let matched = false;
-                
-                for (const role of newRoles) {
-                    // Try to match by text content (since AI IDs will be different)
-                    const bulletIndex = role.bullets.findIndex(b => 
-                        b.original === transformed.original_text ||
-                        b.original?.includes(transformed.original_text?.substring(0, 50)) ||
-                        transformed.original_text?.includes(b.original?.substring(0, 50))
-                    );
-                    if (bulletIndex !== -1) {
-                        role.bullets[bulletIndex].veritas = transformed.transformed_text;
-                        role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
-                        matched = true;
-                        matchedCount++;
-                        break;
-                    }
-                }
-                
-                if (!matched && transformed.original_text) {
-                    console.log('⚠️ Could not match AI bullet to Veritas/HB:', transformed.original_text.substring(0, 50));
-                }
-            }
-            
-            console.log('🔍 Enriched', matchedCount, 'of', originalBulletAnalysis.length, 'AI bullets with alternative versions');
-        }
-        
-        // Apply all the AI parsed data
-        setRoles(newRoles);
-        if (aiParsedData.skills) setSkills(aiParsedData.skills);
-        if (aiParsedData.education) setEducation(aiParsedData.education);
-        if (aiParsedData.projects) setProjects(aiParsedData.projects);
-        if (aiParsedData.certifications) setCertifications(aiParsedData.certifications);
-        if (aiParsedData.publications) setPublications(aiParsedData.publications);
-        if (aiParsedData.header) {
-            setPersonalInfo(prev => ({
-                ...prev,
-                name: aiParsedData.header.name || prev.name,
-                email: aiParsedData.header.email || prev.email,
-                phone: aiParsedData.header.phone || prev.phone,
-                linkedin: aiParsedData.header.linkedin || prev.linkedin,
-                location: aiParsedData.header.location || prev.location
-            }));
-        }
-        if (aiParsedData.summary) setSummary(aiParsedData.summary);
-        
-        saveSnapshot();
-        setShowAIParseComparison(false);
-        showToast('AI parser results applied!', 'success');
-    };
-        
-        saveSnapshot();
-        setShowAIParseComparison(false);
-        showToast('AI parser results applied!', 'success');
+    // Parse resume - FIXED: Added isParsingRef to prevent infinite loops
+const isParsingRef = useRef(false);
+
+useEffect(() => {
+    if (!resumeText) return;
     
+    // Prevent multiple concurrent parses
+    if (isParsingRef.current) return;
+    isParsingRef.current = true;
+    
+    console.log('🔍 Parsing resume text, length:', resumeText.length);
+    
+    try {
+        const parsed = parseResume(resumeText);
+        
+        const parsedRoles = (parsed.jobs || []).map((job, jobIndex) => ({
+            id: safeUUID(),
+            title: job.title || 'Untitled Role',
+            company: job.company || 'Unknown Company',
+            startDate: job.dates ? job.dates.split(' - ')[0] || '' : '',
+            endDate: job.dates ? job.dates.split(' - ')[1] || '' : '',
+            bullets: (job.bullets || []).map((bulletText, bulletIndex) => ({
+                id: safeUUID(),
+                text: bulletText,
+                original: bulletText,
+                veritas: null,
+                hiddenBrief: null,
+                showAlternatives: false
+            }))
+        }));
+        
+        setRoles(parsedRoles);
+        setSkills(parsed.skills || []);
+        setEducation((parsed.education || []).map((edu, idx) => ({
+            id: safeUUID(),
+            degree: edu.text || '',
+            institution: '',
+            year: edu.year || ''
+        })));
+        setCertifications(parsed.certifications || []);
+        setProjects(parsed.projects || []);
+        setPublications(parsed.publications || []);
+        
+        const extracted = extractPersonalInfo(resumeText);
+        if (extracted.location && !extracted.location.includes('Google') && !extracted.location.includes('Collab')) {
+            setPersonalInfo(extracted);
+        }
+        
+        // Initialize summary from LLM analysis (if available) - only once
+        if (summaryAnalysis && summaryVersionsRef.current.original === '') {
+            const originalText = summaryAnalysis.original_text || '';
+            setSummary(originalText);
+            summaryVersionsRef.current = {
+                original: originalText,
+                veritas: summaryAnalysis.veritas_transformed_summary || '',
+                hiddenBrief: summaryAnalysis.hb_transformed_summary || ''
+            };
+        }
+        
+        // ENRICH with Veritas and Hidden Brief versions (BULLET ENRICHMENT FIX)
+        // Only run if we have bulletAnalysis and roles were just set
+        if (bulletAnalysis?.bullets && bulletAnalysis.bullets.length > 0 && parsedRoles.length > 0) {
+            console.log('🔍 Enriching with LLM transformations for', bulletAnalysis.bullets.length, 'bullets');
+            
+            // Use setTimeout to avoid state updates during render
+            setTimeout(() => {
+                setRoles(prevRoles => {
+                    const updatedRoles = JSON.parse(JSON.stringify(prevRoles));
+                    let matchedCount = 0;
+                    
+                    for (const transformed of bulletAnalysis.bullets) {
+                        let matched = false;
+                        
+                        for (const role of updatedRoles) {
+                            const bulletIndex = role.bullets.findIndex(b => 
+                                b.id === transformed.id || 
+                                b.id === transformed.sequentialId ||
+                                b.original === transformed.original_text
+                            );
+                            if (bulletIndex !== -1) {
+                                role.bullets[bulletIndex].veritas = transformed.transformed_text;
+                                role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
+                                matched = true;
+                                matchedCount++;
+                                break;
+                            }
+                        }
+                        
+                        if (!matched && transformed.original_text) {
+                            for (const role of updatedRoles) {
+                                const bulletIndex = role.bullets.findIndex(b => 
+                                    b.original && (
+                                        b.original === transformed.original_text ||
+                                        b.original.includes(transformed.original_text.substring(0, 50)) ||
+                                        transformed.original_text.includes(b.original.substring(0, 50))
+                                    )
+                                );
+                                if (bulletIndex !== -1) {
+                                    role.bullets[bulletIndex].veritas = transformed.transformed_text;
+                                    role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
+                                    matched = true;
+                                    matchedCount++;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                    
+                    console.log('🔍 Matched', matchedCount, 'of', bulletAnalysis.bullets.length, 'LLM bullets to originals');
+                    return updatedRoles;
+                });
+            }, 0);
+        }
+        
+        // Save initial snapshot after state updates settle
+        setTimeout(() => saveSnapshot(), 100);
+        
+    } catch (error) {
+        console.error('Parse error:', error);
+    } finally {
+        // Reset parsing flag after a delay
+        setTimeout(() => {
+            isParsingRef.current = false;
+        }, 500);
+    }
+    
+}, [resumeText]); // Removed summaryAnalysis to prevent re-runs
 
     // Live scoring
     const updateLiveScores = useCallback(() => {

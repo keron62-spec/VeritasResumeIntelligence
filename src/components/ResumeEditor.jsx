@@ -1465,6 +1465,69 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         }
     };
 
+// ============================================================
+// ACCEPT AI RESULTS FUNCTION - ADD THIS
+// ============================================================
+const acceptAIResults = () => {
+    if (!aiParsedData) return;
+    
+    // Get the original bullet analysis for enrichment
+    const originalBulletAnalysis = bulletAnalysis?.bullets || [];
+    
+    // Apply roles from AI parser, then enrich with Veritas/Hidden Brief
+    let newRoles = aiParsedData.roles || [];
+    
+    // ENRICH AI PARSED BULLETS WITH VERITAS AND HIDDEN BRIEF VERSIONS
+    if (originalBulletAnalysis.length > 0 && newRoles.length > 0) {
+        console.log('🔍 Enriching AI parsed bullets with Veritas/Hidden Brief versions');
+        
+        newRoles = JSON.parse(JSON.stringify(newRoles));
+        let matchedCount = 0;
+        
+        for (const transformed of originalBulletAnalysis) {
+            for (const role of newRoles) {
+                // Try to match by text content (since AI IDs will be different)
+                const bulletIndex = role.bullets.findIndex(b => 
+                    b.original === transformed.original_text ||
+                    b.original?.includes(transformed.original_text?.substring(0, 50)) ||
+                    transformed.original_text?.includes(b.original?.substring(0, 50))
+                );
+                if (bulletIndex !== -1) {
+                    role.bullets[bulletIndex].veritas = transformed.transformed_text;
+                    role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
+                    matchedCount++;
+                    break;
+                }
+            }
+        }
+        
+        console.log('🔍 Enriched', matchedCount, 'AI bullets with alternative versions');
+    }
+    
+    // Apply all the AI parsed data
+    setRoles(newRoles);
+    if (aiParsedData.skills) setSkills(aiParsedData.skills);
+    if (aiParsedData.education) setEducation(aiParsedData.education);
+    if (aiParsedData.projects) setProjects(aiParsedData.projects);
+    if (aiParsedData.certifications) setCertifications(aiParsedData.certifications);
+    if (aiParsedData.publications) setPublications(aiParsedData.publications);
+    if (aiParsedData.header) {
+        setPersonalInfo(prev => ({
+            ...prev,
+            name: aiParsedData.header.name || prev.name,
+            email: aiParsedData.header.email || prev.email,
+            phone: aiParsedData.header.phone || prev.phone,
+            linkedin: aiParsedData.header.linkedin || prev.linkedin,
+            location: aiParsedData.header.location || prev.location
+        }));
+    }
+    if (aiParsedData.summary) setSummary(aiParsedData.summary);
+    
+    saveSnapshot();
+    setShowAIParseComparison(false);
+    showToast('AI parser results applied!', 'success');
+};
+
     // Parse resume - FIXED: Added isParsingRef to prevent infinite loops
 const isParsingRef = useRef(false);
 

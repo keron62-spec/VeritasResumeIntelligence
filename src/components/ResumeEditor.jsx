@@ -18,155 +18,378 @@ import { countTechnicalSkills } from '../utils/skillDictionary.js';
 import { extractPersonalInfo, formatContactLine } from '../utils/personalInfoExtractor.js';
 
 // ============================================================
-// PDF STYLES
+// PDF STYLES - FIXED BUG 1 & BUG 2 (Full template support)
 // ============================================================
 const createPDFStyles = (template) => {
+    // Base font family mapping
     let fontFamily = 'Helvetica';
-    if (template === 'classic' || template === 'harvard' || template === 'legal') fontFamily = 'Times-Roman';
-    if (template === 'executive') fontFamily = 'Times-Roman';
-    if (template === 'modern' || template === 'veritas_signature') fontFamily = 'Helvetica';
-    if (template === 'consultancy') fontFamily = 'Helvetica';
-    if (template === 'diplomat') fontFamily = 'Helvetica';
-    if (template === 'faang') fontFamily = 'Courier';
-    if (template === 'ats') fontFamily = 'Helvetica';
+    if (template.name === 'classic' || template.name === 'harvard' || template.name === 'legal') fontFamily = 'Times-Roman';
+    if (template.name === 'executive') fontFamily = 'Times-Roman';
+    if (template.name === 'modern' || template.name === 'veritas_signature') fontFamily = 'Helvetica';
+    if (template.name === 'consultancy') fontFamily = 'Helvetica';
+    if (template.name === 'diplomat') fontFamily = 'Helvetica';
+    if (template.name === 'faang') fontFamily = 'Courier';
+    if (template.name === 'ats') fontFamily = 'Helvetica';
 
-    return StyleSheet.create({
-        page: { padding: 50, fontSize: 10.5, fontFamily: fontFamily, lineHeight: 1.5 },
-        header: { textAlign: 'center', marginBottom: 20, borderBottom: template === 'classic' ? 2 : template === 'executive' ? 1 : 1, borderBottomColor: template === 'classic' ? '#000' : '#c9a84c', paddingBottom: 10 },
-        name: { fontSize: 24, fontWeight: 'bold', marginBottom: 5, textTransform: 'uppercase', letterSpacing: template === 'classic' ? 2 : 1 },
-        contactRow: { fontSize: 9, color: '#666', textAlign: 'center', marginTop: 5 },
-        sectionTitle: { fontSize: 12, fontWeight: 'bold', marginTop: 15, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 1, backgroundColor: template === 'ats' ? '#f0f0f0' : 'transparent', padding: template === 'ats' ? 4 : 0 },
-        roleHeader: { fontWeight: 'bold', marginTop: 10, marginBottom: 2, fontSize: 11 },
-        companyText: { fontSize: 10, color: '#666', marginBottom: 4, fontStyle: 'italic' },
-        dateText: { fontSize: 9, color: '#666', marginBottom: 6 },
-        bullet: { marginLeft: 12, marginBottom: 4, fontSize: 10 },
-        skillsText: { fontSize: 9, marginBottom: 8, lineHeight: 1.4 }
-    });
+    // Convert shorthand border to explicit properties for @react-pdf/renderer
+    const getBorderBottom = (borderShorthand) => {
+        if (!borderShorthand) return {};
+        // Parse "2px solid #1a1a1a" into separate properties
+        const parts = borderShorthand.match(/(\d+)px\s+(\w+)\s+(#[a-fA-F0-9]+)/i);
+        if (parts) {
+            return {
+                borderBottomWidth: parseInt(parts[1]),
+                borderBottomStyle: parts[2],
+                borderBottomColor: parts[3]
+            };
+        }
+        return {};
+    };
+
+    const getBorderTop = (borderShorthand) => {
+        if (!borderShorthand) return {};
+        const parts = borderShorthand.match(/(\d+)px\s+(\w+)\s+(#[a-fA-F0-9]+)/i);
+        if (parts) {
+            return {
+                borderTopWidth: parseInt(parts[1]),
+                borderTopStyle: parts[2],
+                borderTopColor: parts[3]
+            };
+        }
+        return {};
+    };
+
+    const styles = {
+        page: {
+            padding: template.pagePadding || 50,
+            fontSize: template.fontSize || 10.5,
+            fontFamily: fontFamily,
+            lineHeight: template.lineHeight || 1.5
+        },
+        header: {
+            textAlign: template.headerStyle?.textAlign || 'center',
+            marginBottom: template.headerStyle?.marginBottom || 20,
+            ...getBorderBottom(template.headerStyle?.borderBottom),
+            paddingBottom: template.headerStyle?.paddingBottom || 10
+        },
+        name: {
+            fontSize: template.nameStyle?.fontSize || 24,
+            fontWeight: template.nameStyle?.fontWeight || 'bold',
+            marginBottom: template.nameStyle?.marginBottom || 5,
+            textTransform: template.nameStyle?.textTransform || 'uppercase',
+            letterSpacing: template.nameStyle?.letterSpacing || 1,
+            color: template.nameStyle?.color || '#1a1f2e'
+        },
+        contactRow: {
+            fontSize: template.contactRow?.fontSize || 9,
+            color: template.contactRow?.color || '#666',
+            textAlign: template.contactRow?.textAlign || 'center',
+            marginTop: template.contactRow?.marginTop || 5
+        },
+        sectionTitle: {
+            fontSize: template.sectionStyle?.fontSize || 12,
+            fontWeight: template.sectionStyle?.fontWeight || 'bold',
+            marginTop: template.sectionStyle?.marginTop || 15,
+            marginBottom: template.sectionStyle?.marginBottom || 8,
+            textTransform: template.sectionStyle?.textTransform || 'uppercase',
+            letterSpacing: template.sectionStyle?.letterSpacing || 1,
+            backgroundColor: template.sectionStyle?.backgroundColor || 'transparent',
+            padding: template.sectionStyle?.padding || 0,
+            color: template.sectionStyle?.color || '#1a1f2e',
+            ...getBorderBottom(template.sectionStyle?.borderBottom),
+            ...getBorderTop(template.sectionStyle?.borderTop)
+        },
+        roleRow: {
+            display: 'flex',
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            alignItems: 'baseline',
+            marginTop: template.roleRow?.marginTop || 8
+        },
+        roleHeader: {
+            fontWeight: 'bold',
+            marginTop: 10,
+            marginBottom: 2,
+            fontSize: template.roleHeader?.fontSize || 11
+        },
+        companyText: {
+            fontSize: template.companyText?.fontSize || 10,
+            color: template.companyText?.color || '#666',
+            marginBottom: 4,
+            fontStyle: 'italic'
+        },
+        dateText: {
+            fontSize: template.dateText?.fontSize || 9,
+            color: template.dateText?.color || '#666',
+            textAlign: template.dateText?.textAlign || 'right'
+        },
+        bullet: {
+            marginLeft: 12,
+            marginBottom: 4,
+            fontSize: template.bullet?.fontSize || 10,
+            lineHeight: template.bullet?.lineHeight || 1.4
+        },
+        skillsText: {
+            fontSize: 9,
+            marginBottom: 8,
+            lineHeight: 1.4
+        },
+        skillItem: {
+            fontSize: template.skillChip?.fontSize || 9,
+            padding: template.skillChip?.padding || 4,
+            backgroundColor: template.skillChip?.backgroundColor || 'transparent',
+            marginRight: 6,
+            marginBottom: 6
+        }
+    };
+    return StyleSheet.create(styles);
 };
 
 // ============================================================
-// PDF Document Component
+// PDF Document Component - FIXED BUG 3 (Added missing sections) & BUG 7 (wrap={false})
 // ============================================================
 const ResumePDF = ({ personalInfo, summary, roles, skills, education, certifications, projects, publications, selectedTemplate }) => {
-    const styles = createPDFStyles(selectedTemplate);
-    const rolesPerPage = [];
-    let currentPage = [];
-    let currentBulletCount = 0;
-    const MAX_BULLETS_PER_PAGE = 12;
-    
-    for (const role of roles) {
-        if (currentBulletCount + role.bullets.length > MAX_BULLETS_PER_PAGE && currentPage.length > 0) {
-            rolesPerPage.push(currentPage);
-            currentPage = [role];
-            currentBulletCount = role.bullets.length;
-        } else {
-            currentPage.push(role);
-            currentBulletCount += role.bullets.length;
-        }
-    }
-    if (currentPage.length > 0) rolesPerPage.push(currentPage);
+    const template = TEMPLATES[selectedTemplate];
+    const styles = createPDFStyles(template);
     
     return (
         <Document>
             <Page size="LETTER" style={styles.page}>
+                {/* Header */}
                 <View style={styles.header}>
                     <Text style={styles.name}>{personalInfo.name || 'Your Name'}</Text>
                     <Text style={styles.contactRow}>
                         {[personalInfo.email, personalInfo.phone, personalInfo.linkedin, personalInfo.location].filter(Boolean).join(' | ')}
                     </Text>
                 </View>
+                
+                {/* Summary */}
                 {summary && (
-                    <>
+                    <View wrap={false}>
                         <Text style={styles.sectionTitle}>Professional Summary</Text>
                         <Text style={{ fontSize: 10, marginBottom: 12 }}>{summary}</Text>
-                    </>
+                    </View>
                 )}
+                
+                {/* Experience - BUG 7 FIX: wrap={false} prevents role splitting across pages */}
                 <Text style={styles.sectionTitle}>Experience</Text>
-                {(rolesPerPage[0] || []).map((role, idx) => (
-                    <View key={idx} style={{ marginBottom: 12 }}>
-                        <Text style={styles.roleHeader}>{role.title}</Text>
-                        <Text style={styles.companyText}>{role.company}</Text>
-                        <Text style={styles.dateText}>{role.startDate} – {role.endDate || 'Present'}</Text>
+                {roles.map((role, idx) => (
+                    <View key={idx} wrap={false} style={{ marginBottom: 12 }}>
+                        {template.roleRow ? (
+                            <View style={styles.roleRow}>
+                                <View>
+                                    <Text style={styles.roleHeader}>{role.title}</Text>
+                                    <Text style={styles.companyText}>{role.company}</Text>
+                                </View>
+                                <Text style={styles.dateText}>{role.startDate} – {role.endDate || 'Present'}</Text>
+                            </View>
+                        ) : (
+                            <>
+                                <Text style={styles.roleHeader}>{role.title}</Text>
+                                <Text style={styles.companyText}>{role.company}</Text>
+                                <Text style={styles.dateText}>{role.startDate} – {role.endDate || 'Present'}</Text>
+                            </>
+                        )}
                         {role.bullets.map((bullet, bidx) => (
                             <Text key={bidx} style={styles.bullet}>• {bullet.text}</Text>
                         ))}
                     </View>
                 ))}
-                {rolesPerPage.length === 1 && (
-                    <>
-                        {skills.length > 0 && (
-                            <>
-                                <Text style={styles.sectionTitle}>Skills</Text>
-                                <Text style={styles.skillsText}>{skills.join(' • ')}</Text>
-                            </>
-                        )}
-                        {education.length > 0 && education.some(e => e.degree) && (
-                            <>
-                                <Text style={styles.sectionTitle}>Education</Text>
-                                {education.map((edu, idx) => (
-                                    <View key={idx} style={{ marginBottom: 8 }}>
-                                        <Text style={styles.roleHeader}>{edu.degree}</Text>
-                                        <Text style={styles.companyText}>{edu.institution} {edu.year && `(${edu.year})`}</Text>
-                                    </View>
+                
+                {/* Skills */}
+                {skills.length > 0 && (
+                    <View wrap={false}>
+                        <Text style={styles.sectionTitle}>Skills</Text>
+                        <Text style={styles.skillsText}>{skills.join(' • ')}</Text>
+                    </View>
+                )}
+                
+                {/* Education */}
+                {education.length > 0 && education.some(e => e.degree) && (
+                    <View wrap={false}>
+                        <Text style={styles.sectionTitle}>Education</Text>
+                        {education.map((edu, idx) => (
+                            <View key={idx} style={{ marginBottom: 8 }}>
+                                <Text style={styles.roleHeader}>{edu.degree}</Text>
+                                <Text style={styles.companyText}>{edu.institution} {edu.year && `(${edu.year})`}</Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
+                
+                {/* FIXED BUG 3: Certifications Section - Added missing rendering */}
+                {certifications && certifications.length > 0 && (
+                    <View wrap={false}>
+                        <Text style={styles.sectionTitle}>Certifications</Text>
+                        {certifications.map((cert, idx) => (
+                            <Text key={idx} style={styles.bullet}>• {cert}</Text>
+                        ))}
+                    </View>
+                )}
+                
+                {/* FIXED BUG 3: Projects Section - Added missing rendering */}
+                {projects && projects.length > 0 && (
+                    <View wrap={false}>
+                        <Text style={styles.sectionTitle}>Projects</Text>
+                        {projects.map((project, idx) => (
+                            <View key={idx} style={{ marginBottom: 8 }}>
+                                <Text style={styles.roleHeader}>{project.name}</Text>
+                                {project.bullets && project.bullets.map((bullet, bidx) => (
+                                    <Text key={bidx} style={styles.bullet}>• {bullet}</Text>
                                 ))}
-                            </>
-                        )}
-                    </>
+                            </View>
+                        ))}
+                    </View>
+                )}
+                
+                {/* FIXED BUG 3: Publications Section - Added missing rendering */}
+                {publications && publications.length > 0 && (
+                    <View wrap={false}>
+                        <Text style={styles.sectionTitle}>Publications</Text>
+                        {publications.map((pub, idx) => (
+                            <Text key={idx} style={styles.bullet}>• {pub}</Text>
+                        ))}
+                    </View>
                 )}
             </Page>
-            {rolesPerPage.slice(1).map((pageRoles, pageIdx) => (
-                <Page key={pageIdx} size="LETTER" style={styles.page}>
-                    {pageRoles.map((role, idx) => (
-                        <View key={idx} style={{ marginBottom: 12 }}>
-                            <Text style={styles.roleHeader}>{role.title}</Text>
-                            <Text style={styles.companyText}>{role.company}</Text>
-                            <Text style={styles.dateText}>{role.startDate} – {role.endDate || 'Present'}</Text>
-                            {role.bullets.map((bullet, bidx) => (
-                                <Text key={bidx} style={styles.bullet}>• {bullet.text}</Text>
-                            ))}
-                        </View>
-                    ))}
-                    {pageIdx === rolesPerPage.length - 2 && (
-                        <>
-                            {skills.length > 0 && (
-                                <>
-                                    <Text style={styles.sectionTitle}>Skills</Text>
-                                    <Text style={styles.skillsText}>{skills.join(' • ')}</Text>
-                                </>
-                            )}
-                            {education.length > 0 && education.some(e => e.degree) && (
-                                <>
-                                    <Text style={styles.sectionTitle}>Education</Text>
-                                    {education.map((edu, idx) => (
-                                        <View key={idx} style={{ marginBottom: 8 }}>
-                                            <Text style={styles.roleHeader}>{edu.degree}</Text>
-                                            <Text style={styles.companyText}>{edu.institution} {edu.year && `(${edu.year})`}</Text>
-                                        </View>
-                                    ))}
-                                </>
-                            )}
-                        </>
-                    )}
-                </Page>
-            ))}
         </Document>
     );
 };
 
 // ============================================================
-// TEMPLATE STYLES
+// TEMPLATE STYLES - FIXED BUG 1 (Shorthand borders removed)
 // ============================================================
 const TEMPLATES = {
-    classic: { name: 'Classic Corporate', icon: '📄', fontFamily: "'Times New Roman', 'Georgia', serif", headerStyle: { borderBottom: '2px solid #1a1a1a', textTransform: 'uppercase', letterSpacing: '2px' }, sectionStyle: { borderBottom: '1px solid #1a1a1a', textTransform: 'uppercase', letterSpacing: '1px' } },
-    modern: { name: 'Modern Minimal', icon: '✨', fontFamily: "'Helvetica', 'Arial', sans-serif", headerStyle: { color: '#c9a84c', fontWeight: 600 }, sectionStyle: { color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600 } },
-    executive: { name: 'Executive', icon: '👑', fontFamily: "'Georgia', 'Times New Roman', serif", headerStyle: { color: '#2c1810', borderTop: '6px solid #c9a84c', paddingTop: '20px' }, sectionStyle: { color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '3px', fontWeight: 700 } },
-    ats: { name: 'ATS Optimized', icon: '🤖', fontFamily: "'Arial', sans-serif", headerStyle: { fontWeight: 700 }, sectionStyle: { backgroundColor: '#f0f0f0', padding: '6px 10px', fontWeight: 700, textTransform: 'uppercase' } },
-    veritas_signature: { name: 'Veritas Signature', icon: '👁️', fontFamily: "'Helvetica', 'Arial', sans-serif", headerStyle: { textAlign: 'center', marginBottom: '24px' }, nameStyle: { fontSize: 32, fontWeight: '800', color: '#1a1f2e' }, sectionStyle: { color: '#c9a84c', borderBottom: '1px solid #e6e4dd', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600, marginTop: 24, marginBottom: 12, paddingBottom: 4 } },
-    consultancy: { name: 'Consulting', icon: '📊', fontFamily: "'Helvetica', 'Arial', sans-serif", headerStyle: { borderBottom: '2px solid #000', paddingBottom: 8, marginBottom: 15 }, sectionStyle: { fontSize: 8, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1.5, borderBottom: '0.5px solid #000', paddingBottom: 2, marginTop: 16, marginBottom: 6 }, roleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }, dateText: { textAlign: 'right', fontSize: 9.5 } },
-    diplomat: { name: 'International Development', icon: '🌐', fontFamily: "'Helvetica', 'Arial', sans-serif", headerStyle: { marginBottom: 20 }, nameStyle: { fontSize: 20, fontWeight: 'bold', letterSpacing: 3, textTransform: 'uppercase', color: '#1a3a5c' }, sectionStyle: { fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 2, color: '#1a3a5c', borderBottom: '0.5px solid #1a3a5c', paddingBottom: 3, marginTop: 18, marginBottom: 8 } },
-    harvard: { name: 'Ivy League', icon: '🏛️', fontFamily: "'Times New Roman', 'Georgia', serif", headerStyle: { textAlign: 'center', borderBottom: '1px solid #000', paddingBottom: 8, marginBottom: 12 }, sectionStyle: { borderBottom: '1px solid #000', textTransform: 'uppercase', fontWeight: 'bold', marginTop: 16, marginBottom: 8, fontSize: 12 }, roleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 8 }, dateText: { textAlign: 'right', fontWeight: 'normal' } },
-    faang: { name: 'Silicon Valley Tech', icon: '💻', fontFamily: "'Courier New', monospace", headerStyle: { textAlign: 'left', marginBottom: 16 }, nameStyle: { fontSize: 28, fontWeight: '900', letterSpacing: '-0.5px' }, sectionStyle: { color: '#2563eb', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginTop: 20, marginBottom: 10 } },
-    legal: { name: 'Legal', icon: '⚖️', fontFamily: "'Times New Roman', 'Georgia', serif", headerStyle: { textAlign: 'center', marginBottom: 20 }, nameStyle: { fontSize: 26, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 2 }, sectionStyle: { fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, borderTop: '1px solid #000', borderBottom: '1px solid #000', paddingTop: 4, paddingBottom: 4, marginTop: 20, marginBottom: 12 } }
+    classic: {
+        name: 'Classic Corporate',
+        icon: '📄',
+        fontFamily: "'Times New Roman', 'Georgia', serif",
+        pagePadding: 50,
+        fontSize: 10.5,
+        lineHeight: 1.5,
+        headerStyle: { textAlign: 'center', marginBottom: 20, borderBottomWidth: 2, borderBottomStyle: 'solid', borderBottomColor: '#1a1a1a', paddingBottom: 10 },
+        nameStyle: { fontSize: 24, fontWeight: 'bold', marginBottom: 5, textTransform: 'uppercase', letterSpacing: 2 },
+        sectionStyle: { borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#1a1a1a', textTransform: 'uppercase', letterSpacing: 1, marginTop: 16, marginBottom: 8, fontSize: 12, fontWeight: 'bold' },
+        bullet: { fontSize: 10, lineHeight: 1.4 }
+    },
+    modern: {
+        name: 'Modern Minimal',
+        icon: '✨',
+        fontFamily: "'Helvetica', 'Arial', sans-serif",
+        pagePadding: 50,
+        fontSize: 10.5,
+        lineHeight: 1.5,
+        headerStyle: { textAlign: 'center', marginBottom: 24 },
+        nameStyle: { fontSize: 28, fontWeight: '600', color: '#1a1f2e' },
+        sectionStyle: { color: '#c9a84c', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#e6e4dd', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600, marginTop: 24, marginBottom: 12, paddingBottom: 4 }
+    },
+    executive: {
+        name: 'Executive',
+        icon: '👑',
+        fontFamily: "'Georgia', 'Times New Roman', serif",
+        pagePadding: 50,
+        fontSize: 10.5,
+        lineHeight: 1.5,
+        headerStyle: { textAlign: 'center', marginBottom: 20, borderTopWidth: 6, borderTopStyle: 'solid', borderTopColor: '#c9a84c', paddingTop: 20 },
+        nameStyle: { fontSize: 28, fontWeight: 'bold', color: '#2c1810' },
+        sectionStyle: { color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '3px', fontWeight: 700, marginTop: 24, marginBottom: 12 }
+    },
+    ats: {
+        name: 'ATS Optimized',
+        icon: '🤖',
+        fontFamily: "'Arial', sans-serif",
+        pagePadding: 50,
+        fontSize: 10.5,
+        lineHeight: 1.5,
+        headerStyle: { textAlign: 'center', marginBottom: 20 },
+        nameStyle: { fontSize: 24, fontWeight: 'bold' },
+        sectionStyle: { backgroundColor: '#f0f0f0', padding: '6px 10px', fontWeight: 700, textTransform: 'uppercase', marginTop: 15, marginBottom: 8 }
+    },
+    veritas_signature: {
+        name: 'Veritas Signature',
+        icon: '👁️',
+        fontFamily: "'Helvetica', 'Arial', sans-serif",
+        pagePadding: 50,
+        fontSize: 10.5,
+        lineHeight: 1.5,
+        headerStyle: { textAlign: 'center', marginBottom: 24 },
+        nameStyle: { fontSize: 32, fontWeight: '800', color: '#1a1f2e' },
+        sectionStyle: { color: '#c9a84c', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#e6e4dd', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600, marginTop: 24, marginBottom: 12, paddingBottom: 4 }
+    },
+    consultancy: {
+        name: 'Consulting',
+        icon: '📊',
+        fontFamily: "'Helvetica', 'Arial', sans-serif",
+        pagePadding: 50,
+        fontSize: 10.5,
+        lineHeight: 1.45,
+        headerStyle: { borderBottomWidth: 2, borderBottomStyle: 'solid', borderBottomColor: '#000', paddingBottom: 8, marginBottom: 15 },
+        nameStyle: { fontSize: 18, fontWeight: 'bold', marginBottom: 3 },
+        sectionStyle: { fontSize: 8, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1.5, borderBottomWidth: 0.5, borderBottomStyle: 'solid', borderBottomColor: '#000', paddingBottom: 2, marginTop: 16, marginBottom: 6 },
+        roleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 8 },
+        roleHeader: { fontSize: 10.5, fontWeight: 'bold' },
+        companyText: { fontSize: 9, color: '#4a4a4a', fontStyle: 'italic', marginBottom: 4 },
+        dateText: { textAlign: 'right', fontSize: 9.5 },
+        bullet: { fontSize: 9.5, marginLeft: 8, marginBottom: 4, lineHeight: 1.4 }
+    },
+    diplomat: {
+        name: 'International Development',
+        icon: '🌐',
+        fontFamily: "'Helvetica', 'Arial', sans-serif",
+        pagePadding: 55,
+        fontSize: 10.5,
+        lineHeight: 1.6,
+        headerStyle: { marginBottom: 20 },
+        nameStyle: { fontSize: 20, fontWeight: 'bold', letterSpacing: 3, textTransform: 'uppercase', color: '#1a3a5c' },
+        sectionStyle: { fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 2, color: '#1a3a5c', borderBottomWidth: 0.5, borderBottomStyle: 'solid', borderBottomColor: '#1a3a5c', paddingBottom: 3, marginTop: 18, marginBottom: 8 },
+        roleHeader: { fontSize: 11, fontWeight: 'bold' },
+        companyText: { fontSize: 9, color: '#4a4a4a', fontStyle: 'italic' },
+        bullet: { fontSize: 10, marginLeft: 10, marginBottom: 5, lineHeight: 1.5 }
+    },
+    harvard: {
+        name: 'Ivy League',
+        icon: '🏛️',
+        fontFamily: "'Times New Roman', 'Georgia', serif",
+        pagePadding: 50,
+        fontSize: 10.5,
+        lineHeight: 1.5,
+        headerStyle: { textAlign: 'center', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#000', paddingBottom: 8, marginBottom: 12 },
+        nameStyle: { fontSize: 24, fontWeight: 'bold', textTransform: 'uppercase' },
+        sectionStyle: { borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#000', textTransform: 'uppercase', fontWeight: 'bold', marginTop: 16, marginBottom: 8, fontSize: 12 },
+        roleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 8 },
+        roleHeader: { fontWeight: 'bold' },
+        companyText: { fontStyle: 'italic', fontWeight: 'normal' },
+        dateText: { textAlign: 'right', fontWeight: 'normal' },
+        bullet: { marginLeft: 16, marginBottom: 2, fontSize: 10 }
+    },
+    faang: {
+        name: 'Silicon Valley Tech',
+        icon: '💻',
+        fontFamily: "'Courier New', monospace",
+        pagePadding: 50,
+        fontSize: 10.5,
+        lineHeight: 1.5,
+        headerStyle: { textAlign: 'left', marginBottom: 16 },
+        nameStyle: { fontSize: 28, fontWeight: '900', letterSpacing: '-0.5px' },
+        sectionStyle: { color: '#2563eb', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginTop: 20, marginBottom: 10 },
+        skillChip: { backgroundColor: 'transparent', padding: 0, marginRight: 8, fontWeight: 'bold' },
+        bullet: { marginLeft: 14, marginBottom: 4, fontSize: 9.5 }
+    },
+    legal: {
+        name: 'Legal',
+        icon: '⚖️',
+        fontFamily: "'Times New Roman', 'Georgia', serif",
+        pagePadding: 50,
+        fontSize: 10.5,
+        lineHeight: 1.5,
+        headerStyle: { textAlign: 'center', marginBottom: 20 },
+        nameStyle: { fontSize: 26, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 2 },
+        sectionStyle: { fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, borderTopWidth: 1, borderTopStyle: 'solid', borderTopColor: '#000', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#000', paddingTop: 4, paddingBottom: 4, marginTop: 20, marginBottom: 12 },
+        roleHeader: { fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase' },
+        companyText: { fontSize: 10, fontStyle: 'italic', marginBottom: 4 },
+        bullet: { marginLeft: 16, marginBottom: 4, fontSize: 10, lineHeight: 1.4 },
+        publicationStyle: { marginLeft: 16, marginBottom: 2, fontSize: 9, fontStyle: 'italic', color: '#4a4a4a' }
+    }
 };
 
 // ============================================================
@@ -424,21 +647,63 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, aiRoles, 
     );
 };
 
+// ============================================================
+// SKILLS ADVANCED EDITOR - FIXED BUG 4 & BUG 5
+// ============================================================
 const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
-    const [subcategories, setSubcategories] = useState([{ name: 'Core Competencies', skills: [] }, { name: 'Tools & Technologies', skills: [] }]);
+    // FIXED BUG 4: Removed the useEffect that auto-splits skills
+    // User now has full control over subcategories
+    const [subcategories, setSubcategories] = useState([
+        { name: 'Core Competencies', skills: [] },
+        { name: 'Tools & Technologies', skills: [] }
+    ]);
     const [displayMode, setDisplayMode] = useState('chips');
     const [columnCount, setColumnCount] = useState(2);
+    
+    // Load initial skills into subcategories only once
+    const [initialized, setInitialized] = useState(false);
     useEffect(() => {
-        if (skills.length > 0 && subcategories[0].skills.length === 0) {
+        if (!initialized && skills.length > 0) {
             const midPoint = Math.ceil(skills.length / 2);
-            setSubcategories([{ name: 'Core Competencies', skills: skills.slice(0, midPoint) }, { name: 'Tools & Technologies', skills: skills.slice(midPoint) }]);
+            setSubcategories([
+                { name: 'Core Competencies', skills: skills.slice(0, midPoint) },
+                { name: 'Tools & Technologies', skills: skills.slice(midPoint) }
+            ]);
+            setInitialized(true);
         }
-    }, [skills]);
-    const addSubcategory = () => setSubcategories([...subcategories, { name: 'New Category', skills: [] }]);
-    const updateSubcategoryName = (idx, name) => { const updated = [...subcategories]; updated[idx].name = name; setSubcategories(updated); };
-    const addSkillToSubcategory = (idx, skill) => { if (skill && !subcategories[idx].skills.includes(skill)) { const updated = [...subcategories]; updated[idx].skills.push(skill); setSubcategories(updated); } };
-    const removeSkillFromSubcategory = (catIdx, skillIdx) => { const updated = [...subcategories]; updated[catIdx].skills.splice(skillIdx, 1); setSubcategories(updated); };
-    const saveSkills = () => { const allSkills = subcategories.flatMap(cat => cat.skills); setSkills(allSkills); if (onSave) onSave(allSkills); };
+    }, [skills, initialized]);
+    
+    const addSubcategory = () => {
+        setSubcategories([...subcategories, { name: 'New Category', skills: [] }]);
+    };
+    
+    const updateSubcategoryName = (idx, name) => {
+        const updated = [...subcategories];
+        updated[idx].name = name;
+        setSubcategories(updated);
+    };
+    
+    // FIXED BUG 5: This function now works correctly
+    const addSkillToSubcategory = (catIdx, skill) => {
+        if (skill && !subcategories[catIdx].skills.includes(skill)) {
+            const updated = [...subcategories];
+            updated[catIdx].skills.push(skill);
+            setSubcategories(updated);
+        }
+    };
+    
+    const removeSkillFromSubcategory = (catIdx, skillIdx) => {
+        const updated = [...subcategories];
+        updated[catIdx].skills.splice(skillIdx, 1);
+        setSubcategories(updated);
+    };
+    
+    const saveSkills = () => {
+        const allSkills = subcategories.flatMap(cat => cat.skills);
+        setSkills(allSkills);
+        if (onSave) onSave(allSkills);
+    };
+    
     return (
         <div>
             <div style={{ marginBottom: '12px', display: 'flex', gap: '12px', alignItems: 'center' }}>
@@ -468,7 +733,13 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
                     </div>
                     <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
                         <input type="text" placeholder="Add skill..." onKeyPress={(e) => { if (e.key === 'Enter') { addSkillToSubcategory(catIdx, e.target.value); e.target.value = ''; } }} style={{ flex: 1, padding: '6px 10px', fontSize: '11px', borderRadius: '4px', border: '1px solid #e6e4dd' }} />
-                        <button onClick={() => { const input = document.activeElement; if (input && input.tagName === 'INPUT') { addSkillToSubcategory(catIdx, input.value); input.value = ''; } }} style={{ padding: '4px 10px', fontSize: '11px' }}>Add</button>
+                        <button onClick={() => {
+                            const input = document.activeElement;
+                            if (input && input.tagName === 'INPUT' && input.value) {
+                                addSkillToSubcategory(catIdx, input.value);
+                                input.value = '';
+                            }
+                        }} style={{ padding: '4px 10px', fontSize: '11px' }}>Add</button>
                     </div>
                 </div>
             ))}
@@ -916,15 +1187,35 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         setCertifications(prev => prev.filter((_, i) => i !== index));
         saveSnapshot();
     };
+    
+    // FIXED BUG 6: Custom section position is now respected
     const addCustomSection = (name, type, position) => {
-        setCustomSections(prev => [...prev, {
+        const newSection = {
             id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
             name,
             type,
             content: type === 'bulleted' ? [] : ''
-        }]);
+        };
+        
+        setCustomSections(prev => {
+            const newSections = [...prev];
+            if (position === 'top') {
+                newSections.unshift(newSection);
+            } else if (position === 'after-summary') {
+                // Find index after summary (or at position 1 if no summary)
+                const insertIndex = 1;
+                newSections.splice(insertIndex, 0, newSection);
+            } else if (position === 'after-experience') {
+                // Insert before skills/education (at position that makes sense)
+                newSections.push(newSection);
+            } else {
+                newSections.push(newSection);
+            }
+            return newSections;
+        });
         saveSnapshot();
     };
+    
     const updateSummary = (newText) => {
         setSummary(newText);
     };

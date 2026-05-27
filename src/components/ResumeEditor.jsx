@@ -10,25 +10,23 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.j
 // DETERMINISTIC SCORING LIBRARIES
 // ============================================================
 import { calculateATSScore, calculateFitScore, calculateCredibilityScore, calculateSemanticPosition } from '../utils/scoreCalculator.js';
-import { calculateDeterministicBloom, analyzeBulletBloom } from '../utils/deterministicBloom.js';
-import { parseResume, groupBulletsByJob } from '../utils/bulletParser.js';
+import { analyzeBulletBloom } from '../utils/deterministicBloom.js';
+import { parseResume } from '../utils/bulletParser.js';
 import { detectSeniorityFromText } from '../utils/seniorityDetector.js';
-import { parseJobDescription, extractEducationRequired, extractYearsRequired as extractJDYears } from '../utils/jdParser.js';
+import { parseJobDescription, extractYearsRequired as extractJDYears } from '../utils/jdParser.js';
 import { analyzeVerbs } from '../utils/verbs.js';
 import { detectBuzzwords } from '../utils/buzzwords.js';
 import { calculateMetricStrength } from '../utils/metricsPatterns.js';
 import { calculateRIASECDeterministic } from '../utils/riasec.js';
-import { countTechnicalSkills } from '../utils/skillDictionary.js';
-import { extractPersonalInfo, formatContactLine } from '../utils/personalInfoExtractor.js';
+import { extractPersonalInfo } from '../utils/personalInfoExtractor.js';
 
 // ============================================================
-// PDF STYLES - FIXED: Accepts template key (string), not object
+// PDF STYLES - FIXED (#9, #18)
 // ============================================================
 const createPDFStyles = (templateKey) => {
     const t = TEMPLATES[templateKey];
     if (!t) return StyleSheet.create({ page: { padding: 50, fontSize: 10.5, fontFamily: 'Helvetica' } });
     
-    // Font family mapping
     let fontFamily = 'Helvetica';
     if (t.name === 'classic' || t.name === 'harvard' || t.name === 'legal') fontFamily = 'Times-Roman';
     if (t.name === 'executive') fontFamily = 'Times-Roman';
@@ -37,19 +35,6 @@ const createPDFStyles = (templateKey) => {
     if (t.name === 'diplomat') fontFamily = 'Helvetica';
     if (t.name === 'faang') fontFamily = 'Courier';
     if (t.name === 'ats') fontFamily = 'Helvetica';
-    
-    // Helper to safely get border properties
-    const getBorderBottom = (style) => ({
-        borderBottomWidth: style?.borderBottomWidth,
-        borderBottomStyle: style?.borderBottomStyle,
-        borderBottomColor: style?.borderBottomColor
-    });
-    
-    const getBorderTop = (style) => ({
-        borderTopWidth: style?.borderTopWidth,
-        borderTopStyle: style?.borderTopStyle,
-        borderTopColor: style?.borderTopColor
-    });
     
     return StyleSheet.create({
         page: {
@@ -62,8 +47,12 @@ const createPDFStyles = (templateKey) => {
             textAlign: t.headerStyle?.textAlign || 'center',
             marginBottom: t.headerStyle?.marginBottom || 20,
             paddingBottom: t.headerStyle?.paddingBottom || 10,
-            ...getBorderBottom(t.headerStyle),
-            ...getBorderTop(t.headerStyle)
+            borderBottomWidth: t.headerStyle?.borderBottomWidth,
+            borderBottomStyle: t.headerStyle?.borderBottomStyle,
+            borderBottomColor: t.headerStyle?.borderBottomColor,
+            borderTopWidth: t.headerStyle?.borderTopWidth,
+            borderTopStyle: t.headerStyle?.borderTopStyle,
+            borderTopColor: t.headerStyle?.borderTopColor
         },
         name: {
             fontSize: t.nameStyle?.fontSize || 24,
@@ -89,15 +78,19 @@ const createPDFStyles = (templateKey) => {
             backgroundColor: t.sectionStyle?.backgroundColor || 'transparent',
             padding: t.sectionStyle?.padding || 0,
             color: t.sectionStyle?.color || '#1a1f2e',
-            ...getBorderBottom(t.sectionStyle),
-            ...getBorderTop(t.sectionStyle)
+            borderBottomWidth: t.sectionStyle?.borderBottomWidth,
+            borderBottomStyle: t.sectionStyle?.borderBottomStyle,
+            borderBottomColor: t.sectionStyle?.borderBottomColor,
+            borderTopWidth: t.sectionStyle?.borderTopWidth,
+            borderTopStyle: t.sectionStyle?.borderTopStyle,
+            borderTopColor: t.sectionStyle?.borderTopColor
         },
         roleRow: {
             display: 'flex',
             flexDirection: 'row',
             justifyContent: 'space-between',
-            alignItems: 'baseline',
-            marginTop: 8
+            alignItems: 'center',
+            marginTop: t.roleRow?.marginTop || 8
         },
         roleHeader: {
             fontWeight: 'bold',
@@ -112,9 +105,9 @@ const createPDFStyles = (templateKey) => {
             fontStyle: 'italic'
         },
         dateText: {
-            fontSize: 9,
+            fontSize: t.dateText?.fontSize || 9,
             color: '#666',
-            textAlign: 'right'
+            textAlign: t.dateText?.textAlign || 'right'
         },
         bullet: {
             marginLeft: 12,
@@ -131,15 +124,15 @@ const createPDFStyles = (templateKey) => {
 };
 
 // ============================================================
-// PDF Document Component - FIXED: Single page with wrap={false}
+// PDF Document Component - FIXED (#17, #7)
 // ============================================================
-const ResumePDF = ({ personalInfo, summary, roles, skills, education, certifications, projects, publications, selectedTemplate, customSections }) => {
+const ResumePDF = ({ personalInfo, summary, roles, skills, education, certifications, projects, publications, selectedTemplate, customSections, dateFormat, formatDate }) => {
     const styles = createPDFStyles(selectedTemplate);
     
     return (
         <Document>
             <Page size="LETTER" style={styles.page}>
-                {/* Header */}
+                {/* Header - keep wrap={false} */}
                 <View style={styles.header} wrap={false}>
                     <Text style={styles.name}>{personalInfo.name || 'Your Name'}</Text>
                     <Text style={styles.contactRow}>
@@ -147,31 +140,31 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                     </Text>
                 </View>
                 
-                {/* Summary */}
+                {/* Summary - allow wrap */}
                 {summary && (
-                    <View wrap={false}>
+                    <View>
                         <Text style={styles.sectionTitle}>Professional Summary</Text>
                         <Text style={{ fontSize: 10, marginBottom: 12 }}>{summary}</Text>
                     </View>
                 )}
                 
-                {/* Experience - each role wrapped to prevent splitting */}
+                {/* Experience - allow wrap for pagination */}
                 <Text style={styles.sectionTitle}>Experience</Text>
                 {roles.map((role, idx) => (
-                    <View key={idx} wrap={false} style={{ marginBottom: 12 }}>
+                    <View key={idx} style={{ marginBottom: 12 }}>
                         {styles.roleRow ? (
                             <View style={styles.roleRow}>
                                 <View>
                                     <Text style={styles.roleHeader}>{role.title}</Text>
                                     <Text style={styles.companyText}>{role.company}</Text>
                                 </View>
-                                <Text style={styles.dateText}>{role.startDate} – {role.endDate || 'Present'}</Text>
+                                <Text style={styles.dateText}>{formatDate ? formatDate(role.startDate) : role.startDate} – {formatDate ? formatDate(role.endDate) : (role.endDate || 'Present')}</Text>
                             </View>
                         ) : (
                             <>
                                 <Text style={styles.roleHeader}>{role.title}</Text>
                                 <Text style={styles.companyText}>{role.company}</Text>
-                                <Text style={styles.dateText}>{role.startDate} – {role.endDate || 'Present'}</Text>
+                                <Text style={styles.dateText}>{formatDate ? formatDate(role.startDate) : role.startDate} – {formatDate ? formatDate(role.endDate) : (role.endDate || 'Present')}</Text>
                             </>
                         )}
                         {role.bullets.map((bullet, bidx) => (
@@ -182,7 +175,7 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                 
                 {/* Skills */}
                 {skills.length > 0 && (
-                    <View wrap={false}>
+                    <View>
                         <Text style={styles.sectionTitle}>Skills</Text>
                         <Text style={styles.skillsText}>{skills.join(' • ')}</Text>
                     </View>
@@ -190,7 +183,7 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                 
                 {/* Education */}
                 {education.length > 0 && education.some(e => e.degree) && (
-                    <View wrap={false}>
+                    <View>
                         <Text style={styles.sectionTitle}>Education</Text>
                         {education.map((edu, idx) => (
                             <View key={idx} style={{ marginBottom: 8 }}>
@@ -203,7 +196,7 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                 
                 {/* Certifications */}
                 {certifications && certifications.length > 0 && (
-                    <View wrap={false}>
+                    <View>
                         <Text style={styles.sectionTitle}>Certifications</Text>
                         {certifications.map((cert, idx) => (
                             <Text key={idx} style={styles.bullet}>• {cert}</Text>
@@ -213,7 +206,7 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                 
                 {/* Projects */}
                 {projects && projects.length > 0 && (
-                    <View wrap={false}>
+                    <View>
                         <Text style={styles.sectionTitle}>Projects</Text>
                         {projects.map((project, idx) => (
                             <View key={idx} style={{ marginBottom: 8 }}>
@@ -228,7 +221,7 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                 
                 {/* Publications */}
                 {publications && publications.length > 0 && (
-                    <View wrap={false}>
+                    <View>
                         <Text style={styles.sectionTitle}>Publications</Text>
                         {publications.map((pub, idx) => (
                             <Text key={idx} style={styles.bullet}>• {pub}</Text>
@@ -238,7 +231,7 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                 
                 {/* Custom Sections */}
                 {customSections && customSections.map((section, idx) => (
-                    <View key={idx} wrap={false}>
+                    <View key={idx}>
                         <Text style={styles.sectionTitle}>{section.name}</Text>
                         {section.type === 'bulleted' ? (
                             Array.isArray(section.content) && section.content.map((item, i) => (
@@ -255,12 +248,13 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
 };
 
 // ============================================================
-// TEMPLATE STYLES - Fixed borders with explicit properties
+// TEMPLATE STYLES - FIXED (#10 - added fontFamily)
 // ============================================================
 const TEMPLATES = {
     classic: {
         name: 'classic',
         icon: '📄',
+        fontFamily: "'Times New Roman', 'Georgia', serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
@@ -271,6 +265,7 @@ const TEMPLATES = {
     modern: {
         name: 'modern',
         icon: '✨',
+        fontFamily: "'Helvetica', 'Arial', sans-serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
@@ -281,6 +276,7 @@ const TEMPLATES = {
     executive: {
         name: 'executive',
         icon: '👑',
+        fontFamily: "'Georgia', 'Times New Roman', serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
@@ -291,6 +287,7 @@ const TEMPLATES = {
     ats: {
         name: 'ats',
         icon: '🤖',
+        fontFamily: "'Arial', sans-serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
@@ -301,6 +298,7 @@ const TEMPLATES = {
     veritas_signature: {
         name: 'veritas_signature',
         icon: '👁️',
+        fontFamily: "'Helvetica', 'Arial', sans-serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
@@ -311,18 +309,20 @@ const TEMPLATES = {
     consultancy: {
         name: 'consultancy',
         icon: '📊',
+        fontFamily: "'Helvetica', 'Arial', sans-serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.45,
         headerStyle: { borderBottomWidth: 2, borderBottomStyle: 'solid', borderBottomColor: '#000', paddingBottom: 8, marginBottom: 15 },
         nameStyle: { fontSize: 18, fontWeight: 'bold', marginBottom: 3 },
         sectionStyle: { fontSize: 8, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1.5, borderBottomWidth: 0.5, borderBottomStyle: 'solid', borderBottomColor: '#000', paddingBottom: 2, marginTop: 16, marginBottom: 6 },
-        roleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 8 },
+        roleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
         dateText: { textAlign: 'right', fontSize: 9.5 }
     },
     diplomat: {
         name: 'diplomat',
         icon: '🌐',
+        fontFamily: "'Helvetica', 'Arial', sans-serif",
         pagePadding: 55,
         fontSize: 10.5,
         lineHeight: 1.6,
@@ -333,18 +333,20 @@ const TEMPLATES = {
     harvard: {
         name: 'harvard',
         icon: '🏛️',
+        fontFamily: "'Times New Roman', 'Georgia', serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
         headerStyle: { textAlign: 'center', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#000', paddingBottom: 8, marginBottom: 12 },
         nameStyle: { fontSize: 24, fontWeight: 'bold', textTransform: 'uppercase' },
         sectionStyle: { borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#000', textTransform: 'uppercase', fontWeight: 'bold', marginTop: 16, marginBottom: 8, fontSize: 12 },
-        roleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 8 },
+        roleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 },
         dateText: { textAlign: 'right', fontWeight: 'normal' }
     },
     faang: {
         name: 'faang',
         icon: '💻',
+        fontFamily: "'Courier New', monospace",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
@@ -355,6 +357,7 @@ const TEMPLATES = {
     legal: {
         name: 'legal',
         icon: '⚖️',
+        fontFamily: "'Times New Roman', 'Georgia', serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
@@ -367,6 +370,14 @@ const TEMPLATES = {
 // ============================================================
 // HELPER FUNCTIONS
 // ============================================================
+function safeUUID() {
+    try {
+        return crypto.randomUUID();
+    } catch {
+        return `${Date.now()}-${Math.random()}`;
+    }
+}
+
 function extractJDFeatures(jdText) {
     if (!jdText) return null;
     const seniority = detectSeniorityFromText(jdText);
@@ -398,95 +409,24 @@ function calculateKeywordMatchRate(resumeText, jdKeywords) {
     return Math.round((matchCount / jdKeywords.length) * 100);
 }
 
-function extractEducationFromText(text) {
-    const educationList = [];
-    const lines = text.split('\n');
-    const degreePatterns = [
-        /^(bachelor(?:'s)?|b\.?sc?\.?|b\.?a\.?)\s+(?:of|in)\s+/i,
-        /^(master(?:'s)?|m\.?sc?\.?|m\.?a\.?|mba|mph|mpa)\s+(?:of|in)\s+/i,
-        /^(ph\.?d\.?|doctorate|doctor of)\s+/i,
-        /^(associate(?:'s)?)\s+(?:of|in|degree)\s+/i,
-        /degree\s+in\s+/i,
-        /graduated\s+(?:from|with)/i
-    ];
-    for (let i = 0; i < lines.length; i++) {
-        const line = lines[i].trim();
-        if (degreePatterns.some(pattern => pattern.test(line))) {
-            educationList.push({
-                id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-                degree: line,
-                institution: lines[i + 1]?.trim() || '',
-                year: lines[i + 2]?.match(/\d{4}/)?.[0] || ''
-            });
-            i += 2;
-        }
-    }
-    if (educationList.length === 0) {
-        educationList.push({ id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`, degree: '', institution: '', year: '' });
-    }
-    return educationList;
-}
-
-function extractCertificationsFromText(text) {
-    const certs = [];
-    const lines = text.split('\n');
-    const certPatterns = [
-        /\b(certified|certification|certificate)\b/i,
-        /\bpmp\b|\bcissp\b|\bcsm\b|\bpsm\b/i,
-        /\b(aws|azure|gcp)\s+(certified|certification|associate|professional|architect|developer)\b/i,
-        /\b(issued|awarded|completed)\s+by\b/i,
-        /\bcredential\b/i
-    ];
-    for (const line of lines) {
-        if (certPatterns.some(pattern => pattern.test(line)) && line.trim().length > 0) {
-            certs.push(line.trim());
-        }
-    }
-    return certs;
-}
-
-function extractProjectsFromText(text) {
-    const projectsList = [];
-    const lowerText = text.toLowerCase();
-    const projectSection = lowerText.match(/projects?:?([\s\S]*?)(?:\n\n|\n(?=[A-Z][a-z]+:))/i);
-    if (projectSection) {
-        const projectLines = projectSection[1].split('\n');
-        let currentProject = null;
-        for (const line of projectLines) {
-            if (line.trim().match(/^[A-Z][a-z]+/)) {
-                if (currentProject) projectsList.push(currentProject);
-                currentProject = {
-                    id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
-                    name: line.trim(),
-                    bullets: []
-                };
-            } else if (currentProject && line.trim().match(/^[•\-*]/)) {
-                currentProject.bullets.push(line.trim().replace(/^[•\-*]\s*/, ''));
+// ============================================================
+// FORMAT DATE - FIXED (#7 - used in PDF export)
+// ============================================================
+function formatDate(dateStr, dateFormatPreference) {
+    if (!dateStr) return '';
+    if (dateFormatPreference === 'MM/YYYY' && dateStr.match(/^\d{1,2}\/\d{4}$/)) return dateStr;
+    if (dateFormatPreference === 'Month YYYY') {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const match = dateStr.match(/^(\d{1,2})\/(\d{4})$/);
+        if (match) {
+            const monthNum = parseInt(match[1], 10);
+            if (monthNum >= 1 && monthNum <= 12) {
+                return `${months[monthNum - 1]} ${match[2]}`;
             }
-        }
-        if (currentProject) projectsList.push(currentProject);
-    }
-    return projectsList;
-}
-
-function extractPublicationsFromText(text) {
-    const pubs = [];
-    const lines = text.split('\n');
-    const pubKeywords = ['publication', 'paper', 'journal', 'conference', 'doi'];
-    for (const line of lines) {
-        if (pubKeywords.some(keyword => line.toLowerCase().includes(keyword))) {
-            pubs.push(line.trim());
+            return match[0];
         }
     }
-    return pubs;
-}
-
-function extractSkillsFromText(text) {
-    const skillsFound = new Set();
-    const lowerText = text.toLowerCase();
-    const commonSkills = ['python', 'sql', 'excel', 'power bi', 'tableau', 'project management', 'data analysis', 'stakeholder management', 'agile', 'scrum', 'jira', 'leadership', 'communication', 'strategic planning', 'risk management'];
-    for (const skill of commonSkills) { if (lowerText.includes(skill)) skillsFound.add(skill); }
-    return Array.from(skillsFound);
+    return dateStr;
 }
 
 // ============================================================
@@ -577,43 +517,61 @@ const AILoadingOverlay = ({ message }) => (
     </div>
 );
 
-const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, aiRoles, onAcceptAI }) => {
-    if (!isOpen) return null;
+// ============================================================
+// AI Parser Comparison Modal - FIXED (#5)
+// ============================================================
+const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, deterministicSkills, deterministicEducation, aiParsedData, onAcceptAI }) => {
+    if (!isOpen || !aiParsedData) return null;
+    
     const deterministicCount = deterministicRoles.reduce((acc, r) => acc + r.bullets.length, 0);
-    const aiCount = aiRoles.reduce((acc, r) => acc + r.bullets.length, 0);
+    const aiCount = aiParsedData.roles?.reduce((acc, r) => acc + r.bullets.length, 0) || 0;
+    
     return (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, overflowY: 'auto', padding: '20px' }}>
-            <div style={{ background: 'white', borderRadius: '12px', width: '800px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto' }}>
+            <div style={{ background: 'white', borderRadius: '12px', width: '900px', maxWidth: '95%', maxHeight: '90vh', overflowY: 'auto' }}>
                 <div style={{ padding: '20px', borderBottom: '1px solid #e6e4dd', background: '#f8f7f4' }}>
                     <h3 style={{ margin: 0, color: '#c9a84c' }}>🤖 AI Parse Results</h3>
                     <p style={{ marginTop: '8px', fontSize: '13px', color: '#6b7280' }}>Compare deterministic parser vs AI parser results. Choose which version to use.</p>
                 </div>
+                
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', padding: '20px' }}>
+                    {/* Deterministic Column */}
                     <div style={{ border: '1px solid #3b82f6', borderRadius: '8px', overflow: 'hidden' }}>
                         <div style={{ background: '#3b82f6', padding: '12px', color: 'white', fontWeight: 600 }}>🔍 Deterministic Parser</div>
-                        <div style={{ padding: '16px', maxHeight: '400px', overflowY: 'auto' }}>
-                            <div style={{ fontSize: '12px', marginBottom: '8px' }}><strong>{deterministicRoles.length}</strong> roles, <strong>{deterministicCount}</strong> bullets</div>
-                            {deterministicRoles.slice(0, 5).map((role, i) => (
-                                <div key={i} style={{ marginBottom: '12px', fontSize: '11px', padding: '8px', background: '#f8f7f4', borderRadius: '4px' }}>
-                                    <strong>{role.title}</strong> @ {role.company}<br />{role.bullets.length} bullets
+                        <div style={{ padding: '16px', maxHeight: '500px', overflowY: 'auto' }}>
+                            <div><strong>{deterministicRoles.length}</strong> roles, <strong>{deterministicCount}</strong> bullets</div>
+                            <div><strong>{deterministicSkills?.length || 0}</strong> skills</div>
+                            <div><strong>{deterministicEducation?.length || 0}</strong> education entries</div>
+                            {deterministicRoles.slice(0, 3).map((role, i) => (
+                                <div key={i} style={{ marginTop: '12px', padding: '8px', background: '#f8f7f4', borderRadius: '4px', fontSize: '12px' }}>
+                                    <strong>{role.title}</strong> @ {role.company}<br />
+                                    {role.bullets.length} bullets
                                 </div>
                             ))}
-                            {deterministicRoles.length > 5 && <div style={{ fontSize: '11px', color: '#6b7280' }}>+{deterministicRoles.length - 5} more roles</div>}
                         </div>
                     </div>
+                    
+                    {/* AI Column */}
                     <div style={{ border: '1px solid #8b5cf6', borderRadius: '8px', overflow: 'hidden' }}>
-                        <div style={{ background: '#8b5cf6', padding: '12px', color: 'white', fontWeight: 600 }}>🤖 AI Parser (Gemini 3.1)</div>
-                        <div style={{ padding: '16px', maxHeight: '400px', overflowY: 'auto' }}>
-                            <div style={{ fontSize: '12px', marginBottom: '8px' }}><strong>{aiRoles.length}</strong> roles, <strong>{aiCount}</strong> bullets</div>
-                            {aiRoles.slice(0, 5).map((role, i) => (
-                                <div key={i} style={{ marginBottom: '12px', fontSize: '11px', padding: '8px', background: '#f8f7f4', borderRadius: '4px' }}>
-                                    <strong>{role.title}</strong> @ {role.company}<br />{role.bullets.length} bullets
+                        <div style={{ background: '#8b5cf6', padding: '12px', color: 'white', fontWeight: 600 }}>🤖 AI Parser (Gemma 4 31B)</div>
+                        <div style={{ padding: '16px', maxHeight: '500px', overflowY: 'auto' }}>
+                            <div><strong>{aiParsedData.roles?.length || 0}</strong> roles, <strong>{aiCount}</strong> bullets</div>
+                            <div><strong>{aiParsedData.skills?.length || 0}</strong> skills</div>
+                            <div><strong>{aiParsedData.education?.length || 0}</strong> education entries</div>
+                            {aiParsedData.projects?.length > 0 && <div><strong>{aiParsedData.projects.length}</strong> projects</div>}
+                            {aiParsedData.certifications?.length > 0 && <div><strong>{aiParsedData.certifications.length}</strong> certifications</div>}
+                            {aiParsedData.publications?.length > 0 && <div><strong>{aiParsedData.publications.length}</strong> publications</div>}
+                            
+                            {aiParsedData.roles?.slice(0, 3).map((role, i) => (
+                                <div key={i} style={{ marginTop: '12px', padding: '8px', background: '#f8f7f4', borderRadius: '4px', fontSize: '12px' }}>
+                                    <strong>{role.title}</strong> @ {role.company}<br />
+                                    {role.bullets.length} bullets
                                 </div>
                             ))}
-                            {aiRoles.length > 5 && <div style={{ fontSize: '11px', color: '#6b7280' }}>+{aiRoles.length - 5} more roles</div>}
                         </div>
                     </div>
                 </div>
+                
                 <div style={{ padding: '20px', borderTop: '1px solid #e6e4dd', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
                     <button onClick={onClose} style={{ padding: '8px 16px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
                     <button onClick={onAcceptAI} style={{ padding: '8px 16px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}>Use AI Parser Results</button>
@@ -624,7 +582,7 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, aiRoles, 
 };
 
 // ============================================================
-// SKILLS ADVANCED EDITOR - Fixed with all display options
+// SKILLS ADVANCED EDITOR - FIXED (#11)
 // ============================================================
 const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
     const [subcategories, setSubcategories] = useState([
@@ -633,18 +591,19 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
     ]);
     const [displayMode, setDisplayMode] = useState('chips');
     const [columnCount, setColumnCount] = useState(2);
-    const [initialized, setInitialized] = useState(false);
+    const [prevSkillsLength, setPrevSkillsLength] = useState(0);
     
+    // FIXED (#11): Update when skills prop changes
     useEffect(() => {
-        if (!initialized && skills.length > 0) {
+        if (skills.length !== prevSkillsLength || prevSkillsLength === 0) {
             const midPoint = Math.ceil(skills.length / 2);
             setSubcategories([
                 { name: 'Core Competencies', skills: skills.slice(0, midPoint) },
                 { name: 'Tools & Technologies', skills: skills.slice(midPoint) }
             ]);
-            setInitialized(true);
+            setPrevSkillsLength(skills.length);
         }
-    }, [skills, initialized]);
+    }, [skills, prevSkillsLength]);
     
     const addSubcategory = () => {
         setSubcategories([...subcategories, { name: 'New Category', skills: [] }]);
@@ -673,10 +632,9 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
     const saveSkills = () => {
         const allSkills = subcategories.flatMap(cat => cat.skills);
         setSkills(allSkills);
-        if (onSave) onSave(allSkills);
+        if (onSave) onSave();
     };
     
-    // Render display based on mode
     const renderSkillsContent = () => {
         if (displayMode === 'comma') {
             const allSkills = subcategories.flatMap(cat => cat.skills);
@@ -702,7 +660,6 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
                 </div>
             );
         }
-        // Default: chips view
         return (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                 {subcategories.flatMap(cat => cat.skills).map((skill, idx) => (
@@ -764,6 +721,41 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
 };
 
 // ============================================================
+// TOAST NOTIFICATION - FIXED (#23 - replaces alert())
+// ============================================================
+const Toast = ({ message, type, onClose }) => {
+    useEffect(() => {
+        const timer = setTimeout(onClose, 3000);
+        return () => clearTimeout(timer);
+    }, [onClose]);
+    
+    const colors = {
+        success: '#10b981',
+        error: '#ef4444',
+        info: '#3b82f6',
+        warning: '#f59e0b'
+    };
+    
+    return (
+        <div style={{
+            position: 'fixed',
+            bottom: '20px',
+            right: '20px',
+            background: colors[type] || '#1a1f2e',
+            color: 'white',
+            padding: '12px 20px',
+            borderRadius: '8px',
+            zIndex: 10000,
+            fontSize: '13px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+            animation: 'slideIn 0.3s ease'
+        }}>
+            {message}
+        </div>
+    );
+};
+
+// ============================================================
 // MAIN COMPONENT
 // ============================================================
 export default function ResumeEditor({ result, jdText, resumeText, setResumeText, hiddenBriefAnalysis, onClose }) {
@@ -790,6 +782,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const [aiParsedData, setAiParsedData] = useState(null);
     const [sectionPosition, setSectionPosition] = useState('bottom');
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [toast, setToast] = useState(null);
     const [personalInfo, setPersonalInfo] = useState({ name: '', email: '', phone: '', linkedin: '', location: '' });
     const [summary, setSummary] = useState('');
     const [summaryVersion, setSummaryVersion] = useState('original');
@@ -818,11 +811,16 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const [historyIndex, setHistoryIndex] = useState(-1);
     const stateRef = useRef({});
     const debounceTimer = useRef(null);
-    const previewRef = useRef(null);
-    const summaryVersionsRef = useRef({ original: '', veritas: '', hiddenBrief: '' });
     const autosaveTimer = useRef(null);
     const fileInputRef = useRef(null);
-
+    const saveDraftRef = useRef(null);
+    const handleExportClickRef = useRef(null);
+    const summaryVersionsRef = useRef({ original: '', veritas: '', hiddenBrief: '' });
+    
+    const showToast = (message, type = 'info') => {
+        setToast({ message, type });
+    };
+    
     // Update state ref
     useEffect(() => {
         stateRef.current = {
@@ -860,6 +858,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             setCustomSections(snapshot.customSections || []);
             setHistoryIndex(prev => prev - 1);
             setHasUnsavedChanges(true);
+            showToast('Undo successful', 'success');
         }
     }, [historyIndex, stateHistory]);
 
@@ -877,6 +876,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             setCustomSections(snapshot.customSections || []);
             setHistoryIndex(prev => prev + 1);
             setHasUnsavedChanges(true);
+            showToast('Redo successful', 'success');
         }
     }, [historyIndex, stateHistory]);
 
@@ -885,18 +885,22 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         if (autosaveTimer.current) clearInterval(autosaveTimer.current);
         autosaveTimer.current = setInterval(() => {
             if (hasUnsavedChanges && roles.length > 0) {
-                const draft = {
-                    roles, summary, skills, personalInfo, education, certifications,
-                    projects, publications, customSections, selectedTemplate, timestamp: Date.now()
-                };
-                localStorage.setItem('veritas_resume_autosave', JSON.stringify(draft));
-                console.log('💾 Autosaved draft');
+                try {
+                    const draft = {
+                        roles, summary, skills, personalInfo, education, certifications,
+                        projects, publications, customSections, selectedTemplate, timestamp: Date.now()
+                    };
+                    localStorage.setItem('veritas_resume_autosave', JSON.stringify(draft));
+                    console.log('💾 Autosaved draft');
+                } catch (e) {
+                    console.warn('Autosave failed:', e);
+                }
             }
         }, 30000);
         return () => { if (autosaveTimer.current) clearInterval(autosaveTimer.current); };
     }, [roles, summary, skills, personalInfo, education, certifications, projects, publications, customSections, selectedTemplate, hasUnsavedChanges]);
 
-    // Warn before close
+    // FIXED (#1): beforeunload event name
     useEffect(() => {
         const handleBeforeUnload = (e) => {
             if (hasUnsavedChanges) {
@@ -904,8 +908,8 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
             }
         };
-        window.addEventListener('beforeUnload', handleBeforeUnload);
-        return () => window.removeEventListener('beforeUnload', handleBeforeUnload);
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [hasUnsavedChanges]);
 
     // Auto-collapse right sidebar in preview mode
@@ -933,7 +937,27 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         localStorage.setItem('veritas_right_sidebar_open', newState);
     };
 
-    // Keyboard shortcuts
+    // FIXED (#4): Keyboard shortcuts with refs
+    const saveDraftFn = useCallback(() => {
+        try {
+            const draft = {
+                roles, summary, skills, personalInfo, education, certifications,
+                projects, publications, customSections, selectedTemplate, timestamp: Date.now()
+            };
+            localStorage.setItem('veritas_resume_draft', JSON.stringify(draft));
+            setHasUnsavedChanges(false);
+            showToast('Draft saved!', 'success');
+        } catch (e) {
+            console.warn('Save draft failed:', e);
+            showToast('Failed to save draft', 'error');
+        }
+    }, [roles, summary, skills, personalInfo, education, certifications, projects, publications, customSections, selectedTemplate]);
+    
+    const handleExportClickFn = useCallback(() => setShowExportChecklist(true), []);
+    
+    saveDraftRef.current = saveDraftFn;
+    handleExportClickRef.current = handleExportClickFn;
+    
     useEffect(() => {
         const handleKeyDown = (e) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
@@ -943,11 +967,11 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             }
             if ((e.ctrlKey || e.metaKey) && e.key === 's') {
                 e.preventDefault();
-                saveDraft();
+                saveDraftRef.current();
             }
             if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
                 e.preventDefault();
-                handleExportClick();
+                handleExportClickRef.current();
             }
         };
         window.addEventListener('keydown', handleKeyDown);
@@ -987,7 +1011,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             const result = await extractPDFText(file);
             if (result.success && result.text.length > 100 && setResumeText) {
                 setResumeText(result.text);
-                alert(`✅ PDF extracted: ${result.pages} pages, ${result.text.length} characters`);
+                showToast(`✅ PDF extracted: ${result.pages} pages, ${result.text.length} characters`, 'success');
             } else {
                 setPdfExtractionError(result.error || 'Failed to extract text from PDF');
             }
@@ -998,19 +1022,21 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         }
     }, [extractPDFText, setResumeText]);
 
-    // Parse resume
+    // FIXED (#2, #8): Parse resume - removed summaryAnalysis from deps, added all sections to buildResumeText
     useEffect(() => {
         if (!resumeText) return;
         console.log('🔍 Parsing resume text, length:', resumeText.length);
+        
         const parsed = parseResume(resumeText);
+        
         const parsedRoles = (parsed.jobs || []).map((job, jobIndex) => ({
-            id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${jobIndex}-${Math.random()}`,
+            id: safeUUID(),
             title: job.title || 'Untitled Role',
             company: job.company || 'Unknown Company',
             startDate: job.dates ? job.dates.split(' - ')[0] || '' : '',
             endDate: job.dates ? job.dates.split(' - ')[1] || '' : '',
             bullets: (job.bullets || []).map((bulletText, bulletIndex) => ({
-                id: crypto.randomUUID ? crypto.randomUUID() : `bullet_${jobIndex}_${bulletIndex}_${Date.now()}`,
+                id: safeUUID(),
                 text: bulletText,
                 original: bulletText,
                 veritas: null,
@@ -1018,10 +1044,11 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 showAlternatives: false
             }))
         }));
+        
         setRoles(parsedRoles);
         setSkills(parsed.skills || []);
         setEducation((parsed.education || []).map((edu, idx) => ({
-            id: crypto.randomUUID ? crypto.randomUUID() : `edu_${idx}_${Date.now()}`,
+            id: safeUUID(),
             degree: edu.text || '',
             institution: '',
             year: edu.year || ''
@@ -1029,11 +1056,14 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         setCertifications(parsed.certifications || []);
         setProjects(parsed.projects || []);
         setPublications(parsed.publications || []);
+        
         const extracted = extractPersonalInfo(resumeText);
         if (extracted.location && !extracted.location.includes('Google') && !extracted.location.includes('Collab')) {
             setPersonalInfo(extracted);
         }
-        if (summaryAnalysis) {
+        
+        // Initialize summary from LLM analysis (if available) - but don't re-run on summaryAnalysis changes
+        if (summaryAnalysis && summaryVersionsRef.current.original === '') {
             const originalText = summaryAnalysis.original_text || '';
             setSummary(originalText);
             summaryVersionsRef.current = {
@@ -1042,68 +1072,81 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 hiddenBrief: summaryAnalysis.hb_transformed_summary || ''
             };
         }
+        
+        // ENRICH with Veritas and Hidden Brief versions (BULLET ENRICHMENT FIX)
+        if (bulletAnalysis?.bullets && bulletAnalysis.bullets.length > 0) {
+            console.log('🔍 Enriching with LLM transformations for', bulletAnalysis.bullets.length, 'bullets');
+            
+            setRoles(prevRoles => {
+                const updatedRoles = JSON.parse(JSON.stringify(prevRoles));
+                let matchedCount = 0;
+                
+                for (const transformed of bulletAnalysis.bullets) {
+                    let matched = false;
+                    
+                    for (const role of updatedRoles) {
+                        const bulletIndex = role.bullets.findIndex(b => 
+                            b.id === transformed.id || 
+                            b.id === transformed.sequentialId ||
+                            b.original === transformed.original_text
+                        );
+                        if (bulletIndex !== -1) {
+                            role.bullets[bulletIndex].veritas = transformed.transformed_text;
+                            role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
+                            matched = true;
+                            matchedCount++;
+                            break;
+                        }
+                    }
+                    
+                    if (!matched && transformed.original_text) {
+                        for (const role of updatedRoles) {
+                            const bulletIndex = role.bullets.findIndex(b => 
+                                b.original && (
+                                    b.original === transformed.original_text ||
+                                    b.original.includes(transformed.original_text.substring(0, 50)) ||
+                                    transformed.original_text.includes(b.original.substring(0, 50))
+                                )
+                            );
+                            if (bulletIndex !== -1) {
+                                role.bullets[bulletIndex].veritas = transformed.transformed_text;
+                                role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
+                                matched = true;
+                                matchedCount++;
+                                break;
+                            }
+                        }
+                    }
+                }
+                
+                console.log('🔍 Matched', matchedCount, 'of', bulletAnalysis.bullets.length, 'LLM bullets to originals');
+                return updatedRoles;
+            });
+        }
+        
         setTimeout(() => saveSnapshot(), 100);
-    }, [resumeText, summaryAnalysis]);
+        
+    }, [resumeText]); // FIXED (#2): removed summaryAnalysis from dependencies
 
-    // AI Parser
-    const runAIParser = async () => {
-        if (!resumeText || resumeText.trim().length < 100) {
-            alert('Please provide valid resume text (minimum 100 characters)');
-            return;
+    // FIXED (#8): buildResumeText includes all sections
+    const buildResumeText = useCallback(() => {
+        let text = '';
+        if (personalInfo.name) text += `${personalInfo.name}\n`;
+        if (personalInfo.email || personalInfo.phone) text += `${personalInfo.email} | ${personalInfo.phone}\n`;
+        text += '\n';
+        if (summary) text += `${summary}\n\n`;
+        for (const role of roles) {
+            text += `${role.title} @ ${role.company}\n`;
+            for (const bullet of role.bullets) text += `• ${bullet.text}\n`;
+            text += '\n';
         }
-        setIsAIParsing(true);
-        try {
-            const response = await fetch('https://ats-stage-2-parser.keron62.workers.dev/parse/full', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ resumeText })
-            });
-            const data = await response.json();
-            if (!data.success) throw new Error(data.error || 'AI parsing failed');
-            const aiRoles = (data.jobs || []).map((job, idx) => ({
-                id: `ai_job_${Date.now()}_${idx}`,
-                title: job.title || 'Untitled Role',
-                company: job.company || 'Unknown Company',
-                startDate: job.startDate || '',
-                endDate: job.endDate || '',
-                bullets: (job.bullets || []).map((bulletText, bulletIdx) => ({
-                    id: `ai_bullet_${idx}_${bulletIdx}_${Date.now()}`,
-                    text: bulletText,
-                    original: bulletText,
-                    veritas: null,
-                    hiddenBrief: null,
-                    showAlternatives: false
-                }))
-            }));
-            setAiParsedData({
-                roles: aiRoles,
-                skills: data.skills || [],
-                education: (data.education || []).map((edu, idx) => ({
-                    id: `ai_edu_${idx}_${Date.now()}`,
-                    degree: edu,
-                    institution: '',
-                    year: ''
-                }))
-            });
-            setShowAIParseComparison(true);
-        } catch (error) {
-            console.error('AI Parser error:', error);
-            alert(`AI parsing failed: ${error.message}`);
-        } finally {
-            setIsAIParsing(false);
-        }
-    };
-
-    const acceptAIResults = () => {
-        if (aiParsedData) {
-            setRoles(aiParsedData.roles);
-            if (aiParsedData.skills) setSkills(aiParsedData.skills);
-            if (aiParsedData.education) setEducation(aiParsedData.education);
-            saveSnapshot();
-            setShowAIParseComparison(false);
-            alert('✅ AI parser results applied!');
-        }
-    };
+        if (skills.length) text += `Skills: ${skills.join(', ')}\n`;
+        if (education.length) text += `Education: ${education.map(e => e.degree).join(', ')}\n`;
+        if (certifications.length) text += `Certifications: ${certifications.join(', ')}\n`;
+        if (projects.length) text += `Projects: ${projects.map(p => p.name).join(', ')}\n`;
+        if (publications.length) text += `Publications: ${publications.join(', ')}\n`;
+        return text;
+    }, [personalInfo, summary, roles, skills, education, certifications, projects, publications]);
 
     // JD Features
     useEffect(() => {
@@ -1128,6 +1171,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             } : role
         ));
         saveSnapshot();
+        showToast('Applied Veritas version', 'success');
     };
     
     const applyHBVersion = (roleId, bulletId) => {
@@ -1138,6 +1182,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             } : role
         ));
         saveSnapshot();
+        showToast('Applied Hidden Brief version', 'success');
     };
     
     const resetBullet = (roleId, bulletId) => {
@@ -1148,6 +1193,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             } : role
         ));
         saveSnapshot();
+        showToast('Reset to original', 'info');
     };
     
     const addBullet = (roleId) => {
@@ -1155,7 +1201,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             role.id === roleId ? {
                 ...role,
                 bullets: [...role.bullets, {
-                    id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+                    id: safeUUID(),
                     text: '',
                     original: '',
                     veritas: null,
@@ -1191,7 +1237,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     
     const addRole = () => {
         setRoles(prev => [...prev, {
-            id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+            id: safeUUID(),
             title: 'New Role',
             company: 'Company Name',
             startDate: '',
@@ -1199,16 +1245,20 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             bullets: []
         }]);
         saveSnapshot();
+        showToast('Added new role', 'success');
     };
     
     const deleteRole = (roleId) => {
         setRoles(prev => prev.filter(role => role.id !== roleId));
         saveSnapshot();
+        showToast('Role deleted', 'info');
     };
     
+    // FIXED (#12): moveRole with guard
     const moveRole = (roleId, direction) => {
         setRoles(prev => {
             const idx = prev.findIndex(r => r.id === roleId);
+            if (idx === -1) return prev;
             if (direction === 'up' && idx === 0) return prev;
             if (direction === 'down' && idx === prev.length - 1) return prev;
             const newRoles = [...prev];
@@ -1223,6 +1273,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         if (skill && !skills.includes(skill)) {
             setSkills(prev => [...prev, skill]);
             saveSnapshot();
+            showToast(`Added skill: ${skill}`, 'success');
         }
     };
     
@@ -1233,7 +1284,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     
     const addEducation = () => {
         setEducation(prev => [...prev, {
-            id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+            id: safeUUID(),
             degree: '',
             institution: '',
             year: ''
@@ -1268,10 +1319,9 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         saveSnapshot();
     };
     
-    // FIXED: Custom section position is now respected
     const addCustomSection = (name, type, position) => {
         const newSection = {
-            id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
+            id: safeUUID(),
             name,
             type,
             content: type === 'bulleted' ? [] : ''
@@ -1291,6 +1341,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             return newSections;
         });
         saveSnapshot();
+        showToast(`Added section: ${name}`, 'success');
     };
     
     const updateCustomSection = (id, field, value) => {
@@ -1303,6 +1354,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const deleteCustomSection = (id) => {
         setCustomSections(prev => prev.filter(section => section.id !== id));
         saveSnapshot();
+        showToast('Section deleted', 'info');
     };
     
     const updateSummary = (newText) => {
@@ -1328,21 +1380,116 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         setPersonalInfo(prev => ({ ...prev, [field]: value }));
     };
 
-    // Build resume text for scoring
-    const buildResumeText = useCallback(() => {
-        let text = '';
-        if (personalInfo.name) text += `${personalInfo.name}\n`;
-        if (personalInfo.email || personalInfo.phone) text += `${personalInfo.email} | ${personalInfo.phone}\n`;
-        text += '\n';
-        if (summary) text += `${summary}\n\n`;
-        for (const role of roles) {
-            text += `${role.title} @ ${role.company}\n`;
-            for (const bullet of role.bullets) text += `• ${bullet.text}\n`;
-            text += '\n';
+    // AI Parser
+    const runAIParser = async () => {
+        if (!resumeText || resumeText.trim().length < 100) {
+            showToast('Please provide valid resume text (minimum 100 characters)', 'error');
+            return;
         }
-        if (skills.length) text += `Skills: ${skills.join(', ')}\n`;
-        return text;
-    }, [personalInfo, summary, roles, skills]);
+        
+        setIsAIParsing(true);
+        try {
+            const response = await fetch('https://ats-stage-2-parser.keron62.workers.dev/parse/full', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ resumeText })
+            });
+            const data = await response.json();
+            
+            if (!data.success) throw new Error(data.error || 'AI parsing failed');
+            
+            const aiRoles = (data.jobs || []).map((job, idx) => ({
+                id: safeUUID(),
+                title: job.title || 'Untitled Role',
+                company: job.company || 'Unknown Company',
+                startDate: job.startDate || '',
+                endDate: job.endDate || '',
+                bullets: (job.bullets || []).map((bulletText, bulletIdx) => ({
+                    id: safeUUID(),
+                    text: bulletText,
+                    original: bulletText,
+                    veritas: null,
+                    hiddenBrief: null,
+                    showAlternatives: false
+                }))
+            }));
+            
+            const aiSkills = data.skills || [];
+            const aiEducation = (data.education || []).map((edu, idx) => ({
+                id: safeUUID(),
+                degree: edu.degree || edu.text || '',
+                institution: edu.institution || '',
+                year: edu.year || '',
+                location: edu.location || ''
+            }));
+            const aiProjects = (data.projects || []).map((project, idx) => ({
+                id: safeUUID(),
+                name: project.name || 'Untitled Project',
+                bullets: project.bullets || [],
+                technologies: project.technologies || [],
+                link: project.link || ''
+            }));
+            const aiCertifications = (data.certifications || []).map((cert, idx) => {
+                if (typeof cert === 'string') return cert;
+                return `${cert.name || ''}${cert.issuer ? ` (${cert.issuer})` : ''}${cert.year ? ` - ${cert.year}` : ''}`;
+            });
+            const aiPublications = (data.publications || []).map((pub, idx) => {
+                if (typeof pub === 'string') return pub;
+                let citation = pub.title || '';
+                if (pub.authors) citation = `${pub.authors}. ${citation}`;
+                if (pub.journal) citation += ` ${pub.journal}`;
+                if (pub.year) citation += ` (${pub.year})`;
+                return citation;
+            });
+            const aiHeader = data.header || {};
+            const aiSummary = data.summary || '';
+            
+            setAiParsedData({
+                roles: aiRoles,
+                skills: aiSkills,
+                education: aiEducation,
+                projects: aiProjects,
+                certifications: aiCertifications,
+                publications: aiPublications,
+                header: aiHeader,
+                summary: aiSummary
+            });
+            
+            setShowAIParseComparison(true);
+            
+        } catch (error) {
+            console.error('AI Parser error:', error);
+            showToast(`AI parsing failed: ${error.message}`, 'error');
+        } finally {
+            setIsAIParsing(false);
+        }
+    };
+
+    const acceptAIResults = () => {
+        if (!aiParsedData) return;
+        
+        if (aiParsedData.roles) setRoles(aiParsedData.roles);
+        if (aiParsedData.skills) setSkills(aiParsedData.skills);
+        if (aiParsedData.education) setEducation(aiParsedData.education);
+        if (aiParsedData.projects) setProjects(aiParsedData.projects);
+        if (aiParsedData.certifications) setCertifications(aiParsedData.certifications);
+        if (aiParsedData.publications) setPublications(aiParsedData.publications);
+        if (aiParsedData.header) {
+            setPersonalInfo(prev => ({
+                ...prev,
+                name: aiParsedData.header.name || prev.name,
+                email: aiParsedData.header.email || prev.email,
+                phone: aiParsedData.header.phone || prev.phone,
+                linkedin: aiParsedData.header.linkedin || prev.linkedin,
+                location: aiParsedData.header.location || prev.location
+            }));
+        }
+        if (aiParsedData.summary) setSummary(aiParsedData.summary);
+        
+        saveSnapshot();
+        setShowAIParseComparison(false);
+        showToast('AI parser results applied!', 'success');
+    };
 
     // Live scoring
     const updateLiveScores = useCallback(() => {
@@ -1430,8 +1577,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         };
     };
     
-    const handleExportClick = () => setShowExportChecklist(true);
-    
     const handleExportConfirm = async () => {
         setShowExportChecklist(false);
         setIsGeneratingPDF(true);
@@ -1449,6 +1594,8 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                     publications={publications}
                     selectedTemplate={selectedTemplate}
                     customSections={customSections}
+                    dateFormat={dateFormat}
+                    formatDate={formatDate}
                 />
             ).toBlob();
             const url = URL.createObjectURL(blob);
@@ -1457,28 +1604,34 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             a.download = `veritas-resume-${Date.now()}.pdf`;
             a.click();
             setTimeout(() => URL.revokeObjectURL(url), 100);
+            showToast('PDF exported successfully!', 'success');
         } catch (error) {
             console.error('PDF export error:', error);
-            alert('Failed to generate PDF. Please try again.');
+            showToast('Failed to generate PDF. Please try again.', 'error');
         } finally {
             setIsGeneratingPDF(false);
         }
     };
     
     const saveDraft = () => {
-        const draft = {
-            roles, summary, skills, personalInfo, education, certifications,
-            projects, publications, customSections, selectedTemplate, timestamp: Date.now()
-        };
-        localStorage.setItem('veritas_resume_draft', JSON.stringify(draft));
-        setHasUnsavedChanges(false);
-        alert('Draft saved!');
+        try {
+            const draft = {
+                roles, summary, skills, personalInfo, education, certifications,
+                projects, publications, customSections, selectedTemplate, timestamp: Date.now()
+            };
+            localStorage.setItem('veritas_resume_draft', JSON.stringify(draft));
+            setHasUnsavedChanges(false);
+            showToast('Draft saved!', 'success');
+        } catch (e) {
+            console.warn('Save draft failed:', e);
+            showToast('Failed to save draft', 'error');
+        }
     };
     
     const loadDraft = () => {
         try {
             const draftJson = localStorage.getItem('veritas_resume_draft');
-            if (!draftJson) { alert('No saved draft found'); return; }
+            if (!draftJson) { showToast('No saved draft found', 'info'); return; }
             const draft = JSON.parse(draftJson);
             if (!Array.isArray(draft.roles)) throw new Error('Invalid draft structure');
             setRoles(draft.roles || []);
@@ -1493,31 +1646,12 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             setSelectedTemplate(draft.selectedTemplate || 'veritas_signature');
             saveSnapshot();
             setHasUnsavedChanges(false);
-            alert('Draft loaded!');
+            showToast('Draft loaded!', 'success');
         } catch (err) {
             console.error('Failed to load draft:', err);
-            alert('Failed to load draft. The saved data may be corrupted. Starting fresh.');
+            showToast('Failed to load draft. The saved data may be corrupted.', 'error');
             localStorage.removeItem('veritas_resume_draft');
         }
-    };
-
-    // FIXED: formatDate with boundary check
-    const formatDate = (dateStr) => {
-        if (!dateStr) return '';
-        if (dateFormat === 'MM/YYYY' && dateStr.match(/^\d{1,2}\/\d{4}$/)) return dateStr;
-        if (dateFormat === 'Month YYYY') {
-            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-            const match = dateStr.match(/^(\d{1,2})\/(\d{4})$/);
-            if (match) {
-                const monthNum = parseInt(match[1], 10);
-                // Boundary check to prevent array index error
-                if (monthNum >= 1 && monthNum <= 12) {
-                    return `${months[monthNum - 1]} ${match[2]}`;
-                }
-                return match[0]; // Return original if month is invalid
-            }
-        }
-        return dateStr;
     };
     
     const getScoreColor = (score) => {
@@ -1534,21 +1668,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     
     const currentTemplate = TEMPLATES[selectedTemplate];
     const exportChecklist = getExportChecklist();
-    
-    // Custom sections sorted by position (for rendering in editor)
-    const renderSections = () => {
-        const sections = [];
-        sections.push({ type: 'personal', component: null });
-        if (summary) sections.push({ type: 'summary', component: null });
-        sections.push({ type: 'experience', component: null });
-        if (skills.length > 0) sections.push({ type: 'skills', component: null });
-        if (education.length > 0) sections.push({ type: 'education', component: null });
-        if (certifications.length > 0) sections.push({ type: 'certifications', component: null });
-        if (projects.length > 0) sections.push({ type: 'projects', component: null });
-        if (publications.length > 0) sections.push({ type: 'publications', component: null });
-        sections.push(...customSections.map(s => ({ type: 'custom', id: s.id, name: s.name, section: s })));
-        return sections;
-    };
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh', background: '#f5f3f0', position: 'relative' }}>
@@ -1602,6 +1721,10 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                             <button onClick={() => setPreviewMode(!previewMode)} style={{ padding: '8px', fontSize: '12px', width: '100%', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>
                                 {previewMode ? '📝 Hide Preview' : '👁️ Show Preview'}
                             </button>
+                            {/* FIXED (#3): Right sidebar toggle button */}
+                            <button onClick={toggleRightSidebar} style={{ padding: '8px', fontSize: '12px', width: '100%', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>
+                                {showRightSidebar ? '▶ Hide Scores' : '◀ Show Scores'}
+                            </button>
                         </div>
                         
                         {/* Draft Controls */}
@@ -1618,7 +1741,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                         
                         {/* Export & Back */}
                         <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: 'auto' }}>
-                            <button onClick={handleExportClick} disabled={isGeneratingPDF} className="btn-primary" style={{ padding: '10px', fontSize: '12px', fontWeight: 600, width: '100%', background: '#c9a84c', border: 'none', borderRadius: '6px', cursor: 'pointer', color: '#1a1f2e' }}>
+                            <button onClick={handleExportConfirm} disabled={isGeneratingPDF} style={{ padding: '10px', fontSize: '12px', fontWeight: 600, width: '100%', background: '#c9a84c', border: 'none', borderRadius: '6px', cursor: 'pointer', color: '#1a1f2e' }}>
                                 {isGeneratingPDF ? '⏳ Generating...' : '📥 Export PDF'}
                             </button>
                             <button onClick={() => onClose && onClose()} style={{ padding: '10px', fontSize: '12px', width: '100%', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>
@@ -1644,7 +1767,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 </div>
                 
                 {previewMode ? (
-                    <div ref={previewRef} style={{ fontFamily: currentTemplate.fontFamily, maxWidth: '8.5in', margin: '0 auto', background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+                    <div style={{ fontFamily: currentTemplate.fontFamily, maxWidth: '8.5in', margin: '0 auto', background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
                         <div style={{ textAlign: 'center', marginBottom: '24px', ...currentTemplate.headerStyle }}>
                             <div style={{ fontSize: currentTemplate.nameStyle?.fontSize || '28px', fontWeight: currentTemplate.nameStyle?.fontWeight || 700, color: currentTemplate.nameStyle?.color || '#1a1f2e', ...currentTemplate.nameStyle }}>
                                 {personalInfo.name || 'Your Name'}
@@ -1664,19 +1787,19 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                             {roles.slice(0, 5).map((role, idx) => (
                                 <div key={idx} style={{ marginBottom: '16px' }}>
                                     {currentTemplate.roleRow ? (
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', ...currentTemplate.roleRow }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', ...currentTemplate.roleRow }}>
                                             <div>
                                                 <span style={{ fontWeight: 600, fontSize: '12px' }}>{role.title}</span>
                                                 <span style={{ fontSize: '11px', color: '#666', marginLeft: '8px' }}>@ {role.company}</span>
                                             </div>
                                             <div style={{ fontSize: '10px', color: '#666', ...currentTemplate.dateText }}>
-                                                {formatDate(role.startDate)} - {formatDate(role.endDate) || 'Present'}
+                                                {formatDate(role.startDate, dateFormat)} - {formatDate(role.endDate, dateFormat) || 'Present'}
                                             </div>
                                         </div>
                                     ) : (
                                         <div>
                                             <div style={{ fontWeight: 600, fontSize: '12px' }}>{role.title} @ {role.company}</div>
-                                            <div style={{ fontSize: '10px', color: '#666', marginBottom: '4px' }}>{formatDate(role.startDate)} - {formatDate(role.endDate) || 'Present'}</div>
+                                            <div style={{ fontSize: '10px', color: '#666', marginBottom: '4px' }}>{formatDate(role.startDate, dateFormat)} - {formatDate(role.endDate, dateFormat) || 'Present'}</div>
                                         </div>
                                     )}
                                     {role.bullets.slice(0, 3).map((bullet, bidx) => (
@@ -1963,12 +2086,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             {/* Right Sidebar */}
             {showRightSidebar && !previewMode && (
                 <div style={{ width: '300px', background: 'white', borderLeft: '1px solid #e6e4dd', overflowY: 'auto', position: 'sticky', top: 0, height: '100vh', transition: 'width 0.3s ease' }}>
-                    {/* Right Sidebar Toggle Button */}
-                    <button onClick={toggleRightSidebar} style={{ position: 'absolute', right: 10, top: 10, background: '#c9a84c', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', zIndex: 10 }}>
-                        ✕
-                    </button>
-                    
-                    <div style={{ padding: '20px', paddingTop: '40px' }}>
+                    <div style={{ padding: '20px' }}>
                         <div style={{ marginBottom: '16px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><span style={{ fontSize: '11px', color: '#6b7280' }}>🎯 JD Fit Score</span><span style={{ fontSize: '13px', fontWeight: 600, color: getScoreColor(liveScores.fit_score) }}>{liveScores.fit_score}%</span></div>
                             <div style={{ height: '6px', background: '#e6e4dd', borderRadius: '3px', overflow: 'hidden' }}><div style={{ width: `${liveScores.fit_score}%`, height: '100%', background: getScoreColor(liveScores.fit_score), borderRadius: '3px' }} /></div>
@@ -2044,9 +2162,25 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             <AddSectionModal isOpen={showAddSectionModal} onClose={() => setShowAddSectionModal(false)} onAdd={addCustomSection} sectionPosition={sectionPosition} setSectionPosition={setSectionPosition} />
             <ExportChecklistModal isOpen={showExportChecklist} onClose={() => setShowExportChecklist(false)} onConfirm={handleExportConfirm} checklist={exportChecklist} />
             {isAIParsing && <AILoadingOverlay message="🤖 AI is parsing your resume with Gemini 3.1 Flash Lite..." />}
-            {showAIParseComparison && aiParsedData && <AIParseComparisonModal isOpen={showAIParseComparison} onClose={() => setShowAIParseComparison(false)} deterministicRoles={roles} aiRoles={aiParsedData.roles} onAcceptAI={acceptAIResults} />}
+            {showAIParseComparison && aiParsedData && (
+                <AIParseComparisonModal 
+                    isOpen={showAIParseComparison} 
+                    onClose={() => setShowAIParseComparison(false)} 
+                    deterministicRoles={roles} 
+                    deterministicSkills={skills}
+                    deterministicEducation={education}
+                    aiParsedData={aiParsedData} 
+                    onAcceptAI={acceptAIResults} 
+                />
+            )}
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } } .btn-secondary:hover { border-color: #c9a84c; color: #c9a84c; } textarea:focus, input:focus, select:focus { outline: none; border-color: #c9a84c; }`}</style>
+            <style>{`
+                @keyframes spin { to { transform: rotate(360deg); } }
+                @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+                .btn-secondary:hover { border-color: #c9a84c; color: #c9a84c; }
+                textarea:focus, input:focus, select:focus { outline: none; border-color: #c9a84c; }
+            `}</style>
         </div>
     );
 }

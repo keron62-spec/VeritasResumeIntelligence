@@ -1468,7 +1468,48 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const acceptAIResults = () => {
         if (!aiParsedData) return;
         
-        if (aiParsedData.roles) setRoles(aiParsedData.roles);
+        // Get the original bullet analysis for enrichment
+        const originalBulletAnalysis = bulletAnalysis?.bullets || [];
+        
+        // Apply roles from AI parser, then enrich with Veritas/Hidden Brief
+        let newRoles = aiParsedData.roles || [];
+        
+        // ENRICH AI PARSED BULLETS WITH VERITAS AND HIDDEN BRIEF VERSIONS
+        if (originalBulletAnalysis.length > 0 && newRoles.length > 0) {
+            console.log('🔍 Enriching AI parsed bullets with Veritas/Hidden Brief versions');
+            
+            newRoles = JSON.parse(JSON.stringify(newRoles));
+            let matchedCount = 0;
+            
+            for (const transformed of originalBulletAnalysis) {
+                let matched = false;
+                
+                for (const role of newRoles) {
+                    // Try to match by text content (since AI IDs will be different)
+                    const bulletIndex = role.bullets.findIndex(b => 
+                        b.original === transformed.original_text ||
+                        b.original?.includes(transformed.original_text?.substring(0, 50)) ||
+                        transformed.original_text?.includes(b.original?.substring(0, 50))
+                    );
+                    if (bulletIndex !== -1) {
+                        role.bullets[bulletIndex].veritas = transformed.transformed_text;
+                        role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
+                        matched = true;
+                        matchedCount++;
+                        break;
+                    }
+                }
+                
+                if (!matched && transformed.original_text) {
+                    console.log('⚠️ Could not match AI bullet to Veritas/HB:', transformed.original_text.substring(0, 50));
+                }
+            }
+            
+            console.log('🔍 Enriched', matchedCount, 'of', originalBulletAnalysis.length, 'AI bullets with alternative versions');
+        }
+        
+        // Apply all the AI parsed data
+        setRoles(newRoles);
         if (aiParsedData.skills) setSkills(aiParsedData.skills);
         if (aiParsedData.education) setEducation(aiParsedData.education);
         if (aiParsedData.projects) setProjects(aiParsedData.projects);
@@ -1490,6 +1531,11 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         setShowAIParseComparison(false);
         showToast('AI parser results applied!', 'success');
     };
+        
+        saveSnapshot();
+        setShowAIParseComparison(false);
+        showToast('AI parser results applied!', 'success');
+    
 
     // Live scoring
     const updateLiveScores = useCallback(() => {

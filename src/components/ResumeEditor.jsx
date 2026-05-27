@@ -1,6 +1,10 @@
 // src/components/ResumeEditor.jsx
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Set worker source for PDF.js
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 // ============================================================
 // DETERMINISTIC SCORING LIBRARIES
@@ -18,145 +22,125 @@ import { countTechnicalSkills } from '../utils/skillDictionary.js';
 import { extractPersonalInfo, formatContactLine } from '../utils/personalInfoExtractor.js';
 
 // ============================================================
-// PDF STYLES - FIXED BUG 1 & BUG 2 (Full template support)
+// PDF STYLES - FIXED: Accepts template key (string), not object
 // ============================================================
-const createPDFStyles = (template) => {
-    // Base font family mapping
+const createPDFStyles = (templateKey) => {
+    const t = TEMPLATES[templateKey];
+    if (!t) return StyleSheet.create({ page: { padding: 50, fontSize: 10.5, fontFamily: 'Helvetica' } });
+    
+    // Font family mapping
     let fontFamily = 'Helvetica';
-    if (template.name === 'classic' || template.name === 'harvard' || template.name === 'legal') fontFamily = 'Times-Roman';
-    if (template.name === 'executive') fontFamily = 'Times-Roman';
-    if (template.name === 'modern' || template.name === 'veritas_signature') fontFamily = 'Helvetica';
-    if (template.name === 'consultancy') fontFamily = 'Helvetica';
-    if (template.name === 'diplomat') fontFamily = 'Helvetica';
-    if (template.name === 'faang') fontFamily = 'Courier';
-    if (template.name === 'ats') fontFamily = 'Helvetica';
-
-    // Convert shorthand border to explicit properties for @react-pdf/renderer
-    const getBorderBottom = (borderShorthand) => {
-        if (!borderShorthand) return {};
-        // Parse "2px solid #1a1a1a" into separate properties
-        const parts = borderShorthand.match(/(\d+)px\s+(\w+)\s+(#[a-fA-F0-9]+)/i);
-        if (parts) {
-            return {
-                borderBottomWidth: parseInt(parts[1]),
-                borderBottomStyle: parts[2],
-                borderBottomColor: parts[3]
-            };
-        }
-        return {};
-    };
-
-    const getBorderTop = (borderShorthand) => {
-        if (!borderShorthand) return {};
-        const parts = borderShorthand.match(/(\d+)px\s+(\w+)\s+(#[a-fA-F0-9]+)/i);
-        if (parts) {
-            return {
-                borderTopWidth: parseInt(parts[1]),
-                borderTopStyle: parts[2],
-                borderTopColor: parts[3]
-            };
-        }
-        return {};
-    };
-
-    const styles = {
+    if (t.name === 'classic' || t.name === 'harvard' || t.name === 'legal') fontFamily = 'Times-Roman';
+    if (t.name === 'executive') fontFamily = 'Times-Roman';
+    if (t.name === 'modern' || t.name === 'veritas_signature') fontFamily = 'Helvetica';
+    if (t.name === 'consultancy') fontFamily = 'Helvetica';
+    if (t.name === 'diplomat') fontFamily = 'Helvetica';
+    if (t.name === 'faang') fontFamily = 'Courier';
+    if (t.name === 'ats') fontFamily = 'Helvetica';
+    
+    // Helper to safely get border properties
+    const getBorderBottom = (style) => ({
+        borderBottomWidth: style?.borderBottomWidth,
+        borderBottomStyle: style?.borderBottomStyle,
+        borderBottomColor: style?.borderBottomColor
+    });
+    
+    const getBorderTop = (style) => ({
+        borderTopWidth: style?.borderTopWidth,
+        borderTopStyle: style?.borderTopStyle,
+        borderTopColor: style?.borderTopColor
+    });
+    
+    return StyleSheet.create({
         page: {
-            padding: template.pagePadding || 50,
-            fontSize: template.fontSize || 10.5,
+            padding: t.pagePadding || 50,
+            fontSize: t.fontSize || 10.5,
             fontFamily: fontFamily,
-            lineHeight: template.lineHeight || 1.5
+            lineHeight: t.lineHeight || 1.5
         },
         header: {
-            textAlign: template.headerStyle?.textAlign || 'center',
-            marginBottom: template.headerStyle?.marginBottom || 20,
-            ...getBorderBottom(template.headerStyle?.borderBottom),
-            paddingBottom: template.headerStyle?.paddingBottom || 10
+            textAlign: t.headerStyle?.textAlign || 'center',
+            marginBottom: t.headerStyle?.marginBottom || 20,
+            paddingBottom: t.headerStyle?.paddingBottom || 10,
+            ...getBorderBottom(t.headerStyle),
+            ...getBorderTop(t.headerStyle)
         },
         name: {
-            fontSize: template.nameStyle?.fontSize || 24,
-            fontWeight: template.nameStyle?.fontWeight || 'bold',
-            marginBottom: template.nameStyle?.marginBottom || 5,
-            textTransform: template.nameStyle?.textTransform || 'uppercase',
-            letterSpacing: template.nameStyle?.letterSpacing || 1,
-            color: template.nameStyle?.color || '#1a1f2e'
+            fontSize: t.nameStyle?.fontSize || 24,
+            fontWeight: t.nameStyle?.fontWeight || 'bold',
+            marginBottom: t.nameStyle?.marginBottom || 5,
+            textTransform: t.nameStyle?.textTransform || 'uppercase',
+            letterSpacing: t.nameStyle?.letterSpacing || 1,
+            color: t.nameStyle?.color || '#1a1f2e'
         },
         contactRow: {
-            fontSize: template.contactRow?.fontSize || 9,
-            color: template.contactRow?.color || '#666',
-            textAlign: template.contactRow?.textAlign || 'center',
-            marginTop: template.contactRow?.marginTop || 5
+            fontSize: t.contactRow?.fontSize || 9,
+            color: t.contactRow?.color || '#666',
+            textAlign: t.contactRow?.textAlign || 'center',
+            marginTop: t.contactRow?.marginTop || 5
         },
         sectionTitle: {
-            fontSize: template.sectionStyle?.fontSize || 12,
-            fontWeight: template.sectionStyle?.fontWeight || 'bold',
-            marginTop: template.sectionStyle?.marginTop || 15,
-            marginBottom: template.sectionStyle?.marginBottom || 8,
-            textTransform: template.sectionStyle?.textTransform || 'uppercase',
-            letterSpacing: template.sectionStyle?.letterSpacing || 1,
-            backgroundColor: template.sectionStyle?.backgroundColor || 'transparent',
-            padding: template.sectionStyle?.padding || 0,
-            color: template.sectionStyle?.color || '#1a1f2e',
-            ...getBorderBottom(template.sectionStyle?.borderBottom),
-            ...getBorderTop(template.sectionStyle?.borderTop)
+            fontSize: t.sectionStyle?.fontSize || 12,
+            fontWeight: t.sectionStyle?.fontWeight || 'bold',
+            marginTop: t.sectionStyle?.marginTop || 15,
+            marginBottom: t.sectionStyle?.marginBottom || 8,
+            textTransform: t.sectionStyle?.textTransform || 'uppercase',
+            letterSpacing: t.sectionStyle?.letterSpacing || 1,
+            backgroundColor: t.sectionStyle?.backgroundColor || 'transparent',
+            padding: t.sectionStyle?.padding || 0,
+            color: t.sectionStyle?.color || '#1a1f2e',
+            ...getBorderBottom(t.sectionStyle),
+            ...getBorderTop(t.sectionStyle)
         },
         roleRow: {
             display: 'flex',
             flexDirection: 'row',
             justifyContent: 'space-between',
             alignItems: 'baseline',
-            marginTop: template.roleRow?.marginTop || 8
+            marginTop: 8
         },
         roleHeader: {
             fontWeight: 'bold',
             marginTop: 10,
             marginBottom: 2,
-            fontSize: template.roleHeader?.fontSize || 11
+            fontSize: 11
         },
         companyText: {
-            fontSize: template.companyText?.fontSize || 10,
-            color: template.companyText?.color || '#666',
+            fontSize: 10,
+            color: '#666',
             marginBottom: 4,
             fontStyle: 'italic'
         },
         dateText: {
-            fontSize: template.dateText?.fontSize || 9,
-            color: template.dateText?.color || '#666',
-            textAlign: template.dateText?.textAlign || 'right'
+            fontSize: 9,
+            color: '#666',
+            textAlign: 'right'
         },
         bullet: {
             marginLeft: 12,
             marginBottom: 4,
-            fontSize: template.bullet?.fontSize || 10,
-            lineHeight: template.bullet?.lineHeight || 1.4
+            fontSize: 10,
+            lineHeight: 1.4
         },
         skillsText: {
             fontSize: 9,
             marginBottom: 8,
             lineHeight: 1.4
-        },
-        skillItem: {
-            fontSize: template.skillChip?.fontSize || 9,
-            padding: template.skillChip?.padding || 4,
-            backgroundColor: template.skillChip?.backgroundColor || 'transparent',
-            marginRight: 6,
-            marginBottom: 6
         }
-    };
-    return StyleSheet.create(styles);
+    });
 };
 
 // ============================================================
-// PDF Document Component - FIXED BUG 3 (Added missing sections) & BUG 7 (wrap={false})
+// PDF Document Component - FIXED: Single page with wrap={false}
 // ============================================================
-const ResumePDF = ({ personalInfo, summary, roles, skills, education, certifications, projects, publications, selectedTemplate }) => {
-    const template = TEMPLATES[selectedTemplate];
-    const styles = createPDFStyles(template);
+const ResumePDF = ({ personalInfo, summary, roles, skills, education, certifications, projects, publications, selectedTemplate, customSections }) => {
+    const styles = createPDFStyles(selectedTemplate);
     
     return (
         <Document>
             <Page size="LETTER" style={styles.page}>
                 {/* Header */}
-                <View style={styles.header}>
+                <View style={styles.header} wrap={false}>
                     <Text style={styles.name}>{personalInfo.name || 'Your Name'}</Text>
                     <Text style={styles.contactRow}>
                         {[personalInfo.email, personalInfo.phone, personalInfo.linkedin, personalInfo.location].filter(Boolean).join(' | ')}
@@ -171,11 +155,11 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                     </View>
                 )}
                 
-                {/* Experience - BUG 7 FIX: wrap={false} prevents role splitting across pages */}
+                {/* Experience - each role wrapped to prevent splitting */}
                 <Text style={styles.sectionTitle}>Experience</Text>
                 {roles.map((role, idx) => (
                     <View key={idx} wrap={false} style={{ marginBottom: 12 }}>
-                        {template.roleRow ? (
+                        {styles.roleRow ? (
                             <View style={styles.roleRow}>
                                 <View>
                                     <Text style={styles.roleHeader}>{role.title}</Text>
@@ -217,7 +201,7 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                     </View>
                 )}
                 
-                {/* FIXED BUG 3: Certifications Section - Added missing rendering */}
+                {/* Certifications */}
                 {certifications && certifications.length > 0 && (
                     <View wrap={false}>
                         <Text style={styles.sectionTitle}>Certifications</Text>
@@ -227,7 +211,7 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                     </View>
                 )}
                 
-                {/* FIXED BUG 3: Projects Section - Added missing rendering */}
+                {/* Projects */}
                 {projects && projects.length > 0 && (
                     <View wrap={false}>
                         <Text style={styles.sectionTitle}>Projects</Text>
@@ -242,7 +226,7 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                     </View>
                 )}
                 
-                {/* FIXED BUG 3: Publications Section - Added missing rendering */}
+                {/* Publications */}
                 {publications && publications.length > 0 && (
                     <View wrap={false}>
                         <Text style={styles.sectionTitle}>Publications</Text>
@@ -251,75 +235,82 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                         ))}
                     </View>
                 )}
+                
+                {/* Custom Sections */}
+                {customSections && customSections.map((section, idx) => (
+                    <View key={idx} wrap={false}>
+                        <Text style={styles.sectionTitle}>{section.name}</Text>
+                        {section.type === 'bulleted' ? (
+                            Array.isArray(section.content) && section.content.map((item, i) => (
+                                <Text key={i} style={styles.bullet}>• {item}</Text>
+                            ))
+                        ) : (
+                            <Text style={{ fontSize: 10, marginBottom: 8 }}>{section.content}</Text>
+                        )}
+                    </View>
+                ))}
             </Page>
         </Document>
     );
 };
 
 // ============================================================
-// TEMPLATE STYLES - FIXED BUG 1 (Shorthand borders removed)
+// TEMPLATE STYLES - Fixed borders with explicit properties
 // ============================================================
 const TEMPLATES = {
     classic: {
-        name: 'Classic Corporate',
+        name: 'classic',
         icon: '📄',
-        fontFamily: "'Times New Roman', 'Georgia', serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
         headerStyle: { textAlign: 'center', marginBottom: 20, borderBottomWidth: 2, borderBottomStyle: 'solid', borderBottomColor: '#1a1a1a', paddingBottom: 10 },
         nameStyle: { fontSize: 24, fontWeight: 'bold', marginBottom: 5, textTransform: 'uppercase', letterSpacing: 2 },
-        sectionStyle: { borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#1a1a1a', textTransform: 'uppercase', letterSpacing: 1, marginTop: 16, marginBottom: 8, fontSize: 12, fontWeight: 'bold' },
-        bullet: { fontSize: 10, lineHeight: 1.4 }
+        sectionStyle: { borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#1a1a1a', textTransform: 'uppercase', letterSpacing: 1, marginTop: 16, marginBottom: 8, fontSize: 12, fontWeight: 'bold' }
     },
     modern: {
-        name: 'Modern Minimal',
+        name: 'modern',
         icon: '✨',
-        fontFamily: "'Helvetica', 'Arial', sans-serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
         headerStyle: { textAlign: 'center', marginBottom: 24 },
         nameStyle: { fontSize: 28, fontWeight: '600', color: '#1a1f2e' },
-        sectionStyle: { color: '#c9a84c', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#e6e4dd', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600, marginTop: 24, marginBottom: 12, paddingBottom: 4 }
+        sectionStyle: { color: '#c9a84c', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#e6e4dd', textTransform: 'uppercase', letterSpacing: 2, fontWeight: 600, marginTop: 24, marginBottom: 12, paddingBottom: 4 }
     },
     executive: {
-        name: 'Executive',
+        name: 'executive',
         icon: '👑',
-        fontFamily: "'Georgia', 'Times New Roman', serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
         headerStyle: { textAlign: 'center', marginBottom: 20, borderTopWidth: 6, borderTopStyle: 'solid', borderTopColor: '#c9a84c', paddingTop: 20 },
         nameStyle: { fontSize: 28, fontWeight: 'bold', color: '#2c1810' },
-        sectionStyle: { color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '3px', fontWeight: 700, marginTop: 24, marginBottom: 12 }
+        sectionStyle: { color: '#c9a84c', textTransform: 'uppercase', letterSpacing: 3, fontWeight: 700, marginTop: 24, marginBottom: 12 }
     },
     ats: {
-        name: 'ATS Optimized',
+        name: 'ats',
         icon: '🤖',
-        fontFamily: "'Arial', sans-serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
         headerStyle: { textAlign: 'center', marginBottom: 20 },
         nameStyle: { fontSize: 24, fontWeight: 'bold' },
-        sectionStyle: { backgroundColor: '#f0f0f0', padding: '6px 10px', fontWeight: 700, textTransform: 'uppercase', marginTop: 15, marginBottom: 8 }
+        sectionStyle: { backgroundColor: '#f0f0f0', padding: 4, fontWeight: 700, textTransform: 'uppercase', marginTop: 15, marginBottom: 8 }
     },
     veritas_signature: {
-        name: 'Veritas Signature',
+        name: 'veritas_signature',
         icon: '👁️',
-        fontFamily: "'Helvetica', 'Arial', sans-serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
         headerStyle: { textAlign: 'center', marginBottom: 24 },
         nameStyle: { fontSize: 32, fontWeight: '800', color: '#1a1f2e' },
-        sectionStyle: { color: '#c9a84c', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#e6e4dd', textTransform: 'uppercase', letterSpacing: '2px', fontWeight: 600, marginTop: 24, marginBottom: 12, paddingBottom: 4 }
+        sectionStyle: { color: '#c9a84c', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#e6e4dd', textTransform: 'uppercase', letterSpacing: 2, fontWeight: 600, marginTop: 24, marginBottom: 12, paddingBottom: 4 }
     },
     consultancy: {
-        name: 'Consulting',
+        name: 'consultancy',
         icon: '📊',
-        fontFamily: "'Helvetica', 'Arial', sans-serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.45,
@@ -327,29 +318,21 @@ const TEMPLATES = {
         nameStyle: { fontSize: 18, fontWeight: 'bold', marginBottom: 3 },
         sectionStyle: { fontSize: 8, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1.5, borderBottomWidth: 0.5, borderBottomStyle: 'solid', borderBottomColor: '#000', paddingBottom: 2, marginTop: 16, marginBottom: 6 },
         roleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 8 },
-        roleHeader: { fontSize: 10.5, fontWeight: 'bold' },
-        companyText: { fontSize: 9, color: '#4a4a4a', fontStyle: 'italic', marginBottom: 4 },
-        dateText: { textAlign: 'right', fontSize: 9.5 },
-        bullet: { fontSize: 9.5, marginLeft: 8, marginBottom: 4, lineHeight: 1.4 }
+        dateText: { textAlign: 'right', fontSize: 9.5 }
     },
     diplomat: {
-        name: 'International Development',
+        name: 'diplomat',
         icon: '🌐',
-        fontFamily: "'Helvetica', 'Arial', sans-serif",
         pagePadding: 55,
         fontSize: 10.5,
         lineHeight: 1.6,
         headerStyle: { marginBottom: 20 },
         nameStyle: { fontSize: 20, fontWeight: 'bold', letterSpacing: 3, textTransform: 'uppercase', color: '#1a3a5c' },
-        sectionStyle: { fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 2, color: '#1a3a5c', borderBottomWidth: 0.5, borderBottomStyle: 'solid', borderBottomColor: '#1a3a5c', paddingBottom: 3, marginTop: 18, marginBottom: 8 },
-        roleHeader: { fontSize: 11, fontWeight: 'bold' },
-        companyText: { fontSize: 9, color: '#4a4a4a', fontStyle: 'italic' },
-        bullet: { fontSize: 10, marginLeft: 10, marginBottom: 5, lineHeight: 1.5 }
+        sectionStyle: { fontSize: 9, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 2, color: '#1a3a5c', borderBottomWidth: 0.5, borderBottomStyle: 'solid', borderBottomColor: '#1a3a5c', paddingBottom: 3, marginTop: 18, marginBottom: 8 }
     },
     harvard: {
-        name: 'Ivy League',
+        name: 'harvard',
         icon: '🏛️',
-        fontFamily: "'Times New Roman', 'Georgia', serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
@@ -357,38 +340,27 @@ const TEMPLATES = {
         nameStyle: { fontSize: 24, fontWeight: 'bold', textTransform: 'uppercase' },
         sectionStyle: { borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#000', textTransform: 'uppercase', fontWeight: 'bold', marginTop: 16, marginBottom: 8, fontSize: 12 },
         roleRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginTop: 8 },
-        roleHeader: { fontWeight: 'bold' },
-        companyText: { fontStyle: 'italic', fontWeight: 'normal' },
-        dateText: { textAlign: 'right', fontWeight: 'normal' },
-        bullet: { marginLeft: 16, marginBottom: 2, fontSize: 10 }
+        dateText: { textAlign: 'right', fontWeight: 'normal' }
     },
     faang: {
-        name: 'Silicon Valley Tech',
+        name: 'faang',
         icon: '💻',
-        fontFamily: "'Courier New', monospace",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
         headerStyle: { textAlign: 'left', marginBottom: 16 },
         nameStyle: { fontSize: 28, fontWeight: '900', letterSpacing: '-0.5px' },
-        sectionStyle: { color: '#2563eb', textTransform: 'uppercase', letterSpacing: '1px', fontWeight: 700, marginTop: 20, marginBottom: 10 },
-        skillChip: { backgroundColor: 'transparent', padding: 0, marginRight: 8, fontWeight: 'bold' },
-        bullet: { marginLeft: 14, marginBottom: 4, fontSize: 9.5 }
+        sectionStyle: { color: '#2563eb', textTransform: 'uppercase', letterSpacing: 1, fontWeight: 700, marginTop: 20, marginBottom: 10 }
     },
     legal: {
-        name: 'Legal',
+        name: 'legal',
         icon: '⚖️',
-        fontFamily: "'Times New Roman', 'Georgia', serif",
         pagePadding: 50,
         fontSize: 10.5,
         lineHeight: 1.5,
         headerStyle: { textAlign: 'center', marginBottom: 20 },
         nameStyle: { fontSize: 26, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 2 },
-        sectionStyle: { fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, borderTopWidth: 1, borderTopStyle: 'solid', borderTopColor: '#000', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#000', paddingTop: 4, paddingBottom: 4, marginTop: 20, marginBottom: 12 },
-        roleHeader: { fontSize: 12, fontWeight: 'bold', textTransform: 'uppercase' },
-        companyText: { fontSize: 10, fontStyle: 'italic', marginBottom: 4 },
-        bullet: { marginLeft: 16, marginBottom: 4, fontSize: 10, lineHeight: 1.4 },
-        publicationStyle: { marginLeft: 16, marginBottom: 2, fontSize: 9, fontStyle: 'italic', color: '#4a4a4a' }
+        sectionStyle: { fontSize: 11, fontWeight: 'bold', textTransform: 'uppercase', letterSpacing: 1, borderTopWidth: 1, borderTopStyle: 'solid', borderTopColor: '#000', borderBottomWidth: 1, borderBottomStyle: 'solid', borderBottomColor: '#000', paddingTop: 4, paddingBottom: 4, marginTop: 20, marginBottom: 12 }
     }
 };
 
@@ -520,10 +492,16 @@ function extractSkillsFromText(text) {
 // ============================================================
 // MODAL COMPONENTS
 // ============================================================
-const AddSectionModal = ({ isOpen, onClose, onAdd, sectionPosition, setSectionPosition, availablePositions }) => {
+const AddSectionModal = ({ isOpen, onClose, onAdd, sectionPosition, setSectionPosition }) => {
     const [sectionName, setSectionName] = useState('');
     const [sectionType, setSectionType] = useState('bulleted');
     if (!isOpen) return null;
+    const positions = [
+        { value: 'top', label: 'At the beginning' },
+        { value: 'after-summary', label: 'After Summary' },
+        { value: 'after-experience', label: 'After Experience' },
+        { value: 'bottom', label: 'At the bottom' }
+    ];
     return (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
             <div style={{ background: 'white', borderRadius: '12px', padding: '24px', width: '450px', maxWidth: '90%' }}>
@@ -539,14 +517,12 @@ const AddSectionModal = ({ isOpen, onClose, onAdd, sectionPosition, setSectionPo
                         <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><input type="radio" value="text" checked={sectionType === 'text'} onChange={(e) => setSectionType(e.target.value)} /> Free Text</label>
                     </div>
                 </div>
-                {availablePositions && availablePositions.length > 0 && (
-                    <div style={{ marginBottom: '16px' }}>
-                        <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 500 }}>Position</label>
-                        <select value={sectionPosition} onChange={(e) => setSectionPosition(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px' }}>
-                            {availablePositions.map(pos => (<option key={pos.value} value={pos.value}>{pos.label}</option>))}
-                        </select>
-                    </div>
-                )}
+                <div style={{ marginBottom: '16px' }}>
+                    <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', fontWeight: 500 }}>Position</label>
+                    <select value={sectionPosition} onChange={(e) => setSectionPosition(e.target.value)} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px' }}>
+                        {positions.map(pos => (<option key={pos.value} value={pos.value}>{pos.label}</option>))}
+                    </select>
+                </div>
                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
                     <button onClick={onClose} style={{ padding: '8px 16px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
                     <button onClick={() => { onAdd(sectionName, sectionType, sectionPosition); onClose(); }} style={{ padding: '8px 16px', background: '#c9a84c', border: 'none', borderRadius: '6px', cursor: 'pointer', color: '#1a1f2e', fontWeight: 500 }}>Add Section</button>
@@ -648,20 +624,17 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, aiRoles, 
 };
 
 // ============================================================
-// SKILLS ADVANCED EDITOR - FIXED BUG 4 & BUG 5
+// SKILLS ADVANCED EDITOR - Fixed with all display options
 // ============================================================
 const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
-    // FIXED BUG 4: Removed the useEffect that auto-splits skills
-    // User now has full control over subcategories
     const [subcategories, setSubcategories] = useState([
         { name: 'Core Competencies', skills: [] },
         { name: 'Tools & Technologies', skills: [] }
     ]);
     const [displayMode, setDisplayMode] = useState('chips');
     const [columnCount, setColumnCount] = useState(2);
-    
-    // Load initial skills into subcategories only once
     const [initialized, setInitialized] = useState(false);
+    
     useEffect(() => {
         if (!initialized && skills.length > 0) {
             const midPoint = Math.ceil(skills.length / 2);
@@ -683,7 +656,6 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
         setSubcategories(updated);
     };
     
-    // FIXED BUG 5: This function now works correctly
     const addSkillToSubcategory = (catIdx, skill) => {
         if (skill && !subcategories[catIdx].skills.includes(skill)) {
             const updated = [...subcategories];
@@ -704,9 +676,45 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
         if (onSave) onSave(allSkills);
     };
     
+    // Render display based on mode
+    const renderSkillsContent = () => {
+        if (displayMode === 'comma') {
+            const allSkills = subcategories.flatMap(cat => cat.skills);
+            return <div style={{ fontSize: '11px', lineHeight: '1.6' }}>{allSkills.join(', ')}</div>;
+        }
+        if (displayMode === 'multi-column') {
+            const allSkills = subcategories.flatMap(cat => cat.skills);
+            const columns = Math.min(columnCount, 4);
+            const itemsPerColumn = Math.ceil(allSkills.length / columns);
+            const columnData = [];
+            for (let i = 0; i < columns; i++) {
+                columnData.push(allSkills.slice(i * itemsPerColumn, (i + 1) * itemsPerColumn));
+            }
+            return (
+                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '16px' }}>
+                    {columnData.map((col, idx) => (
+                        <div key={idx}>
+                            {col.map((skill, i) => (
+                                <div key={i} style={{ fontSize: '11px', marginBottom: '4px' }}>• {skill}</div>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+        // Default: chips view
+        return (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {subcategories.flatMap(cat => cat.skills).map((skill, idx) => (
+                    <span key={idx} style={{ padding: '4px 10px', background: 'rgba(201,168,76,0.15)', borderRadius: '20px', fontSize: '11px', color: '#c9a84c' }}>{skill}</span>
+                ))}
+            </div>
+        );
+    };
+    
     return (
         <div>
-            <div style={{ marginBottom: '12px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div style={{ marginBottom: '12px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                 <label>Display as:</label>
                 <select value={displayMode} onChange={(e) => setDisplayMode(e.target.value)} style={{ padding: '4px 8px', borderRadius: '4px' }}>
                     <option value="chips">Chips (colored badges)</option>
@@ -720,33 +728,37 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
                     </>
                 )}
             </div>
-            {subcategories.map((cat, catIdx) => (
-                <div key={catIdx} style={{ marginBottom: '20px', padding: '12px', background: '#f8f7f4', borderRadius: '8px' }}>
-                    <input type="text" value={cat.name} onChange={(e) => updateSubcategoryName(catIdx, e.target.value)} style={{ fontWeight: 600, marginBottom: '8px', background: 'transparent', border: 'none', fontSize: '12px', width: '100%' }} />
-                    <div style={{ display: displayMode === 'multi-column' ? 'grid' : 'flex', gridTemplateColumns: `repeat(${columnCount}, 1fr)`, flexWrap: 'wrap', gap: '8px' }}>
-                        {cat.skills.map((skill, skillIdx) => (
-                            <span key={skillIdx} style={{ padding: '4px 10px', background: displayMode === 'chips' ? 'rgba(201,168,76,0.15)' : 'transparent', borderRadius: '20px', fontSize: '11px', color: '#c9a84c', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                {skill}
-                                <button onClick={() => removeSkillFromSubcategory(catIdx, skillIdx)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>×</button>
-                            </span>
-                        ))}
-                    </div>
-                    <div style={{ marginTop: '8px', display: 'flex', gap: '8px' }}>
-                        <input type="text" placeholder="Add skill..." onKeyPress={(e) => { if (e.key === 'Enter') { addSkillToSubcategory(catIdx, e.target.value); e.target.value = ''; } }} style={{ flex: 1, padding: '6px 10px', fontSize: '11px', borderRadius: '4px', border: '1px solid #e6e4dd' }} />
-                        <button onClick={() => {
-                            const input = document.activeElement;
-                            if (input && input.tagName === 'INPUT' && input.value) {
-                                addSkillToSubcategory(catIdx, input.value);
-                                input.value = '';
-                            }
-                        }} style={{ padding: '4px 10px', fontSize: '11px' }}>Add</button>
-                    </div>
+            {renderSkillsContent()}
+            <details style={{ marginTop: '12px' }}>
+                <summary style={{ fontSize: '11px', cursor: 'pointer', color: '#c9a84c' }}>Edit Skill Categories (Advanced)</summary>
+                <div style={{ marginTop: '12px' }}>
+                    {subcategories.map((cat, catIdx) => (
+                        <div key={catIdx} style={{ marginBottom: '20px', padding: '12px', background: '#f8f7f4', borderRadius: '8px' }}>
+                            <input type="text" value={cat.name} onChange={(e) => updateSubcategoryName(catIdx, e.target.value)} style={{ fontWeight: 600, marginBottom: '8px', background: 'transparent', border: 'none', fontSize: '12px', width: '100%' }} />
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                                {cat.skills.map((skill, skillIdx) => (
+                                    <span key={skillIdx} style={{ padding: '4px 8px', background: 'rgba(201,168,76,0.1)', borderRadius: '16px', fontSize: '11px', color: '#c9a84c', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                        {skill}
+                                        <button onClick={() => removeSkillFromSubcategory(catIdx, skillIdx)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>×</button>
+                                    </span>
+                                ))}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <input type="text" placeholder="Add skill..." onKeyPress={(e) => { if (e.key === 'Enter') { addSkillToSubcategory(catIdx, e.target.value); e.target.value = ''; } }} style={{ flex: 1, padding: '6px 10px', fontSize: '11px', borderRadius: '4px', border: '1px solid #e6e4dd' }} />
+                                <button onClick={() => {
+                                    const input = document.activeElement;
+                                    if (input && input.tagName === 'INPUT' && input.value) {
+                                        addSkillToSubcategory(catIdx, input.value);
+                                        input.value = '';
+                                    }
+                                }} style={{ padding: '4px 10px', fontSize: '11px' }}>Add</button>
+                            </div>
+                        </div>
+                    ))}
+                    <button onClick={addSubcategory} style={{ padding: '6px 12px', fontSize: '11px', background: 'transparent', border: '1px solid #c9a84c', borderRadius: '4px', cursor: 'pointer', color: '#c9a84c' }}>+ Add Category</button>
+                    <button onClick={saveSkills} style={{ marginLeft: '12px', padding: '6px 12px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>Apply Skills to Resume</button>
                 </div>
-            ))}
-            <button onClick={addSubcategory} style={{ padding: '6px 12px', fontSize: '11px', background: 'transparent', border: '1px solid #c9a84c', borderRadius: '4px', cursor: 'pointer', color: '#c9a84c' }}>+ Add Category</button>
-            <div style={{ marginTop: '16px' }}>
-                <button onClick={saveSkills} style={{ padding: '6px 12px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Apply Skills to Resume</button>
-            </div>
+            </details>
         </div>
     );
 };
@@ -754,7 +766,7 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
-export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAnalysis, onClose }) {
+export default function ResumeEditor({ result, jdText, resumeText, setResumeText, hiddenBriefAnalysis, onClose }) {
     // State
     const bulletAnalysis = result?.bullet_analysis;
     const summaryAnalysis = result?.summary_analysis;
@@ -773,6 +785,8 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
     const [dateFormat, setDateFormat] = useState('MM/YYYY');
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
     const [isAIParsing, setIsAIParsing] = useState(false);
+    const [isExtractingPDF, setIsExtractingPDF] = useState(false);
+    const [pdfExtractionError, setPdfExtractionError] = useState(null);
     const [aiParsedData, setAiParsedData] = useState(null);
     const [sectionPosition, setSectionPosition] = useState('bottom');
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -807,6 +821,7 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
     const previewRef = useRef(null);
     const summaryVersionsRef = useRef({ original: '', veritas: '', hiddenBrief: '' });
     const autosaveTimer = useRef(null);
+    const fileInputRef = useRef(null);
 
     // Update state ref
     useEffect(() => {
@@ -911,6 +926,7 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         setIsLeftSidebarOpen(newState);
         localStorage.setItem('veritas_left_sidebar_open', newState);
     };
+    
     const toggleRightSidebar = () => {
         const newState = !showRightSidebar;
         setShowRightSidebar(newState);
@@ -938,9 +954,54 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         return () => window.removeEventListener('keydown', handleKeyDown);
     }, [undo, redo]);
 
+    // PDF Extraction
+    const extractPDFText = useCallback(async (file) => {
+        console.log('📄 Starting PDF extraction...');
+        try {
+            const arrayBuffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            console.log(`📄 PDF loaded: ${pdf.numPages} page(s)`);
+            let fullText = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                const pageText = textContent.items.map(item => item.str).join(' ');
+                fullText += pageText + '\n\n';
+                console.log(`📄 Page ${i} extracted: ${pageText.length} chars`);
+            }
+            return { success: true, text: fullText, pages: pdf.numPages };
+        } catch (error) {
+            console.error('PDF extraction error:', error);
+            return { success: false, error: error.message, text: '' };
+        }
+    }, []);
+
+    const handlePDFUpload = useCallback(async (file) => {
+        if (!file || file.type !== 'application/pdf') {
+            setPdfExtractionError('Please upload a valid PDF file');
+            return;
+        }
+        setIsExtractingPDF(true);
+        setPdfExtractionError(null);
+        try {
+            const result = await extractPDFText(file);
+            if (result.success && result.text.length > 100 && setResumeText) {
+                setResumeText(result.text);
+                alert(`✅ PDF extracted: ${result.pages} pages, ${result.text.length} characters`);
+            } else {
+                setPdfExtractionError(result.error || 'Failed to extract text from PDF');
+            }
+        } catch (error) {
+            setPdfExtractionError(error.message);
+        } finally {
+            setIsExtractingPDF(false);
+        }
+    }, [extractPDFText, setResumeText]);
+
     // Parse resume
     useEffect(() => {
         if (!resumeText) return;
+        console.log('🔍 Parsing resume text, length:', resumeText.length);
         const parsed = parseResume(resumeText);
         const parsedRoles = (parsed.jobs || []).map((job, jobIndex) => ({
             id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${jobIndex}-${Math.random()}`,
@@ -1058,6 +1119,7 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
             } : role
         ));
     };
+    
     const applyVeritasVersion = (roleId, bulletId) => {
         setRoles(prev => prev.map(role =>
             role.id === roleId ? {
@@ -1067,6 +1129,7 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         ));
         saveSnapshot();
     };
+    
     const applyHBVersion = (roleId, bulletId) => {
         setRoles(prev => prev.map(role =>
             role.id === roleId ? {
@@ -1076,6 +1139,7 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         ));
         saveSnapshot();
     };
+    
     const resetBullet = (roleId, bulletId) => {
         setRoles(prev => prev.map(role =>
             role.id === roleId ? {
@@ -1085,6 +1149,7 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         ));
         saveSnapshot();
     };
+    
     const addBullet = (roleId) => {
         setRoles(prev => prev.map(role =>
             role.id === roleId ? {
@@ -1101,6 +1166,7 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         ));
         saveSnapshot();
     };
+    
     const deleteBullet = (roleId, bulletId) => {
         setRoles(prev => prev.map(role =>
             role.id === roleId ? {
@@ -1110,15 +1176,19 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         ));
         saveSnapshot();
     };
+    
     const updateRoleTitle = (roleId, newTitle) => {
         setRoles(prev => prev.map(role => role.id === roleId ? { ...role, title: newTitle } : role));
     };
+    
     const updateRoleCompany = (roleId, newCompany) => {
         setRoles(prev => prev.map(role => role.id === roleId ? { ...role, company: newCompany } : role));
     };
+    
     const updateRoleDates = (roleId, startDate, endDate) => {
         setRoles(prev => prev.map(role => role.id === roleId ? { ...role, startDate, endDate } : role));
     };
+    
     const addRole = () => {
         setRoles(prev => [...prev, {
             id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
@@ -1130,10 +1200,12 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         }]);
         saveSnapshot();
     };
+    
     const deleteRole = (roleId) => {
         setRoles(prev => prev.filter(role => role.id !== roleId));
         saveSnapshot();
     };
+    
     const moveRole = (roleId, direction) => {
         setRoles(prev => {
             const idx = prev.findIndex(r => r.id === roleId);
@@ -1146,16 +1218,19 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         });
         saveSnapshot();
     };
+    
     const addSkill = (skill) => {
         if (skill && !skills.includes(skill)) {
             setSkills(prev => [...prev, skill]);
             saveSnapshot();
         }
     };
+    
     const removeSkill = (skillToRemove) => {
         setSkills(prev => prev.filter(s => s !== skillToRemove));
         saveSnapshot();
     };
+    
     const addEducation = () => {
         setEducation(prev => [...prev, {
             id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
@@ -1165,13 +1240,16 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         }]);
         saveSnapshot();
     };
+    
     const updateEducation = (id, field, value) => {
         setEducation(prev => prev.map(edu => edu.id === id ? { ...edu, [field]: value } : edu));
     };
+    
     const deleteEducation = (id) => {
         setEducation(prev => prev.filter(edu => edu.id !== id));
         saveSnapshot();
     };
+    
     const updateCertification = (index, value) => {
         setCertifications(prev => {
             const updated = [...prev];
@@ -1179,16 +1257,18 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
             return updated;
         });
     };
+    
     const addCertification = () => {
         setCertifications(prev => [...prev, '']);
         saveSnapshot();
     };
+    
     const deleteCertification = (index) => {
         setCertifications(prev => prev.filter((_, i) => i !== index));
         saveSnapshot();
     };
     
-    // FIXED BUG 6: Custom section position is now respected
+    // FIXED: Custom section position is now respected
     const addCustomSection = (name, type, position) => {
         const newSection = {
             id: crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`,
@@ -1196,18 +1276,15 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
             type,
             content: type === 'bulleted' ? [] : ''
         };
-        
         setCustomSections(prev => {
             const newSections = [...prev];
             if (position === 'top') {
                 newSections.unshift(newSection);
             } else if (position === 'after-summary') {
-                // Find index after summary (or at position 1 if no summary)
-                const insertIndex = 1;
-                newSections.splice(insertIndex, 0, newSection);
+                newSections.splice(1, 0, newSection);
             } else if (position === 'after-experience') {
-                // Insert before skills/education (at position that makes sense)
-                newSections.push(newSection);
+                const insertIndex = 1 + (summary ? 1 : 0) + roles.length;
+                newSections.splice(insertIndex, 0, newSection);
             } else {
                 newSections.push(newSection);
             }
@@ -1216,9 +1293,22 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         saveSnapshot();
     };
     
+    const updateCustomSection = (id, field, value) => {
+        setCustomSections(prev => prev.map(section => 
+            section.id === id ? { ...section, [field]: value } : section
+        ));
+        saveSnapshot();
+    };
+    
+    const deleteCustomSection = (id) => {
+        setCustomSections(prev => prev.filter(section => section.id !== id));
+        saveSnapshot();
+    };
+    
     const updateSummary = (newText) => {
         setSummary(newText);
     };
+    
     const switchSummaryVersion = (version) => {
         const versions = summaryVersionsRef.current;
         if (version === 'original' && versions.original) {
@@ -1233,6 +1323,7 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         }
         saveSnapshot();
     };
+    
     const updatePersonalInfo = (field, value) => {
         setPersonalInfo(prev => ({ ...prev, [field]: value }));
     };
@@ -1338,7 +1429,9 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
             ]
         };
     };
+    
     const handleExportClick = () => setShowExportChecklist(true);
+    
     const handleExportConfirm = async () => {
         setShowExportChecklist(false);
         setIsGeneratingPDF(true);
@@ -1355,6 +1448,7 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
                     projects={projects}
                     publications={publications}
                     selectedTemplate={selectedTemplate}
+                    customSections={customSections}
                 />
             ).toBlob();
             const url = URL.createObjectURL(blob);
@@ -1370,6 +1464,7 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
             setIsGeneratingPDF(false);
         }
     };
+    
     const saveDraft = () => {
         const draft = {
             roles, summary, skills, personalInfo, education, certifications,
@@ -1379,6 +1474,7 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         setHasUnsavedChanges(false);
         alert('Draft saved!');
     };
+    
     const loadDraft = () => {
         try {
             const draftJson = localStorage.getItem('veritas_resume_draft');
@@ -1405,28 +1501,54 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
         }
     };
 
+    // FIXED: formatDate with boundary check
     const formatDate = (dateStr) => {
         if (!dateStr) return '';
         if (dateFormat === 'MM/YYYY' && dateStr.match(/^\d{1,2}\/\d{4}$/)) return dateStr;
         if (dateFormat === 'Month YYYY') {
             const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
             const match = dateStr.match(/^(\d{1,2})\/(\d{4})$/);
-            if (match) return `${months[parseInt(match[1]) - 1]} ${match[2]}`;
+            if (match) {
+                const monthNum = parseInt(match[1], 10);
+                // Boundary check to prevent array index error
+                if (monthNum >= 1 && monthNum <= 12) {
+                    return `${months[monthNum - 1]} ${match[2]}`;
+                }
+                return match[0]; // Return original if month is invalid
+            }
         }
         return dateStr;
     };
+    
     const getScoreColor = (score) => {
         if (score >= 80) return '#10b981';
         if (score >= 60) return '#f59e0b';
         return '#ef4444';
     };
+    
     const getBloomColor = (delta) => {
         if (delta >= 0) return '#10b981';
         if (delta >= -0.5) return '#f59e0b';
         return '#ef4444';
     };
+    
     const currentTemplate = TEMPLATES[selectedTemplate];
     const exportChecklist = getExportChecklist();
+    
+    // Custom sections sorted by position (for rendering in editor)
+    const renderSections = () => {
+        const sections = [];
+        sections.push({ type: 'personal', component: null });
+        if (summary) sections.push({ type: 'summary', component: null });
+        sections.push({ type: 'experience', component: null });
+        if (skills.length > 0) sections.push({ type: 'skills', component: null });
+        if (education.length > 0) sections.push({ type: 'education', component: null });
+        if (certifications.length > 0) sections.push({ type: 'certifications', component: null });
+        if (projects.length > 0) sections.push({ type: 'projects', component: null });
+        if (publications.length > 0) sections.push({ type: 'publications', component: null });
+        sections.push(...customSections.map(s => ({ type: 'custom', id: s.id, name: s.name, section: s })));
+        return sections;
+    };
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh', background: '#f5f3f0', position: 'relative' }}>
@@ -1439,20 +1561,40 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
             <div style={{ width: isLeftSidebarOpen ? '280px' : '0px', overflow: isLeftSidebarOpen ? 'auto' : 'hidden', background: 'white', borderRight: '1px solid #e6e4dd', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh', transition: 'width 0.3s ease' }}>
                 {isLeftSidebarOpen && (
                     <>
+                        {/* Logo */}
                         <div style={{ padding: '20px', borderBottom: '1px solid #e6e4dd', display: 'flex', justifyContent: 'center' }}>
                             <img src="https://raw.githubusercontent.com/keron62-spec/VeritasResumeIntelligence/refs/heads/main/public/images/veritaslogo.jpeg?raw=true" alt="Veritas Logo" style={{ maxWidth: '120px', height: 'auto' }} />
                         </div>
+                        
+                        {/* Template Selector */}
                         <div style={{ padding: '20px', borderBottom: '1px solid #e6e4dd' }}>
                             <h3 style={{ fontSize: '11px', fontWeight: 600, color: '#c9a84c', marginBottom: '12px', textTransform: 'uppercase' }}>🎨 Templates</h3>
                             <select value={selectedTemplate} onChange={(e) => setSelectedTemplate(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e6e4dd', fontSize: '12px' }}>
                                 {Object.entries(TEMPLATES).map(([key, t]) => (<option key={key} value={key}>{t.icon} {t.name}</option>))}
                             </select>
                         </div>
+                        
+                        {/* PDF Upload Button */}
+                        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e6e4dd' }}>
+                            <input type="file" accept=".pdf" ref={fileInputRef} style={{ display: 'none' }} onChange={(e) => { if (e.target.files && e.target.files[0]) { handlePDFUpload(e.target.files[0]); e.target.value = ''; } }} />
+                            <button onClick={() => fileInputRef.current?.click()} disabled={isExtractingPDF} style={{ width: '100%', padding: '10px', background: isExtractingPDF ? '#6b21a5' : '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: isExtractingPDF ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
+                                {isExtractingPDF ? '⏳ Extracting PDF...' : '📄 Upload PDF Resume'}
+                            </button>
+                            {pdfExtractionError && (
+                                <div style={{ fontSize: '10px', color: '#ef4444', marginTop: '8px', textAlign: 'center' }}>
+                                    ⚠️ {pdfExtractionError}
+                                </div>
+                            )}
+                        </div>
+                        
+                        {/* AI Parser Button */}
                         <div style={{ padding: '16px 20px', borderBottom: '1px solid #e6e4dd' }}>
                             <button onClick={runAIParser} disabled={isAIParsing} style={{ width: '100%', padding: '10px', background: isAIParsing ? '#6b21a5' : '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: isAIParsing ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 500 }}>
                                 {isAIParsing ? '⏳ AI Parsing...' : '🤖 AI Parser (Gemini 3.1)'}
                             </button>
                         </div>
+                        
+                        {/* Mode Controls */}
                         <div style={{ padding: '16px 20px', borderBottom: '1px solid #e6e4dd', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <button onClick={() => setEditMode(!editMode)} style={{ padding: '8px', fontSize: '12px', width: '100%', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>
                                 {editMode ? '👁️ Preview Mode' : '✏️ Edit Mode'}
@@ -1461,14 +1603,20 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
                                 {previewMode ? '📝 Hide Preview' : '👁️ Show Preview'}
                             </button>
                         </div>
+                        
+                        {/* Draft Controls */}
                         <div style={{ padding: '16px 20px', borderBottom: '1px solid #e6e4dd', display: 'flex', gap: '8px' }}>
                             <button onClick={saveDraft} style={{ flex: 1, padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>💾 Save</button>
                             <button onClick={loadDraft} style={{ flex: 1, padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>📂 Load</button>
                         </div>
+                        
+                        {/* Undo/Redo */}
                         <div style={{ padding: '16px 20px', borderBottom: '1px solid #e6e4dd', display: 'flex', gap: '8px' }}>
                             <button onClick={undo} disabled={historyIndex <= 0} style={{ flex: 1, padding: '6px', fontSize: '11px', background: historyIndex <= 0 ? '#f5f3f0' : 'white', border: '1px solid #e6e4dd', borderRadius: '6px', cursor: historyIndex <= 0 ? 'not-allowed' : 'pointer' }}>↩️ Undo</button>
                             <button onClick={redo} disabled={historyIndex >= stateHistory.length - 1} style={{ flex: 1, padding: '6px', fontSize: '11px', background: historyIndex >= stateHistory.length - 1 ? '#f5f3f0' : 'white', border: '1px solid #e6e4dd', borderRadius: '6px', cursor: historyIndex >= stateHistory.length - 1 ? 'not-allowed' : 'pointer' }}>↪️ Redo</button>
                         </div>
+                        
+                        {/* Export & Back */}
                         <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: 'auto' }}>
                             <button onClick={handleExportClick} disabled={isGeneratingPDF} className="btn-primary" style={{ padding: '10px', fontSize: '12px', fontWeight: 600, width: '100%', background: '#c9a84c', border: 'none', borderRadius: '6px', cursor: 'pointer', color: '#1a1f2e' }}>
                                 {isGeneratingPDF ? '⏳ Generating...' : '📥 Export PDF'}
@@ -1477,6 +1625,8 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
                                 ← Back to Analysis
                             </button>
                         </div>
+                        
+                        {/* Change Summary */}
                         <div style={{ padding: '16px 20px', borderTop: '1px solid #e6e4dd' }}>
                             <h3 style={{ fontSize: '10px', fontWeight: 600, color: '#c9a84c', marginBottom: '8px', textTransform: 'uppercase' }}>Changes ({stateHistory.length})</h3>
                             <div style={{ fontSize: '10px', color: stateHistory.length ? '#10b981' : '#6b7280' }}>
@@ -1542,10 +1692,14 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
                         {skills.length > 0 && (
                             <div style={{ marginTop: '20px' }}>
                                 <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>Skills</div>
-                                <div style={{ fontSize: '11px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                    {skills.slice(0, 15).map(skill => (<span key={skill} style={{ padding: '2px 8px', background: '#f0f0f0', borderRadius: '4px' }}>{skill}</span>))}
-                                    {skills.length > 15 && <span style={{ fontSize: '10px', color: '#6b7280' }}>+{skills.length - 15} more</span>}
-                                </div>
+                                {advancedSkills ? (
+                                    <SkillsAdvancedEditor skills={skills} setSkills={setSkills} onSave={saveSnapshot} />
+                                ) : (
+                                    <div style={{ fontSize: '11px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                        {skills.slice(0, 15).map(skill => (<span key={skill} style={{ padding: '2px 8px', background: '#f0f0f0', borderRadius: '4px' }}>{skill}</span>))}
+                                        {skills.length > 15 && <span style={{ fontSize: '10px', color: '#6b7280' }}>+{skills.length - 15} more</span>}
+                                    </div>
+                                )}
                             </div>
                         )}
                         {education.length > 0 && education.some(e => e.degree) && (
@@ -1558,8 +1712,21 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
                                 ))}
                             </div>
                         )}
+                        {customSections.length > 0 && customSections.map((section, idx) => (
+                            <div key={idx} style={{ marginTop: '20px' }}>
+                                <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>{section.name}</div>
+                                {section.type === 'bulleted' ? (
+                                    Array.isArray(section.content) && section.content.map((item, i) => (
+                                        <div key={i} style={{ fontSize: '11px', marginBottom: '4px' }}>• {item}</div>
+                                    ))
+                                ) : (
+                                    <div style={{ fontSize: '12px' }}>{section.content}</div>
+                                )}
+                            </div>
+                        ))}
                     </div>
                 ) : (
+                    // Edit Mode - All editable sections
                     <>
                         {/* Personal Info Section */}
                         <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', marginBottom: '20px', padding: '20px' }}>
@@ -1753,6 +1920,36 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
                             )}
                         </div>
                         
+                        {/* Custom Sections */}
+                        {customSections.map((section) => (
+                            <div key={section.id} style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                    <input type="text" value={section.name} onChange={(e) => updateCustomSection(section.id, 'name', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ fontSize: '13px', fontWeight: 600, background: 'transparent', border: 'none', padding: 0, color: '#c9a84c' }} />
+                                    {editMode && <button onClick={() => deleteCustomSection(section.id)} style={{ fontSize: '11px', padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Delete Section</button>}
+                                </div>
+                                {section.type === 'bulleted' ? (
+                                    <>
+                                        {Array.isArray(section.content) && section.content.map((item, idx) => (
+                                            <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
+                                                <input type="text" value={item} onChange={(e) => {
+                                                    const newContent = [...section.content];
+                                                    newContent[idx] = e.target.value;
+                                                    updateCustomSection(section.id, 'content', newContent);
+                                                }} onBlur={saveSnapshot} disabled={!editMode} style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                                {editMode && <button onClick={() => {
+                                                    const newContent = section.content.filter((_, i) => i !== idx);
+                                                    updateCustomSection(section.id, 'content', newContent);
+                                                }} style={{ padding: '6px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🗑️</button>}
+                                            </div>
+                                        ))}
+                                        {editMode && <button onClick={() => updateCustomSection(section.id, 'content', [...(section.content || []), ''])} style={{ padding: '6px 12px', background: 'transparent', border: '1px solid #c9a84c', borderRadius: '4px', cursor: 'pointer', color: '#c9a84c', fontSize: '12px' }}>+ Add Item</button>}
+                                    </>
+                                ) : (
+                                    <textarea value={section.content} onChange={(e) => updateCustomSection(section.id, 'content', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} rows={3} style={{ width: '100%', padding: '12px', border: '1px solid #e6e4dd', borderRadius: '8px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit' }} placeholder={`Enter ${section.name.toLowerCase()} content...`} />
+                                )}
+                            </div>
+                        ))}
+                        
                         {/* Add Section Button */}
                         {editMode && (
                             <button onClick={() => setShowAddSectionModal(true)} style={{ width: '100%', padding: '12px', background: 'transparent', border: '2px dashed #c9a84c', borderRadius: '12px', cursor: 'pointer', color: '#c9a84c', fontSize: '13px', marginBottom: '20px' }}>
@@ -1766,11 +1963,12 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
             {/* Right Sidebar */}
             {showRightSidebar && !previewMode && (
                 <div style={{ width: '300px', background: 'white', borderLeft: '1px solid #e6e4dd', overflowY: 'auto', position: 'sticky', top: 0, height: '100vh', transition: 'width 0.3s ease' }}>
-                    <div style={{ padding: '20px', borderBottom: '1px solid #e6e4dd' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                            <h3 style={{ fontSize: '12px', fontWeight: 600, color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '1px' }}>📊 Live Scores</h3>
-                            <button onClick={toggleRightSidebar} style={{ fontSize: '10px', background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer' }}>✕</button>
-                        </div>
+                    {/* Right Sidebar Toggle Button */}
+                    <button onClick={toggleRightSidebar} style={{ position: 'absolute', right: 10, top: 10, background: '#c9a84c', border: 'none', borderRadius: '4px', padding: '4px 8px', cursor: 'pointer', fontSize: '10px', zIndex: 10 }}>
+                        ✕
+                    </button>
+                    
+                    <div style={{ padding: '20px', paddingTop: '40px' }}>
                         <div style={{ marginBottom: '16px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}><span style={{ fontSize: '11px', color: '#6b7280' }}>🎯 JD Fit Score</span><span style={{ fontSize: '13px', fontWeight: 600, color: getScoreColor(liveScores.fit_score) }}>{liveScores.fit_score}%</span></div>
                             <div style={{ height: '6px', background: '#e6e4dd', borderRadius: '3px', overflow: 'hidden' }}><div style={{ width: `${liveScores.fit_score}%`, height: '100%', background: getScoreColor(liveScores.fit_score), borderRadius: '3px' }} /></div>
@@ -1800,21 +1998,23 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
                             </div>
                         </details>
                     </div>
+                    
                     {jdText && (
-                        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e6e4dd' }}>
+                        <div style={{ padding: '16px 20px', borderTop: '1px solid #e6e4dd' }}>
                             <div onClick={() => setShowJDContext(!showJDContext)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
                                 <h3 style={{ fontSize: '11px', fontWeight: 600, color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '1px' }}>📋 Original JD</h3>
                                 <span>{showJDContext ? '▼' : '▶'}</span>
                             </div>
                             {showJDContext && (
                                 <div style={{ marginTop: '12px', fontSize: '11px', maxHeight: '200px', overflowY: 'auto', padding: '8px', background: '#f8f7f4', borderRadius: '6px' }}>
-                                    {jdText.substring(0, 1000)}...
+                                    {jdText}
                                 </div>
                             )}
                         </div>
                     )}
+                    
                     {hiddenBriefAnalysis && (
-                        <div style={{ padding: '16px 20px', borderBottom: '1px solid #e6e4dd' }}>
+                        <div style={{ padding: '16px 20px', borderTop: '1px solid #e6e4dd' }}>
                             <div onClick={() => setShowHiddenBrief(!showHiddenBrief)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}>
                                 <h3 style={{ fontSize: '11px', fontWeight: 600, color: '#c9a84c', textTransform: 'uppercase', letterSpacing: '1px' }}>🕵️ Hidden Brief</h3>
                                 <span>{showHiddenBrief ? '▼' : '▶'}</span>
@@ -1841,7 +2041,7 @@ export default function ResumeEditor({ result, jdText, resumeText, hiddenBriefAn
             )}
             
             {/* Modals */}
-            <AddSectionModal isOpen={showAddSectionModal} onClose={() => setShowAddSectionModal(false)} onAdd={addCustomSection} sectionPosition={sectionPosition} setSectionPosition={setSectionPosition} availablePositions={[{ value: 'top', label: 'At the beginning' }, { value: 'after-summary', label: 'After Summary' }, { value: 'after-experience', label: 'After Experience' }, { value: 'bottom', label: 'At the bottom' }]} />
+            <AddSectionModal isOpen={showAddSectionModal} onClose={() => setShowAddSectionModal(false)} onAdd={addCustomSection} sectionPosition={sectionPosition} setSectionPosition={setSectionPosition} />
             <ExportChecklistModal isOpen={showExportChecklist} onClose={() => setShowExportChecklist(false)} onConfirm={handleExportConfirm} checklist={exportChecklist} />
             {isAIParsing && <AILoadingOverlay message="🤖 AI is parsing your resume with Gemini 3.1 Flash Lite..." />}
             {showAIParseComparison && aiParsedData && <AIParseComparisonModal isOpen={showAIParseComparison} onClose={() => setShowAIParseComparison(false)} deterministicRoles={roles} aiRoles={aiParsedData.roles} onAcceptAI={acceptAIResults} />}

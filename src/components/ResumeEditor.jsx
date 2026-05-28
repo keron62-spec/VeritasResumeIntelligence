@@ -21,7 +21,7 @@ import { calculateRIASECDeterministic } from '../utils/riasec.js';
 import { extractPersonalInfo } from '../utils/personalInfoExtractor.js';
 
 // ============================================================
-// PDF STYLES - FIXED (#9, #18)
+// PDF STYLES
 // ============================================================
 const createPDFStyles = (templateKey) => {
     const t = TEMPLATES[templateKey];
@@ -61,6 +61,14 @@ const createPDFStyles = (templateKey) => {
             textTransform: t.nameStyle?.textTransform || 'uppercase',
             letterSpacing: t.nameStyle?.letterSpacing || 1,
             color: t.nameStyle?.color || '#1a1f2e'
+        },
+        targetTitle: {
+            fontSize: 12,
+            fontWeight: 'normal',
+            color: '#666',
+            textAlign: 'center',
+            marginTop: 8,
+            marginBottom: 16
         },
         contactRow: {
             fontSize: t.contactRow?.fontSize || 9,
@@ -124,10 +132,18 @@ const createPDFStyles = (templateKey) => {
 };
 
 // ============================================================
-// PDF Document Component - FIXED (#17, #7)
+// PDF Document Component
 // ============================================================
-const ResumePDF = ({ personalInfo, summary, roles, skills, education, certifications, projects, publications, selectedTemplate, customSections, dateFormat, formatDate }) => {
+const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, education, certifications, projects, publications, selectedTemplate, customSections, dateFormat, formatDate, skillsSeparator }) => {
     const styles = createPDFStyles(selectedTemplate);
+    
+    // Format skills based on separator choice
+    const formatSkillsList = (skillsArray) => {
+        if (!skillsArray || skillsArray.length === 0) return '';
+        if (skillsSeparator === 'pipe') return skillsArray.join(' | ');
+        if (skillsSeparator === 'bulleted') return skillsArray.map(s => `• ${s}`).join('\n');
+        return skillsArray.join(', ');
+    };
     
     return (
         <Document>
@@ -135,6 +151,7 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                 {/* Header - keep wrap={false} */}
                 <View style={styles.header} wrap={false}>
                     <Text style={styles.name}>{personalInfo.name || 'Your Name'}</Text>
+                    {targetTitle && <Text style={styles.targetTitle}>{targetTitle}</Text>}
                     <Text style={styles.contactRow}>
                         {[personalInfo.email, personalInfo.phone, personalInfo.linkedin, personalInfo.location].filter(Boolean).join(' | ')}
                     </Text>
@@ -177,7 +194,7 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                 {skills.length > 0 && (
                     <View>
                         <Text style={styles.sectionTitle}>Skills</Text>
-                        <Text style={styles.skillsText}>{skills.join(' • ')}</Text>
+                        <Text style={styles.skillsText}>{formatSkillsList(skills)}</Text>
                     </View>
                 )}
                 
@@ -204,7 +221,7 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                     </View>
                 )}
                 
-                {/* Projects */}
+                {/* Projects - bulleted list */}
                 {projects && projects.length > 0 && (
                     <View>
                         <Text style={styles.sectionTitle}>Projects</Text>
@@ -219,7 +236,7 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
                     </View>
                 )}
                 
-                {/* Publications */}
+                {/* Publications - bulleted list */}
                 {publications && publications.length > 0 && (
                     <View>
                         <Text style={styles.sectionTitle}>Publications</Text>
@@ -248,7 +265,7 @@ const ResumePDF = ({ personalInfo, summary, roles, skills, education, certificat
 };
 
 // ============================================================
-// TEMPLATE STYLES - FIXED (#10 - added fontFamily)
+// TEMPLATE STYLES
 // ============================================================
 const TEMPLATES = {
     classic: {
@@ -410,7 +427,7 @@ function calculateKeywordMatchRate(resumeText, jdKeywords) {
 }
 
 // ============================================================
-// FORMAT DATE - FIXED (#7 - used in PDF export)
+// FORMAT DATE
 // ============================================================
 function formatDate(dateStr, dateFormatPreference) {
     if (!dateStr) return '';
@@ -428,6 +445,160 @@ function formatDate(dateStr, dateFormatPreference) {
     }
     return dateStr;
 }
+
+// ============================================================
+// DRAG AND DROP SECTION REORDERING COMPONENT
+// ============================================================
+const SectionReorderModal = ({ isOpen, onClose, sections, onReorder, sectionOrder, setSectionOrder }) => {
+    const [dragIndex, setDragIndex] = useState(null);
+    const [localOrder, setLocalOrder] = useState([]);
+    
+    useEffect(() => {
+        if (sections) {
+            setLocalOrder([...sectionOrder]);
+        }
+    }, [sections, sectionOrder]);
+    
+    const handleDragStart = (index) => {
+        setDragIndex(index);
+    };
+    
+    const handleDragOver = (e) => {
+        e.preventDefault();
+    };
+    
+    const handleDrop = (targetIndex) => {
+        if (dragIndex === null) return;
+        const newOrder = [...localOrder];
+        const draggedItem = newOrder[dragIndex];
+        newOrder.splice(dragIndex, 1);
+        newOrder.splice(targetIndex, 0, draggedItem);
+        setLocalOrder(newOrder);
+        setDragIndex(null);
+    };
+    
+    const handleSave = () => {
+        setSectionOrder(localOrder);
+        onReorder(localOrder);
+        onClose();
+    };
+    
+    if (!isOpen) return null;
+    
+    // Define section icons and labels
+    const sectionLabels = {
+        'target-title': { label: 'Target Title', icon: '🎯' },
+        'summary': { label: 'Professional Summary', icon: '📄' },
+        'experience': { label: 'Work Experience', icon: '💼' },
+        'skills': { label: 'Skills', icon: '⚙️' },
+        'projects': { label: 'Projects', icon: '🚀' },
+        'certifications': { label: 'Certifications', icon: '🏆' },
+        'education': { label: 'Education', icon: '🎓' },
+        'publications': { label: 'Publications', icon: '📝' }
+    };
+    
+    return (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
+            <div style={{ background: 'white', borderRadius: '12px', width: '500px', maxWidth: '90%', maxHeight: '80vh', overflow: 'auto', padding: '24px' }}>
+                <h3 style={{ marginBottom: '16px', color: '#c9a84c' }}>📋 Reorder Resume Sections</h3>
+                <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '20px' }}>Drag and drop sections to reorder. Personal Information is fixed at the top.</p>
+                
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {localOrder.map((sectionId, index) => {
+                        const info = sectionLabels[sectionId] || { label: sectionId, icon: '📌' };
+                        return (
+                            <div
+                                key={sectionId}
+                                draggable
+                                onDragStart={() => handleDragStart(index)}
+                                onDragOver={handleDragOver}
+                                onDrop={() => handleDrop(index)}
+                                style={{
+                                    padding: '12px 16px',
+                                    background: dragIndex === index ? '#e6e4dd' : '#f8f7f4',
+                                    border: '1px solid #e6e4dd',
+                                    borderRadius: '8px',
+                                    cursor: 'grab',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '12px'
+                                }}
+                            >
+                                <span style={{ cursor: 'grab', color: '#6b7280' }}>⋮⋮</span>
+                                <span style={{ fontSize: '18px' }}>{info.icon}</span>
+                                <span style={{ flex: 1 }}>{info.label}</span>
+                            </div>
+                        );
+                    })}
+                </div>
+                
+                <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
+                    <button onClick={onClose} style={{ padding: '8px 16px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
+                    <button onClick={handleSave} style={{ padding: '8px 16px', background: '#c9a84c', border: 'none', borderRadius: '6px', cursor: 'pointer', color: '#1a1f2e', fontWeight: 500 }}>Apply Order</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// ============================================================
+// FLOATING TEXT FORMATTING TOOLBAR
+// ============================================================
+const FloatingToolbar = ({ position, onFormat, onClose }) => {
+    const toolbarRef = useRef(null);
+    
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
+                onClose();
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [onClose]);
+    
+    if (!position) return null;
+    
+    return (
+        <div
+            ref={toolbarRef}
+            style={{
+                position: 'fixed',
+                top: position.top - 40,
+                left: position.left,
+                background: '#1a1f2e',
+                borderRadius: '8px',
+                padding: '6px 12px',
+                display: 'flex',
+                gap: '8px',
+                zIndex: 10000,
+                boxShadow: '0 2px 10px rgba(0,0,0,0.2)'
+            }}
+        >
+            <button
+                onClick={() => onFormat('bold')}
+                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+                title="Bold"
+            >
+                <strong>B</strong>
+            </button>
+            <button
+                onClick={() => onFormat('italic')}
+                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', fontStyle: 'italic' }}
+                title="Italic"
+            >
+                <em>I</em>
+            </button>
+            <button
+                onClick={() => onFormat('underline')}
+                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', textDecoration: 'underline' }}
+                title="Underline"
+            >
+                <u>U</u>
+            </button>
+        </div>
+    );
+};
 
 // ============================================================
 // MODAL COMPONENTS
@@ -518,7 +689,7 @@ const AILoadingOverlay = ({ message }) => (
 );
 
 // ============================================================
-// AI Parser Comparison Modal - FIXED (#5)
+// AI Parser Comparison Modal
 // ============================================================
 const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, deterministicSkills, deterministicEducation, aiParsedData, onAcceptAI }) => {
     if (!isOpen || !aiParsedData) return null;
@@ -582,18 +753,18 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
 };
 
 // ============================================================
-// SKILLS ADVANCED EDITOR - FIXED (#11)
+// SKILLS ADVANCED EDITOR
 // ============================================================
-const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
+const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setSkillsSeparator }) => {
     const [subcategories, setSubcategories] = useState([
         { name: 'Core Competencies', skills: [] },
         { name: 'Tools & Technologies', skills: [] }
     ]);
-    const [displayMode, setDisplayMode] = useState('chips');
-    const [columnCount, setColumnCount] = useState(2);
     const [prevSkillsLength, setPrevSkillsLength] = useState(0);
+    const [dragIndex, setDragIndex] = useState(null);
+    const [dragCategoryIndex, setDragCategoryIndex] = useState(null);
     
-    // FIXED (#11): Update when skills prop changes
+    // Update when skills prop changes
     useEffect(() => {
         if (skills.length !== prevSkillsLength || prevSkillsLength === 0) {
             const midPoint = Math.ceil(skills.length / 2);
@@ -629,74 +800,119 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
         setSubcategories(updated);
     };
     
+    const handleDragStart = (categoryIndex, skillIndex) => {
+        setDragCategoryIndex(categoryIndex);
+        setDragIndex(skillIndex);
+    };
+    
+    const handleDragOver = (e) => {
+        e.preventDefault();
+    };
+    
+    const handleDrop = (targetCategoryIndex, targetSkillIndex) => {
+        if (dragIndex === null || dragCategoryIndex === null) return;
+        
+        const newSubcategories = [...subcategories];
+        const draggedSkill = newSubcategories[dragCategoryIndex].skills[dragIndex];
+        
+        // Remove from source
+        newSubcategories[dragCategoryIndex].skills.splice(dragIndex, 1);
+        
+        // Insert at target
+        newSubcategories[targetCategoryIndex].skills.splice(targetSkillIndex, 0, draggedSkill);
+        
+        setSubcategories(newSubcategories);
+        setDragIndex(null);
+        setDragCategoryIndex(null);
+    };
+    
     const saveSkills = () => {
         const allSkills = subcategories.flatMap(cat => cat.skills);
         setSkills(allSkills);
         if (onSave) onSave();
     };
     
-    const renderSkillsContent = () => {
-        if (displayMode === 'comma') {
-            const allSkills = subcategories.flatMap(cat => cat.skills);
-            return <div style={{ fontSize: '11px', lineHeight: '1.6' }}>{allSkills.join(', ')}</div>;
-        }
-        if (displayMode === 'multi-column') {
-            const allSkills = subcategories.flatMap(cat => cat.skills);
-            const columns = Math.min(columnCount, 4);
-            const itemsPerColumn = Math.ceil(allSkills.length / columns);
-            const columnData = [];
-            for (let i = 0; i < columns; i++) {
-                columnData.push(allSkills.slice(i * itemsPerColumn, (i + 1) * itemsPerColumn));
-            }
-            return (
-                <div style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 1fr)`, gap: '16px' }}>
-                    {columnData.map((col, idx) => (
-                        <div key={idx}>
-                            {col.map((skill, i) => (
-                                <div key={i} style={{ fontSize: '11px', marginBottom: '4px' }}>• {skill}</div>
-                            ))}
-                        </div>
-                    ))}
-                </div>
-            );
-        }
-        return (
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {subcategories.flatMap(cat => cat.skills).map((skill, idx) => (
-                    <span key={idx} style={{ padding: '4px 10px', background: 'rgba(201,168,76,0.15)', borderRadius: '20px', fontSize: '11px', color: '#c9a84c' }}>{skill}</span>
-                ))}
-            </div>
-        );
+    const renderSkillsPreview = () => {
+        const allSkills = subcategories.flatMap(cat => cat.skills);
+        if (skillsSeparator === 'pipe') return allSkills.join(' | ');
+        if (skillsSeparator === 'bulleted') return allSkills.map(s => `• ${s}`).join('\n');
+        return allSkills.join(', ');
     };
     
     return (
         <div>
             <div style={{ marginBottom: '12px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <label>Display as:</label>
-                <select value={displayMode} onChange={(e) => setDisplayMode(e.target.value)} style={{ padding: '4px 8px', borderRadius: '4px' }}>
-                    <option value="chips">Chips (colored badges)</option>
-                    <option value="comma">Comma-separated text</option>
-                    <option value="multi-column">Multi-column list</option>
+                <label style={{ fontSize: '11px', color: '#6b7280' }}>Separator for rendered output:</label>
+                <select value={skillsSeparator} onChange={(e) => setSkillsSeparator(e.target.value)} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px' }}>
+                    <option value="comma">Comma-separated (e.g., Skill A, Skill B)</option>
+                    <option value="pipe">Pipe-separated (e.g., Skill A | Skill B)</option>
+                    <option value="bulleted">Bulleted list</option>
                 </select>
-                {displayMode === 'multi-column' && (
-                    <>
-                        <label>Columns:</label>
-                        <input type="number" min="1" max="4" value={columnCount} onChange={(e) => setColumnCount(Math.min(4, Math.max(1, parseInt(e.target.value) || 2)))} style={{ width: '60px', padding: '4px 8px', borderRadius: '4px' }} />
-                    </>
-                )}
             </div>
-            {renderSkillsContent()}
+            
+            <div style={{ marginBottom: '12px', padding: '10px', background: '#f8f7f4', borderRadius: '6px' }}>
+                <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px' }}>Preview (how it will look in PDF):</div>
+                <div style={{ fontSize: '11px' }}>{renderSkillsPreview()}</div>
+            </div>
+            
             <details style={{ marginTop: '12px' }}>
-                <summary style={{ fontSize: '11px', cursor: 'pointer', color: '#c9a84c' }}>Edit Skill Categories (Advanced)</summary>
+                <summary style={{ fontSize: '11px', cursor: 'pointer', color: '#c9a84c' }}>Edit Skill Categories (Drag & Drop)</summary>
                 <div style={{ marginTop: '12px' }}>
+                    <div style={{ marginBottom: '12px', padding: '8px', background: '#f8f7f4', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '8px' }}>Master Skills Bucket (drag from here to categories):</div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                            {skills.map((skill, idx) => (
+                                <span
+                                    key={idx}
+                                    draggable
+                                    onDragStart={() => {
+                                        setDragCategoryIndex(-1);
+                                        setDragIndex(idx);
+                                    }}
+                                    onDragEnd={() => {
+                                        setDragIndex(null);
+                                        setDragCategoryIndex(null);
+                                    }}
+                                    style={{
+                                        padding: '4px 10px',
+                                        background: '#e6e4dd',
+                                        borderRadius: '20px',
+                                        fontSize: '11px',
+                                        cursor: 'grab',
+                                        color: '#1a1f2e'
+                                    }}
+                                >
+                                    {skill}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                    
                     {subcategories.map((cat, catIdx) => (
                         <div key={catIdx} style={{ marginBottom: '20px', padding: '12px', background: '#f8f7f4', borderRadius: '8px' }}>
                             <input type="text" value={cat.name} onChange={(e) => updateSubcategoryName(catIdx, e.target.value)} style={{ fontWeight: 600, marginBottom: '8px', background: 'transparent', border: 'none', fontSize: '12px', width: '100%' }} />
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px', minHeight: '40px' }}>
                                 {cat.skills.map((skill, skillIdx) => (
-                                    <span key={skillIdx} style={{ padding: '4px 8px', background: 'rgba(201,168,76,0.1)', borderRadius: '16px', fontSize: '11px', color: '#c9a84c', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                                    <span
+                                        key={skillIdx}
+                                        draggable
+                                        onDragStart={() => handleDragStart(catIdx, skillIdx)}
+                                        onDragOver={handleDragOver}
+                                        onDrop={() => handleDrop(catIdx, skillIdx)}
+                                        style={{
+                                            padding: '4px 10px',
+                                            background: 'rgba(201,168,76,0.1)',
+                                            borderRadius: '20px',
+                                            fontSize: '11px',
+                                            color: '#c9a84c',
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '6px',
+                                            cursor: 'grab'
+                                        }}
+                                    >
                                         {skill}
-                                        <button onClick={() => removeSkillFromSubcategory(catIdx, skillIdx)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer' }}>×</button>
+                                        <button onClick={() => removeSkillFromSubcategory(catIdx, skillIdx)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px' }}>×</button>
                                     </span>
                                 ))}
                             </div>
@@ -721,7 +937,7 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave }) => {
 };
 
 // ============================================================
-// TOAST NOTIFICATION - FIXED (#23 - replaces alert())
+// TOAST NOTIFICATION
 // ============================================================
 const Toast = ({ message, type, onClose }) => {
     useEffect(() => {
@@ -777,15 +993,23 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const [dateFormat, setDateFormat] = useState('MM/YYYY');
     const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
     const [isAIParsing, setIsAIParsing] = useState(false);
+    const [aiParseFailed, setAiParseFailed] = useState(false);
     const [isExtractingPDF, setIsExtractingPDF] = useState(false);
     const [pdfExtractionError, setPdfExtractionError] = useState(null);
     const [aiParsedData, setAiParsedData] = useState(null);
     const [sectionPosition, setSectionPosition] = useState('bottom');
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [toast, setToast] = useState(null);
+    const [targetTitle, setTargetTitle] = useState('');
+    const [summaryVersion, setSummaryVersion] = useState('original');
+    const [skillsSeparator, setSkillsSeparator] = useState('comma');
+    const [sectionOrder, setSectionOrder] = useState(['target-title', 'summary', 'experience', 'skills', 'projects', 'certifications', 'education', 'publications']);
+    const [showReorderModal, setShowReorderModal] = useState(false);
+    const [floatingToolbar, setFloatingToolbar] = useState(null);
+    const [activeTextarea, setActiveTextarea] = useState(null);
+    
     const [personalInfo, setPersonalInfo] = useState({ name: '', email: '', phone: '', linkedin: '', location: '' });
     const [summary, setSummary] = useState('');
-    const [summaryVersion, setSummaryVersion] = useState('original');
     const [roles, setRoles] = useState([]);
     const [skills, setSkills] = useState([]);
     const [education, setEducation] = useState([]);
@@ -816,6 +1040,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const saveDraftRef = useRef(null);
     const handleExportClickRef = useRef(null);
     const summaryVersionsRef = useRef({ original: '', veritas: '', hiddenBrief: '' });
+    const isInitialAILoadRef = useRef(false);
     
     const showToast = (message, type = 'info') => {
         setToast({ message, type });
@@ -832,9 +1057,10 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             certifications: [...certifications],
             projects: JSON.parse(JSON.stringify(projects)),
             publications: [...publications],
-            customSections: JSON.parse(JSON.stringify(customSections))
+            customSections: JSON.parse(JSON.stringify(customSections)),
+            targetTitle
         };
-    }, [roles, summary, skills, personalInfo, education, certifications, projects, publications, customSections]);
+    }, [roles, summary, skills, personalInfo, education, certifications, projects, publications, customSections, targetTitle]);
 
     // Undo/Redo
     const saveSnapshot = useCallback(() => {
@@ -856,6 +1082,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             setProjects(snapshot.projects || []);
             setPublications(snapshot.publications || []);
             setCustomSections(snapshot.customSections || []);
+            setTargetTitle(snapshot.targetTitle || '');
             setHistoryIndex(prev => prev - 1);
             setHasUnsavedChanges(true);
             showToast('Undo successful', 'success');
@@ -874,6 +1101,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             setProjects(snapshot.projects || []);
             setPublications(snapshot.publications || []);
             setCustomSections(snapshot.customSections || []);
+            setTargetTitle(snapshot.targetTitle || '');
             setHistoryIndex(prev => prev + 1);
             setHasUnsavedChanges(true);
             showToast('Redo successful', 'success');
@@ -888,7 +1116,8 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 try {
                     const draft = {
                         roles, summary, skills, personalInfo, education, certifications,
-                        projects, publications, customSections, selectedTemplate, timestamp: Date.now()
+                        projects, publications, customSections, selectedTemplate, targetTitle,
+                        sectionOrder, timestamp: Date.now()
                     };
                     localStorage.setItem('veritas_resume_autosave', JSON.stringify(draft));
                     console.log('💾 Autosaved draft');
@@ -898,9 +1127,9 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             }
         }, 30000);
         return () => { if (autosaveTimer.current) clearInterval(autosaveTimer.current); };
-    }, [roles, summary, skills, personalInfo, education, certifications, projects, publications, customSections, selectedTemplate, hasUnsavedChanges]);
+    }, [roles, summary, skills, personalInfo, education, certifications, projects, publications, customSections, selectedTemplate, targetTitle, sectionOrder, hasUnsavedChanges]);
 
-    // FIXED (#1): beforeunload event name
+    // beforeunload event
     useEffect(() => {
         const handleBeforeUnload = (e) => {
             if (hasUnsavedChanges) {
@@ -937,12 +1166,13 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         localStorage.setItem('veritas_right_sidebar_open', newState);
     };
 
-    // FIXED (#4): Keyboard shortcuts with refs
+    // Keyboard shortcuts with refs
     const saveDraftFn = useCallback(() => {
         try {
             const draft = {
                 roles, summary, skills, personalInfo, education, certifications,
-                projects, publications, customSections, selectedTemplate, timestamp: Date.now()
+                projects, publications, customSections, selectedTemplate, targetTitle,
+                sectionOrder, timestamp: Date.now()
             };
             localStorage.setItem('veritas_resume_draft', JSON.stringify(draft));
             setHasUnsavedChanges(false);
@@ -951,7 +1181,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             console.warn('Save draft failed:', e);
             showToast('Failed to save draft', 'error');
         }
-    }, [roles, summary, skills, personalInfo, education, certifications, projects, publications, customSections, selectedTemplate]);
+    }, [roles, summary, skills, personalInfo, education, certifications, projects, publications, customSections, selectedTemplate, targetTitle, sectionOrder]);
     
     const handleExportClickFn = useCallback(() => setShowExportChecklist(true), []);
     
@@ -1022,11 +1252,126 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         }
     }, [extractPDFText, setResumeText]);
 
-    // FIXED (#2, #8): Parse resume - removed summaryAnalysis from deps, added all sections to buildResumeText
-    useEffect(() => {
-        if (!resumeText) return;
-        console.log('🔍 Parsing resume text, length:', resumeText.length);
+    // ============================================================
+    // AI Parser as Primary (auto-run on mount)
+    // ============================================================
+    const runAIParser = async (showComparison = false) => {
+        if (!resumeText || resumeText.trim().length < 100) {
+            showToast('Please provide valid resume text (minimum 100 characters)', 'error');
+            return false;
+        }
         
+        setIsAIParsing(true);
+        setAiParseFailed(false);
+        
+        try {
+            const response = await fetch('https://ats-stage-2-parser.keron62.workers.dev/parse/full', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ resumeText })
+            });
+            const data = await response.json();
+            
+            if (!data.success) throw new Error(data.error || 'AI parsing failed');
+            
+            const aiRoles = (data.jobs || []).map((job, idx) => ({
+                id: safeUUID(),
+                title: job.title || 'Untitled Role',
+                company: job.company || 'Unknown Company',
+                startDate: job.startDate || '',
+                endDate: job.endDate || '',
+                bullets: (job.bullets || []).map((bulletText, bulletIdx) => ({
+                    id: safeUUID(),
+                    text: bulletText,
+                    original: bulletText,
+                    veritas: null,
+                    hiddenBrief: null,
+                    showAlternatives: false
+                }))
+            }));
+            
+            const aiSkills = data.skills || [];
+            const aiEducation = (data.education || []).map((edu, idx) => ({
+                id: safeUUID(),
+                degree: edu.degree || edu.text || '',
+                institution: edu.institution || '',
+                year: edu.year || '',
+                location: edu.location || ''
+            }));
+            const aiProjects = (data.projects || []).map((project, idx) => ({
+                id: safeUUID(),
+                name: project.name || 'Untitled Project',
+                bullets: project.bullets || [],
+                technologies: project.technologies || [],
+                link: project.link || ''
+            }));
+            const aiCertifications = (data.certifications || []).map((cert, idx) => {
+                if (typeof cert === 'string') return cert;
+                return `${cert.name || ''}${cert.issuer ? ` (${cert.issuer})` : ''}${cert.year ? ` - ${cert.year}` : ''}`;
+            });
+            const aiPublications = (data.publications || []).map((pub, idx) => {
+                if (typeof pub === 'string') return pub;
+                let citation = pub.title || '';
+                if (pub.authors) citation = `${pub.authors}. ${citation}`;
+                if (pub.journal) citation += ` ${pub.journal}`;
+                if (pub.year) citation += ` (${pub.year})`;
+                return citation;
+            });
+            const aiHeader = data.header || {};
+            const aiSummary = data.summary || '';
+            
+            const aiData = {
+                roles: aiRoles,
+                skills: aiSkills,
+                education: aiEducation,
+                projects: aiProjects,
+                certifications: aiCertifications,
+                publications: aiPublications,
+                header: aiHeader,
+                summary: aiSummary
+            };
+            
+            if (showComparison) {
+                setAiParsedData(aiData);
+                setShowAIParseComparison(true);
+                return true;
+            } else {
+                // Apply directly
+                setRoles(aiRoles);
+                setSkills(aiSkills);
+                setEducation(aiEducation);
+                setProjects(aiProjects);
+                setCertifications(aiCertifications);
+                setPublications(aiPublications);
+                if (aiHeader.name) setPersonalInfo(prev => ({ ...prev, name: aiHeader.name, email: aiHeader.email || prev.email, phone: aiHeader.phone || prev.phone, linkedin: aiHeader.linkedin || prev.linkedin, location: aiHeader.location || prev.location }));
+                if (aiSummary) setSummary(aiSummary);
+                saveSnapshot();
+                showToast('AI parser completed successfully!', 'success');
+                return true;
+            }
+            
+        } catch (error) {
+            console.error('AI Parser error:', error);
+            setAiParseFailed(true);
+            showToast(`AI parsing failed: ${error.message}. Using fallback parser.`, 'error');
+            return false;
+        } finally {
+            setIsAIParsing(false);
+        }
+    };
+
+    // Auto-run AI parser on initial load (only once)
+    useEffect(() => {
+        if (resumeText && resumeText.trim().length > 100 && !isInitialAILoadRef.current && !isAIParsing && roles.length === 0) {
+            isInitialAILoadRef.current = true;
+            runAIParser(false);
+        }
+    }, [resumeText]);
+
+    // Fallback deterministic parser (used when AI fails or user has no resume)
+    const loadDeterministicFallback = useCallback(() => {
+        if (!resumeText) return;
+        console.log('🔍 Using deterministic fallback parser');
         const parsed = parseResume(resumeText);
         
         const parsedRoles = (parsed.jobs || []).map((job, jobIndex) => ({
@@ -1053,8 +1398,8 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             institution: '',
             year: edu.year || ''
         })));
-        setCertifications(parsed.certifications || []);
         setProjects(parsed.projects || []);
+        setCertifications(parsed.certifications || []);
         setPublications(parsed.publications || []);
         
         const extracted = extractPersonalInfo(resumeText);
@@ -1062,7 +1407,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             setPersonalInfo(extracted);
         }
         
-        // Initialize summary from LLM analysis (if available) - but don't re-run on summaryAnalysis changes
+        // Initialize summary from LLM analysis (if available)
         if (summaryAnalysis && summaryVersionsRef.current.original === '') {
             const originalText = summaryAnalysis.original_text || '';
             setSummary(originalText);
@@ -1073,8 +1418,12 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             };
         }
         
-        // ENRICH with Veritas and Hidden Brief versions (BULLET ENRICHMENT FIX)
-        if (bulletAnalysis?.bullets && bulletAnalysis.bullets.length > 0) {
+        saveSnapshot();
+    }, [resumeText, summaryAnalysis]);
+
+    // ENRICH with Veritas and Hidden Brief versions
+    useEffect(() => {
+        if (bulletAnalysis?.bullets && bulletAnalysis.bullets.length > 0 && roles.length > 0) {
             console.log('🔍 Enriching with LLM transformations for', bulletAnalysis.bullets.length, 'bullets');
             
             setRoles(prevRoles => {
@@ -1123,17 +1472,33 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 return updatedRoles;
             });
         }
-        
-        setTimeout(() => saveSnapshot(), 100);
-        
-    }, [resumeText]); // FIXED (#2): removed summaryAnalysis from dependencies
+    }, [bulletAnalysis, roles.length]);
 
-    // FIXED (#8): buildResumeText includes all sections
+    // Summary versions from LLM
+    useEffect(() => {
+        if (summaryAnalysis && summaryVersionsRef.current.original === '') {
+            const originalText = summaryAnalysis.original_text || '';
+            setSummary(originalText);
+            summaryVersionsRef.current = {
+                original: originalText,
+                veritas: summaryAnalysis.veritas_transformed_summary || '',
+                hiddenBrief: summaryAnalysis.hb_transformed_summary || ''
+            };
+        }
+    }, [summaryAnalysis]);
+
+    // JD Features
+    useEffect(() => {
+        if (jdText) setJdFeatures(extractJDFeatures(jdText));
+    }, [jdText]);
+
+    // Build resume text for scoring
     const buildResumeText = useCallback(() => {
         let text = '';
         if (personalInfo.name) text += `${personalInfo.name}\n`;
         if (personalInfo.email || personalInfo.phone) text += `${personalInfo.email} | ${personalInfo.phone}\n`;
         text += '\n';
+        if (targetTitle) text += `${targetTitle}\n\n`;
         if (summary) text += `${summary}\n\n`;
         for (const role of roles) {
             text += `${role.title} @ ${role.company}\n`;
@@ -1146,12 +1511,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         if (projects.length) text += `Projects: ${projects.map(p => p.name).join(', ')}\n`;
         if (publications.length) text += `Publications: ${publications.join(', ')}\n`;
         return text;
-    }, [personalInfo, summary, roles, skills, education, certifications, projects, publications]);
-
-    // JD Features
-    useEffect(() => {
-        if (jdText) setJdFeatures(extractJDFeatures(jdText));
-    }, [jdText]);
+    }, [personalInfo, targetTitle, summary, roles, skills, education, certifications, projects, publications]);
 
     // Bullet Functions
     const updateBullet = (roleId, bulletId, newText) => {
@@ -1254,7 +1614,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         showToast('Role deleted', 'info');
     };
     
-    // FIXED (#12): moveRole with guard
     const moveRole = (roleId, direction) => {
         setRoles(prev => {
             const idx = prev.findIndex(r => r.id === roleId);
@@ -1374,288 +1733,69 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             setSummaryVersion('hiddenBrief');
         }
         saveSnapshot();
+        showToast(`Switched to ${version} summary version`, 'info');
     };
     
     const updatePersonalInfo = (field, value) => {
         setPersonalInfo(prev => ({ ...prev, [field]: value }));
     };
-
-    // AI Parser
-    const runAIParser = async () => {
-        if (!resumeText || resumeText.trim().length < 100) {
-            showToast('Please provide valid resume text (minimum 100 characters)', 'error');
-            return;
-        }
+    
+    // Floating toolbar for text formatting
+    const handleTextSelection = (e, textareaId) => {
+        const selection = window.getSelection();
+        const selectedText = selection.toString();
         
-        setIsAIParsing(true);
-        try {
-            const response = await fetch('https://ats-stage-2-parser.keron62.workers.dev/parse/full', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ resumeText })
+        if (selectedText && selectedText.length > 0) {
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            
+            setFloatingToolbar({
+                top: rect.top,
+                left: rect.left + (rect.width / 2) - 50,
+                textareaId
             });
-            const data = await response.json();
-            
-            if (!data.success) throw new Error(data.error || 'AI parsing failed');
-            
-            const aiRoles = (data.jobs || []).map((job, idx) => ({
-                id: safeUUID(),
-                title: job.title || 'Untitled Role',
-                company: job.company || 'Unknown Company',
-                startDate: job.startDate || '',
-                endDate: job.endDate || '',
-                bullets: (job.bullets || []).map((bulletText, bulletIdx) => ({
-                    id: safeUUID(),
-                    text: bulletText,
-                    original: bulletText,
-                    veritas: null,
-                    hiddenBrief: null,
-                    showAlternatives: false
-                }))
-            }));
-            
-            const aiSkills = data.skills || [];
-            const aiEducation = (data.education || []).map((edu, idx) => ({
-                id: safeUUID(),
-                degree: edu.degree || edu.text || '',
-                institution: edu.institution || '',
-                year: edu.year || '',
-                location: edu.location || ''
-            }));
-            const aiProjects = (data.projects || []).map((project, idx) => ({
-                id: safeUUID(),
-                name: project.name || 'Untitled Project',
-                bullets: project.bullets || [],
-                technologies: project.technologies || [],
-                link: project.link || ''
-            }));
-            const aiCertifications = (data.certifications || []).map((cert, idx) => {
-                if (typeof cert === 'string') return cert;
-                return `${cert.name || ''}${cert.issuer ? ` (${cert.issuer})` : ''}${cert.year ? ` - ${cert.year}` : ''}`;
-            });
-            const aiPublications = (data.publications || []).map((pub, idx) => {
-                if (typeof pub === 'string') return pub;
-                let citation = pub.title || '';
-                if (pub.authors) citation = `${pub.authors}. ${citation}`;
-                if (pub.journal) citation += ` ${pub.journal}`;
-                if (pub.year) citation += ` (${pub.year})`;
-                return citation;
-            });
-            const aiHeader = data.header || {};
-            const aiSummary = data.summary || '';
-            
-            setAiParsedData({
-                roles: aiRoles,
-                skills: aiSkills,
-                education: aiEducation,
-                projects: aiProjects,
-                certifications: aiCertifications,
-                publications: aiPublications,
-                header: aiHeader,
-                summary: aiSummary
-            });
-            
-            setShowAIParseComparison(true);
-            
-        } catch (error) {
-            console.error('AI Parser error:', error);
-            showToast(`AI parsing failed: ${error.message}`, 'error');
-        } finally {
-            setIsAIParsing(false);
+            setActiveTextarea(textareaId);
+        } else {
+            setFloatingToolbar(null);
+            setActiveTextarea(null);
         }
     };
-
-// ============================================================
-// ACCEPT AI RESULTS FUNCTION - ADD THIS
-// ============================================================
-const acceptAIResults = () => {
-    if (!aiParsedData) return;
     
-    // Get the original bullet analysis for enrichment
-    const originalBulletAnalysis = bulletAnalysis?.bullets || [];
-    
-    // Apply roles from AI parser, then enrich with Veritas/Hidden Brief
-    let newRoles = aiParsedData.roles || [];
-    
-    // ENRICH AI PARSED BULLETS WITH VERITAS AND HIDDEN BRIEF VERSIONS
-    if (originalBulletAnalysis.length > 0 && newRoles.length > 0) {
-        console.log('🔍 Enriching AI parsed bullets with Veritas/Hidden Brief versions');
+    const applyFormatting = (formatType) => {
+        if (!activeTextarea) return;
         
-        newRoles = JSON.parse(JSON.stringify(newRoles));
-        let matchedCount = 0;
+        // For simplicity, we'll use markdown-style formatting
+        // This preserves plain text compatibility
+        const textarea = document.getElementById(activeTextarea);
+        if (!textarea) return;
         
-        for (const transformed of originalBulletAnalysis) {
-            for (const role of newRoles) {
-                // Try to match by text content (since AI IDs will be different)
-                const bulletIndex = role.bullets.findIndex(b => 
-                    b.original === transformed.original_text ||
-                    b.original?.includes(transformed.original_text?.substring(0, 50)) ||
-                    transformed.original_text?.includes(b.original?.substring(0, 50))
-                );
-                if (bulletIndex !== -1) {
-                    role.bullets[bulletIndex].veritas = transformed.transformed_text;
-                    role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
-                    matchedCount++;
-                    break;
-                }
-            }
+        const start = textarea.selectionStart;
+        const end = textarea.selectionEnd;
+        const selectedText = textarea.value.substring(start, end);
+        
+        if (!selectedText) return;
+        
+        let formattedText = '';
+        if (formatType === 'bold') formattedText = `**${selectedText}**`;
+        else if (formatType === 'italic') formattedText = `*${selectedText}*`;
+        else if (formatType === 'underline') formattedText = `__${selectedText}__`;
+        
+        const newValue = textarea.value.substring(0, start) + formattedText + textarea.value.substring(end);
+        
+        // Update the corresponding state based on which textarea
+        if (activeTextarea.startsWith('summary')) {
+            setSummary(newValue);
+        } else if (activeTextarea.startsWith('target')) {
+            setTargetTitle(newValue);
+        } else if (activeTextarea.startsWith('bullet')) {
+            const [_, roleId, bulletId] = activeTextarea.split('_');
+            updateBullet(roleId, bulletId, newValue);
         }
         
-        console.log('🔍 Enriched', matchedCount, 'AI bullets with alternative versions');
-    }
+        setFloatingToolbar(null);
+        setActiveTextarea(null);
+    };
     
-    // Apply all the AI parsed data
-    setRoles(newRoles);
-    if (aiParsedData.skills) setSkills(aiParsedData.skills);
-    if (aiParsedData.education) setEducation(aiParsedData.education);
-    if (aiParsedData.projects) setProjects(aiParsedData.projects);
-    if (aiParsedData.certifications) setCertifications(aiParsedData.certifications);
-    if (aiParsedData.publications) setPublications(aiParsedData.publications);
-    if (aiParsedData.header) {
-        setPersonalInfo(prev => ({
-            ...prev,
-            name: aiParsedData.header.name || prev.name,
-            email: aiParsedData.header.email || prev.email,
-            phone: aiParsedData.header.phone || prev.phone,
-            linkedin: aiParsedData.header.linkedin || prev.linkedin,
-            location: aiParsedData.header.location || prev.location
-        }));
-    }
-    if (aiParsedData.summary) setSummary(aiParsedData.summary);
-    
-    saveSnapshot();
-    setShowAIParseComparison(false);
-    showToast('AI parser results applied!', 'success');
-};
-
-    // Parse resume - FIXED: Added isParsingRef to prevent infinite loops
-const isParsingRef = useRef(false);
-
-useEffect(() => {
-    if (!resumeText) return;
-    
-    // Prevent multiple concurrent parses
-    if (isParsingRef.current) return;
-    isParsingRef.current = true;
-    
-    console.log('🔍 Parsing resume text, length:', resumeText.length);
-    
-    try {
-        const parsed = parseResume(resumeText);
-        
-        const parsedRoles = (parsed.jobs || []).map((job, jobIndex) => ({
-            id: safeUUID(),
-            title: job.title || 'Untitled Role',
-            company: job.company || 'Unknown Company',
-            startDate: job.dates ? job.dates.split(' - ')[0] || '' : '',
-            endDate: job.dates ? job.dates.split(' - ')[1] || '' : '',
-            bullets: (job.bullets || []).map((bulletText, bulletIndex) => ({
-                id: safeUUID(),
-                text: bulletText,
-                original: bulletText,
-                veritas: null,
-                hiddenBrief: null,
-                showAlternatives: false
-            }))
-        }));
-        
-        setRoles(parsedRoles);
-        setSkills(parsed.skills || []);
-        setEducation((parsed.education || []).map((edu, idx) => ({
-            id: safeUUID(),
-            degree: edu.text || '',
-            institution: '',
-            year: edu.year || ''
-        })));
-        setCertifications(parsed.certifications || []);
-        setProjects(parsed.projects || []);
-        setPublications(parsed.publications || []);
-        
-        const extracted = extractPersonalInfo(resumeText);
-        if (extracted.location && !extracted.location.includes('Google') && !extracted.location.includes('Collab')) {
-            setPersonalInfo(extracted);
-        }
-        
-        // Initialize summary from LLM analysis (if available) - only once
-        if (summaryAnalysis && summaryVersionsRef.current.original === '') {
-            const originalText = summaryAnalysis.original_text || '';
-            setSummary(originalText);
-            summaryVersionsRef.current = {
-                original: originalText,
-                veritas: summaryAnalysis.veritas_transformed_summary || '',
-                hiddenBrief: summaryAnalysis.hb_transformed_summary || ''
-            };
-        }
-        
-        // ENRICH with Veritas and Hidden Brief versions (BULLET ENRICHMENT FIX)
-        // Only run if we have bulletAnalysis and roles were just set
-        if (bulletAnalysis?.bullets && bulletAnalysis.bullets.length > 0 && parsedRoles.length > 0) {
-            console.log('🔍 Enriching with LLM transformations for', bulletAnalysis.bullets.length, 'bullets');
-            
-            // Use setTimeout to avoid state updates during render
-            setTimeout(() => {
-                setRoles(prevRoles => {
-                    const updatedRoles = JSON.parse(JSON.stringify(prevRoles));
-                    let matchedCount = 0;
-                    
-                    for (const transformed of bulletAnalysis.bullets) {
-                        let matched = false;
-                        
-                        for (const role of updatedRoles) {
-                            const bulletIndex = role.bullets.findIndex(b => 
-                                b.id === transformed.id || 
-                                b.id === transformed.sequentialId ||
-                                b.original === transformed.original_text
-                            );
-                            if (bulletIndex !== -1) {
-                                role.bullets[bulletIndex].veritas = transformed.transformed_text;
-                                role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
-                                matched = true;
-                                matchedCount++;
-                                break;
-                            }
-                        }
-                        
-                        if (!matched && transformed.original_text) {
-                            for (const role of updatedRoles) {
-                                const bulletIndex = role.bullets.findIndex(b => 
-                                    b.original && (
-                                        b.original === transformed.original_text ||
-                                        b.original.includes(transformed.original_text.substring(0, 50)) ||
-                                        transformed.original_text.includes(b.original.substring(0, 50))
-                                    )
-                                );
-                                if (bulletIndex !== -1) {
-                                    role.bullets[bulletIndex].veritas = transformed.transformed_text;
-                                    role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
-                                    matched = true;
-                                    matchedCount++;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-                    
-                    console.log('🔍 Matched', matchedCount, 'of', bulletAnalysis.bullets.length, 'LLM bullets to originals');
-                    return updatedRoles;
-                });
-            }, 0);
-        }
-        
-        // Save initial snapshot after state updates settle
-        setTimeout(() => saveSnapshot(), 100);
-        
-    } catch (error) {
-        console.error('Parse error:', error);
-    } finally {
-        // Reset parsing flag after a delay
-        setTimeout(() => {
-            isParsingRef.current = false;
-        }, 500);
-    }
-    
-}, [resumeText]); // Removed summaryAnalysis to prevent re-runs
-
     // Live scoring
     const updateLiveScores = useCallback(() => {
         if (!roles.length && !summary) return;
@@ -1713,7 +1853,7 @@ useEffect(() => {
         if (debounceTimer.current) clearTimeout(debounceTimer.current);
         debounceTimer.current = setTimeout(() => updateLiveScores(), 500);
         return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); };
-    }, [roles, summary, skills, personalInfo, updateLiveScores]);
+    }, [roles, summary, skills, personalInfo, targetTitle, updateLiveScores]);
 
     // Export
     const getExportChecklist = () => {
@@ -1736,6 +1876,7 @@ useEffect(() => {
             ],
             recommended: [
                 { label: 'Professional Summary', met: !!summary.trim() },
+                { label: 'Target Title', met: !!targetTitle.trim() },
                 { label: 'Certifications (if applicable)', met: certifications.length > 0 },
                 { label: 'Projects (if applicable)', met: projects.length > 0 }
             ]
@@ -1750,6 +1891,7 @@ useEffect(() => {
             const blob = await pdf(
                 <ResumePDF
                     personalInfo={personalInfo}
+                    targetTitle={targetTitle}
                     summary={summary}
                     roles={roles}
                     skills={skills}
@@ -1761,6 +1903,7 @@ useEffect(() => {
                     customSections={customSections}
                     dateFormat={dateFormat}
                     formatDate={formatDate}
+                    skillsSeparator={skillsSeparator}
                 />
             ).toBlob();
             const url = URL.createObjectURL(blob);
@@ -1782,7 +1925,8 @@ useEffect(() => {
         try {
             const draft = {
                 roles, summary, skills, personalInfo, education, certifications,
-                projects, publications, customSections, selectedTemplate, timestamp: Date.now()
+                projects, publications, customSections, selectedTemplate, targetTitle,
+                sectionOrder, timestamp: Date.now()
             };
             localStorage.setItem('veritas_resume_draft', JSON.stringify(draft));
             setHasUnsavedChanges(false);
@@ -1809,6 +1953,8 @@ useEffect(() => {
             setPublications(Array.isArray(draft.publications) ? draft.publications : []);
             setCustomSections(Array.isArray(draft.customSections) ? draft.customSections : []);
             setSelectedTemplate(draft.selectedTemplate || 'veritas_signature');
+            setTargetTitle(draft.targetTitle || '');
+            if (draft.sectionOrder) setSectionOrder(draft.sectionOrder);
             saveSnapshot();
             setHasUnsavedChanges(false);
             showToast('Draft loaded!', 'success');
@@ -1833,6 +1979,328 @@ useEffect(() => {
     
     const currentTemplate = TEMPLATES[selectedTemplate];
     const exportChecklist = getExportChecklist();
+    
+    // Helper to render sections in order
+    const renderSection = (sectionId) => {
+        switch (sectionId) {
+            case 'target-title':
+                return (
+                    <div key="target-title" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', marginBottom: '20px', padding: '20px' }}>
+                        <h3 style={{ fontSize: '13px', marginBottom: '16px', color: '#c9a84c' }}>🎯 Target Title</h3>
+                        <input
+                            type="text"
+                            value={targetTitle}
+                            onChange={(e) => setTargetTitle(e.targetValue)}
+                            onBlur={saveSnapshot}
+                            disabled={!editMode}
+                            placeholder="e.g., Results-driven Project Operations Lead | 5+ Years in Public Health"
+                            maxLength={250}
+                            style={{ width: '100%', padding: '10px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }}
+                        />
+                        <div style={{ fontSize: '10px', color: '#6b7280', textAlign: 'right', marginTop: '4px' }}>
+                            {targetTitle.length}/250 characters
+                        </div>
+                    </div>
+                );
+            case 'summary':
+                return (
+                    <div key="summary" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', marginBottom: '20px', overflow: 'hidden' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: '#f8f7f4', borderBottom: '1px solid #e6e4dd' }}>
+                            <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>📄 Professional Summary</h3>
+                            {(summaryVersionsRef.current.veritas || summaryVersionsRef.current.hiddenBrief) && (
+                                <div style={{ display: 'flex', gap: '6px' }}>
+                                    <button onClick={() => switchSummaryVersion('original')} style={{ padding: '4px 10px', fontSize: '10px', borderRadius: '20px', border: '1px solid #e6e4dd', background: summaryVersion === 'original' ? '#10b981' : 'transparent', color: summaryVersion === 'original' ? 'white' : '#6b7280', cursor: 'pointer' }}>📄 Original</button>
+                                    {summaryVersionsRef.current.veritas && <button onClick={() => switchSummaryVersion('veritas')} style={{ padding: '4px 10px', fontSize: '10px', borderRadius: '20px', border: '1px solid #e6e4dd', background: summaryVersion === 'veritas' ? '#2563eb' : 'transparent', color: summaryVersion === 'veritas' ? 'white' : '#6b7280', cursor: 'pointer' }}>✨ Veritas</button>}
+                                    {summaryVersionsRef.current.hiddenBrief && <button onClick={() => switchSummaryVersion('hiddenBrief')} style={{ padding: '4px 10px', fontSize: '10px', borderRadius: '20px', border: '1px solid #e6e4dd', background: summaryVersion === 'hiddenBrief' ? '#c9a84c' : 'transparent', color: summaryVersion === 'hiddenBrief' ? '#1a1f2e' : '#6b7280', cursor: 'pointer' }}>🕵️ Hidden Brief</button>}
+                                </div>
+                            )}
+                        </div>
+                        <div style={{ padding: '20px' }}>
+                            <textarea
+                                id="summary-textarea"
+                                value={summary}
+                                onChange={(e) => updateSummary(e.target.value)}
+                                onBlur={saveSnapshot}
+                                onMouseUp={(e) => handleTextSelection(e, 'summary-textarea')}
+                                disabled={!editMode}
+                                rows={4}
+                                style={{ width: '100%', padding: '12px', border: `1px solid ${summaryVersion === 'hiddenBrief' ? '#c9a84c' : summaryVersion === 'veritas' ? '#2563eb' : '#e6e4dd'}`, borderRadius: '8px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit' }}
+                                placeholder="Professional summary goes here..."
+                            />
+                        </div>
+                    </div>
+                );
+            case 'experience':
+                return (
+                    <div key="experience" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', marginBottom: '20px', overflow: 'hidden' }}>
+                        <div style={{ padding: '16px 20px', background: '#f8f7f4', borderBottom: '1px solid #e6e4dd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>📝 Experience ({roles.reduce((acc, r) => acc + r.bullets.length, 0)} bullets)</h3>
+                            {editMode && <button onClick={addRole} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Role</button>}
+                        </div>
+                        {roles.map((role, roleIdx) => (
+                            <div key={role.id} style={{ padding: '20px', borderBottom: roleIdx < roles.length - 1 ? '1px solid #e6e4dd' : 'none' }}>
+                                <div style={{ marginBottom: '16px', display: 'flex', gap: '12px' }}>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                            <div>
+                                                <label style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Job Title</label>
+                                                <input type="text" value={role.title} onChange={(e) => updateRoleTitle(role.id, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                            </div>
+                                            <div>
+                                                <label style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Company</label>
+                                                <input type="text" value={role.company} onChange={(e) => updateRoleCompany(role.id, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                            </div>
+                                        </div>
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'center' }}>
+                                            <div>
+                                                <label style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Start Date</label>
+                                                <input type="text" placeholder="MM/YYYY" value={role.startDate} onChange={(e) => updateRoleDates(role.id, e.target.value, role.endDate)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                            </div>
+                                            <div>
+                                                <label style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>End Date (or "Present")</label>
+                                                <input type="text" placeholder="MM/YYYY or Present" value={role.endDate} onChange={(e) => updateRoleDates(role.id, role.startDate, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                            </div>
+                                            {editMode && (
+                                                <div style={{ display: 'flex', gap: '4px', marginTop: '18px' }}>
+                                                    <button onClick={() => moveRole(role.id, 'up')} disabled={roleIdx === 0} style={{ padding: '4px 8px', fontSize: '10px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '3px', cursor: roleIdx === 0 ? 'not-allowed' : 'pointer' }}>▲</button>
+                                                    <button onClick={() => moveRole(role.id, 'down')} disabled={roleIdx === roles.length - 1} style={{ padding: '4px 8px', fontSize: '10px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '3px', cursor: roleIdx === roles.length - 1 ? 'not-allowed' : 'pointer' }}>▼</button>
+                                                    <button onClick={() => deleteRole(role.id)} style={{ padding: '4px 8px', fontSize: '10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🗑️</button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                                {role.bullets.map((bullet, bulletIdx) => (
+                                    <div key={bullet.id} style={{ marginBottom: '16px', paddingLeft: '12px', borderLeft: '2px solid #e6e4dd' }}>
+                                        <textarea
+                                            id={`bullet_${role.id}_${bullet.id}`}
+                                            value={bullet.text}
+                                            onChange={(e) => updateBullet(role.id, bullet.id, e.target.value)}
+                                            onBlur={saveSnapshot}
+                                            onMouseUp={(e) => handleTextSelection(e, `bullet_${role.id}_${bullet.id}`)}
+                                            disabled={!editMode}
+                                            rows={2}
+                                            style={{ width: '100%', padding: '10px', border: '1px solid #e6e4dd', borderRadius: '8px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit' }}
+                                            placeholder="Enter bullet point..."
+                                        />
+                                        <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
+                                            {(bullet.veritas || bullet.hiddenBrief) && (
+                                                <button onClick={() => setRoles(prev => prev.map(r => r.id === role.id ? { ...r, bullets: r.bullets.map(b => b.id === bullet.id ? { ...b, showAlternatives: !b.showAlternatives } : b) } : r))} style={{ fontSize: '10px', padding: '4px 10px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '4px', cursor: 'pointer' }}>
+                                                    {bullet.showAlternatives ? '▼ Hide transformations' : '▶ Show alternative versions'}
+                                                </button>
+                                            )}
+                                            {editMode && (
+                                                <button onClick={() => deleteBullet(role.id, bullet.id)} style={{ fontSize: '10px', padding: '4px 10px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '4px', cursor: 'pointer', color: '#ef4444' }}>
+                                                    🗑️ Delete
+                                                </button>
+                                            )}
+                                        </div>
+                                        {bullet.showAlternatives && (
+                                            <div style={{ marginTop: '8px', padding: '10px', background: '#f8f7f4', borderRadius: '6px' }}>
+                                                {bullet.veritas && bullet.veritas !== bullet.text && (
+                                                    <div style={{ marginBottom: '8px', padding: '8px', background: 'rgba(37,99,235,0.05)', borderRadius: '4px' }}>
+                                                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#2563eb', marginBottom: '4px' }}>✨ Veritas Version</div>
+                                                        <div style={{ fontSize: '11px', marginBottom: '6px' }}>{bullet.veritas}</div>
+                                                        <button onClick={() => applyVeritasVersion(role.id, bullet.id)} style={{ fontSize: '10px', padding: '3px 8px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Apply This Version</button>
+                                                    </div>
+                                                )}
+                                                {bullet.hiddenBrief && bullet.hiddenBrief !== bullet.text && (
+                                                    <div style={{ padding: '8px', background: 'rgba(201,168,76,0.08)', borderRadius: '4px' }}>
+                                                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#c9a84c', marginBottom: '4px' }}>🕵️ Hidden Brief Version</div>
+                                                        <div style={{ fontSize: '11px', marginBottom: '6px' }}>{bullet.hiddenBrief}</div>
+                                                        <button onClick={() => applyHBVersion(role.id, bullet.id)} style={{ fontSize: '10px', padding: '3px 8px', background: '#c9a84c', color: '#1a1f2e', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Apply This Version</button>
+                                                    </div>
+                                                )}
+                                                {bullet.original && bullet.original !== bullet.text && (
+                                                    <div style={{ marginTop: '8px', padding: '8px', background: 'rgba(16,185,129,0.05)', borderRadius: '4px' }}>
+                                                        <div style={{ fontSize: '10px', fontWeight: 600, color: '#10b981', marginBottom: '4px' }}>📄 Original Version</div>
+                                                        <div style={{ fontSize: '11px', marginBottom: '6px' }}>{bullet.original}</div>
+                                                        <button onClick={() => resetBullet(role.id, bullet.id)} style={{ fontSize: '10px', padding: '3px 8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Restore Original</button>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                                {editMode && <button onClick={() => addBullet(role.id)} style={{ marginTop: '8px', fontSize: '11px', padding: '6px 12px', background: 'transparent', border: '1px solid #c9a84c', borderRadius: '4px', cursor: 'pointer', color: '#c9a84c' }}>+ Add Bullet</button>}
+                            </div>
+                        ))}
+                        {editMode && roles.length === 0 && (
+                            <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
+                                No experience entries yet. Click "Add Role" to get started.
+                            </div>
+                        )}
+                    </div>
+                );
+            case 'skills':
+                return (
+                    <div key="skills" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                            <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>⚙️ Skills ({skills.length})</h3>
+                            <button onClick={() => setAdvancedSkills(!advancedSkills)} style={{ padding: '4px 10px', fontSize: '10px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '4px', cursor: 'pointer' }}>
+                                {advancedSkills ? 'Switch to Simple View' : 'Advanced Mode'}
+                            </button>
+                        </div>
+                        {advancedSkills ? (
+                            <SkillsAdvancedEditor skills={skills} setSkills={setSkills} onSave={saveSnapshot} skillsSeparator={skillsSeparator} setSkillsSeparator={setSkillsSeparator} />
+                        ) : (
+                            <>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
+                                    {skills.map((skill, idx) => (
+                                        <span key={idx} style={{ padding: '6px 12px', background: 'rgba(201,168,76,0.1)', borderRadius: '20px', fontSize: '12px', color: '#c9a84c', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                            {skill}
+                                            {editMode && <button onClick={() => removeSkill(skill)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '14px' }}>×</button>}
+                                        </span>
+                                    ))}
+                                </div>
+                                {editMode && (
+                                    <div style={{ display: 'flex', gap: '8px' }}>
+                                        <input type="text" id="new-skill-input" placeholder="Add new skill..." onBlur={saveSnapshot} style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '12px' }} onKeyPress={(e) => { if (e.key === 'Enter') { const input = e.target; const newSkill = input.value.trim(); if (newSkill && !skills.includes(newSkill)) { addSkill(newSkill); input.value = ''; } } }} />
+                                        <button onClick={() => { const input = document.getElementById('new-skill-input'); const newSkill = input.value.trim(); if (newSkill && !skills.includes(newSkill)) { addSkill(newSkill); input.value = ''; } }} style={{ padding: '6px 12px', fontSize: '12px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '6px', cursor: 'pointer' }}>+ Add Skill</button>
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
+                );
+            case 'projects':
+                return (
+                    <div key="projects" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>🚀 Projects</h3>
+                            {editMode && <button onClick={() => setProjects(prev => [...prev, { id: safeUUID(), name: 'New Project', bullets: [] }])} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Project</button>}
+                        </div>
+                        {projects.map((project, idx) => (
+                            <div key={project.id} style={{ marginBottom: '16px', padding: '12px', background: '#f8f7f4', borderRadius: '8px' }}>
+                                <input type="text" value={project.name} onChange={(e) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, name: e.target.value } : p))} onBlur={saveSnapshot} disabled={!editMode} placeholder="Project Name" style={{ width: '100%', marginBottom: '8px', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px', fontWeight: 600 }} />
+                                {project.bullets.map((bullet, bidx) => (
+                                    <div key={bidx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
+                                        <textarea value={bullet} onChange={(e) => {
+                                            const newBullets = [...project.bullets];
+                                            newBullets[bidx] = e.target.value;
+                                            setProjects(prev => prev.map(p => p.id === project.id ? { ...p, bullets: newBullets } : p));
+                                        }} onBlur={saveSnapshot} disabled={!editMode} rows={1} style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '12px', resize: 'vertical' }} placeholder="Bullet point..." />
+                                        {editMode && <button onClick={() => {
+                                            const newBullets = project.bullets.filter((_, i) => i !== bidx);
+                                            setProjects(prev => prev.map(p => p.id === project.id ? { ...p, bullets: newBullets } : p));
+                                        }} style={{ padding: '6px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>✕</button>}
+                                    </div>
+                                ))}
+                                {editMode && <button onClick={() => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, bullets: [...p.bullets, ''] } : p))} style={{ marginTop: '8px', padding: '4px 10px', fontSize: '10px', background: 'transparent', border: '1px solid #c9a84c', borderRadius: '4px', cursor: 'pointer', color: '#c9a84c' }}>+ Add Bullet</button>}
+                                {editMode && <button onClick={() => setProjects(prev => prev.filter(p => p.id !== project.id))} style={{ marginTop: '8px', marginLeft: '8px', padding: '4px 10px', fontSize: '10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Delete Project</button>}
+                            </div>
+                        ))}
+                        {editMode && projects.length === 0 && (
+                            <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '12px', padding: '20px' }}>
+                                No projects added yet. Click "Add Project" to get started.
+                            </div>
+                        )}
+                    </div>
+                );
+            case 'certifications':
+                return (
+                    <div key="certifications" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>🏆 Certifications</h3>
+                            {editMode && <button onClick={addCertification} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Certification</button>}
+                        </div>
+                        {certifications.map((cert, idx) => (
+                            <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
+                                <input type="text" value={cert} onChange={(e) => updateCertification(idx, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} placeholder="e.g., PMP, AWS Certified Solutions Architect" style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                {editMode && <button onClick={() => deleteCertification(idx)} style={{ padding: '6px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🗑️</button>}
+                            </div>
+                        ))}
+                        {editMode && certifications.length === 0 && (
+                            <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '12px', padding: '20px' }}>
+                                No certifications added yet. Click "Add Certification" to get started.
+                            </div>
+                        )}
+                    </div>
+                );
+            case 'education':
+                return (
+                    <div key="education" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>🎓 Education</h3>
+                            {editMode && <button onClick={addEducation} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Education</button>}
+                        </div>
+                        {education.map((edu) => (
+                            <div key={edu.id} style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #e6e4dd' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', marginBottom: '12px' }}>
+                                    <input type="text" placeholder="Degree" value={edu.degree} onChange={(e) => updateEducation(edu.id, 'degree', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                    <input type="text" placeholder="Institution" value={edu.institution} onChange={(e) => updateEducation(edu.id, 'institution', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                    <input type="text" placeholder="Year" value={edu.year} onChange={(e) => updateEducation(edu.id, 'year', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                </div>
+                                {editMode && <button onClick={() => deleteEducation(edu.id)} style={{ fontSize: '11px', padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Delete</button>}
+                            </div>
+                        ))}
+                        {editMode && education.length === 0 && (
+                            <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '12px', padding: '20px' }}>
+                                No education entries yet. Click "Add Education" to get started.
+                            </div>
+                        )}
+                    </div>
+                );
+            case 'publications':
+                return (
+                    <div key="publications" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                            <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>📝 Publications</h3>
+                            {editMode && <button onClick={() => setPublications(prev => [...prev, ''])} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Publication</button>}
+                        </div>
+                        {publications.map((pub, idx) => (
+                            <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
+                                <textarea value={pub} onChange={(e) => {
+                                    const updated = [...publications];
+                                    updated[idx] = e.target.value;
+                                    setPublications(updated);
+                                }} onBlur={saveSnapshot} disabled={!editMode} rows={2} placeholder="Citation or publication title" style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                {editMode && <button onClick={() => setPublications(prev => prev.filter((_, i) => i !== idx))} style={{ padding: '6px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🗑️</button>}
+                            </div>
+                        ))}
+                        {editMode && publications.length === 0 && (
+                            <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '12px', padding: '20px' }}>
+                                No publications added yet. Click "Add Publication" to get started.
+                            </div>
+                        )}
+                    </div>
+                );
+            default:
+                // Custom sections
+                const customSection = customSections.find(s => s.id === sectionId);
+                if (customSection) {
+                    return (
+                        <div key={customSection.id} style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                <input type="text" value={customSection.name} onChange={(e) => updateCustomSection(customSection.id, 'name', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ fontSize: '13px', fontWeight: 600, background: 'transparent', border: 'none', padding: 0, color: '#c9a84c' }} />
+                                {editMode && <button onClick={() => deleteCustomSection(customSection.id)} style={{ fontSize: '11px', padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Delete Section</button>}
+                            </div>
+                            {customSection.type === 'bulleted' ? (
+                                <>
+                                    {Array.isArray(customSection.content) && customSection.content.map((item, idx) => (
+                                        <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
+                                            <input type="text" value={item} onChange={(e) => {
+                                                const newContent = [...customSection.content];
+                                                newContent[idx] = e.target.value;
+                                                updateCustomSection(customSection.id, 'content', newContent);
+                                            }} onBlur={saveSnapshot} disabled={!editMode} style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                            {editMode && <button onClick={() => {
+                                                const newContent = customSection.content.filter((_, i) => i !== idx);
+                                                updateCustomSection(customSection.id, 'content', newContent);
+                                            }} style={{ padding: '6px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🗑️</button>}
+                                        </div>
+                                    ))}
+                                    {editMode && <button onClick={() => updateCustomSection(customSection.id, 'content', [...(customSection.content || []), ''])} style={{ padding: '6px 12px', background: 'transparent', border: '1px solid #c9a84c', borderRadius: '4px', cursor: 'pointer', color: '#c9a84c', fontSize: '12px' }}>+ Add Item</button>}
+                                </>
+                            ) : (
+                                <textarea value={customSection.content} onChange={(e) => updateCustomSection(customSection.id, 'content', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} rows={3} style={{ width: '100%', padding: '12px', border: '1px solid #e6e4dd', borderRadius: '8px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit' }} placeholder={`Enter ${customSection.name.toLowerCase()} content...`} />
+                            )}
+                        </div>
+                    );
+                }
+                return null;
+        }
+    };
 
     return (
         <div style={{ display: 'flex', minHeight: '100vh', background: '#f5f3f0', position: 'relative' }}>
@@ -1873,9 +2341,14 @@ useEffect(() => {
                         
                         {/* AI Parser Button */}
                         <div style={{ padding: '16px 20px', borderBottom: '1px solid #e6e4dd' }}>
-                            <button onClick={runAIParser} disabled={isAIParsing} style={{ width: '100%', padding: '10px', background: isAIParsing ? '#6b21a5' : '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: isAIParsing ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 500 }}>
-                                {isAIParsing ? '⏳ AI Parsing...' : '🤖 AI Parser (Gemini 3.1)'}
+                            <button onClick={() => runAIParser(true)} disabled={isAIParsing} style={{ width: '100%', padding: '10px', background: isAIParsing ? '#6b21a5' : '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: isAIParsing ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 500 }}>
+                                {isAIParsing ? '⏳ AI Parsing...' : '🤖 AI Parser (Gemma 4 31B)'}
                             </button>
+                            {aiParseFailed && (
+                                <div style={{ fontSize: '10px', color: '#f59e0b', marginTop: '8px', textAlign: 'center' }}>
+                                    ⚠️ AI parsing failed. Using fallback. Click button to retry.
+                                </div>
+                            )}
                         </div>
                         
                         {/* Mode Controls */}
@@ -1886,9 +2359,12 @@ useEffect(() => {
                             <button onClick={() => setPreviewMode(!previewMode)} style={{ padding: '8px', fontSize: '12px', width: '100%', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>
                                 {previewMode ? '📝 Hide Preview' : '👁️ Show Preview'}
                             </button>
-                            {/* FIXED (#3): Right sidebar toggle button */}
                             <button onClick={toggleRightSidebar} style={{ padding: '8px', fontSize: '12px', width: '100%', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>
                                 {showRightSidebar ? '▶ Hide Scores' : '◀ Show Scores'}
+                            </button>
+                            {/* Section Reorder Button */}
+                            <button onClick={() => setShowReorderModal(true)} style={{ padding: '8px', fontSize: '12px', width: '100%', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>
+                                📋 Reorder Sections
                             </button>
                         </div>
                         
@@ -1937,6 +2413,7 @@ useEffect(() => {
                             <div style={{ fontSize: currentTemplate.nameStyle?.fontSize || '28px', fontWeight: currentTemplate.nameStyle?.fontWeight || 700, color: currentTemplate.nameStyle?.color || '#1a1f2e', ...currentTemplate.nameStyle }}>
                                 {personalInfo.name || 'Your Name'}
                             </div>
+                            {targetTitle && <div style={{ fontSize: '12px', color: '#c9a84c', marginTop: '4px', marginBottom: '8px' }}>{targetTitle}</div>}
                             <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
                                 {[personalInfo.email, personalInfo.phone, personalInfo.linkedin, personalInfo.location].filter(Boolean).join(' | ')}
                             </div>
@@ -1981,7 +2458,7 @@ useEffect(() => {
                             <div style={{ marginTop: '20px' }}>
                                 <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>Skills</div>
                                 {advancedSkills ? (
-                                    <SkillsAdvancedEditor skills={skills} setSkills={setSkills} onSave={saveSnapshot} />
+                                    <SkillsAdvancedEditor skills={skills} setSkills={setSkills} onSave={saveSnapshot} skillsSeparator={skillsSeparator} setSkillsSeparator={setSkillsSeparator} />
                                 ) : (
                                     <div style={{ fontSize: '11px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
                                         {skills.slice(0, 15).map(skill => (<span key={skill} style={{ padding: '2px 8px', background: '#f0f0f0', borderRadius: '4px' }}>{skill}</span>))}
@@ -2000,6 +2477,31 @@ useEffect(() => {
                                 ))}
                             </div>
                         )}
+                        {certifications.length > 0 && (
+                            <div style={{ marginTop: '20px' }}>
+                                <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>Certifications</div>
+                                <div style={{ fontSize: '11px' }}>{certifications.join(', ')}</div>
+                            </div>
+                        )}
+                        {projects.length > 0 && (
+                            <div style={{ marginTop: '20px' }}>
+                                <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>Projects</div>
+                                {projects.map((project, idx) => (
+                                    <div key={idx} style={{ marginBottom: '12px' }}>
+                                        <div style={{ fontWeight: 600, fontSize: '12px' }}>{project.name}</div>
+                                        {project.bullets.map((bullet, bidx) => (
+                                            <div key={bidx} style={{ fontSize: '11px', marginLeft: '12px' }}>• {bullet}</div>
+                                        ))}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                        {publications.length > 0 && (
+                            <div style={{ marginTop: '20px' }}>
+                                <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>Publications</div>
+                                <div style={{ fontSize: '11px' }}>{publications.map(p => `• ${p}`).join('\n')}</div>
+                            </div>
+                        )}
                         {customSections.length > 0 && customSections.map((section, idx) => (
                             <div key={idx} style={{ marginTop: '20px' }}>
                                 <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>{section.name}</div>
@@ -2014,9 +2516,9 @@ useEffect(() => {
                         ))}
                     </div>
                 ) : (
-                    // Edit Mode - All editable sections
+                    // Edit Mode - Render sections in user-defined order
                     <>
-                        {/* Personal Info Section */}
+                        {/* Personal Info - Always at top */}
                         <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', marginBottom: '20px', padding: '20px' }}>
                             <h3 style={{ fontSize: '13px', marginBottom: '16px', color: '#c9a84c' }}>👤 Personal Information</h3>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
@@ -2028,215 +2530,11 @@ useEffect(() => {
                             </div>
                         </div>
                         
-                        {/* Summary Section */}
-                        <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', marginBottom: '20px', overflow: 'hidden' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: '#f8f7f4', borderBottom: '1px solid #e6e4dd' }}>
-                                <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>📄 Professional Summary</h3>
-                                {(summaryVersionsRef.current.veritas || summaryVersionsRef.current.hiddenBrief) && (
-                                    <div style={{ display: 'flex', gap: '6px' }}>
-                                        <button onClick={() => switchSummaryVersion('original')} style={{ padding: '4px 10px', fontSize: '10px', borderRadius: '20px', border: '1px solid #e6e4dd', background: summaryVersion === 'original' ? '#10b981' : 'transparent', color: summaryVersion === 'original' ? 'white' : '#6b7280', cursor: 'pointer' }}>📄 Original</button>
-                                        {summaryVersionsRef.current.veritas && <button onClick={() => switchSummaryVersion('veritas')} style={{ padding: '4px 10px', fontSize: '10px', borderRadius: '20px', border: '1px solid #e6e4dd', background: summaryVersion === 'veritas' ? '#2563eb' : 'transparent', color: summaryVersion === 'veritas' ? 'white' : '#6b7280', cursor: 'pointer' }}>✨ Veritas</button>}
-                                        {summaryVersionsRef.current.hiddenBrief && <button onClick={() => switchSummaryVersion('hiddenBrief')} style={{ padding: '4px 10px', fontSize: '10px', borderRadius: '20px', border: '1px solid #e6e4dd', background: summaryVersion === 'hiddenBrief' ? '#c9a84c' : 'transparent', color: summaryVersion === 'hiddenBrief' ? '#1a1f2e' : '#6b7280', cursor: 'pointer' }}>🕵️ Hidden Brief</button>}
-                                    </div>
-                                )}
-                            </div>
-                            <div style={{ padding: '20px' }}>
-                                <textarea value={summary} onChange={(e) => updateSummary(e.target.value)} onBlur={saveSnapshot} disabled={!editMode} rows={4} style={{ width: '100%', padding: '12px', border: `1px solid ${summaryVersion === 'hiddenBrief' ? '#c9a84c' : summaryVersion === 'veritas' ? '#2563eb' : '#e6e4dd'}`, borderRadius: '8px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit' }} placeholder="Professional summary goes here..." />
-                            </div>
-                        </div>
+                        {/* Render all other sections in user-defined order */}
+                        {sectionOrder.map(sectionId => renderSection(sectionId))}
                         
-                        {/* Experience Section */}
-                        <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', marginBottom: '20px', overflow: 'hidden' }}>
-                            <div style={{ padding: '16px 20px', background: '#f8f7f4', borderBottom: '1px solid #e6e4dd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>📝 Experience ({roles.reduce((acc, r) => acc + r.bullets.length, 0)} bullets)</h3>
-                                {editMode && <button onClick={addRole} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Role</button>}
-                            </div>
-                            {roles.map((role, roleIdx) => (
-                                <div key={role.id} style={{ padding: '20px', borderBottom: roleIdx < roles.length - 1 ? '1px solid #e6e4dd' : 'none' }}>
-                                    <div style={{ marginBottom: '16px', display: 'flex', gap: '12px' }}>
-                                        <div style={{ flex: 1 }}>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                                                <div>
-                                                    <label style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Job Title</label>
-                                                    <input type="text" value={role.title} onChange={(e) => updateRoleTitle(role.id, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                                </div>
-                                                <div>
-                                                    <label style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Company</label>
-                                                    <input type="text" value={role.company} onChange={(e) => updateRoleCompany(role.id, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                                </div>
-                                            </div>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'center' }}>
-                                                <div>
-                                                    <label style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Start Date</label>
-                                                    <input type="text" placeholder="MM/YYYY" value={role.startDate} onChange={(e) => updateRoleDates(role.id, e.target.value, role.endDate)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                                </div>
-                                                <div>
-                                                    <label style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>End Date (or "Present")</label>
-                                                    <input type="text" placeholder="MM/YYYY or Present" value={role.endDate} onChange={(e) => updateRoleDates(role.id, role.startDate, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                                </div>
-                                                {editMode && (
-                                                    <div style={{ display: 'flex', gap: '4px', marginTop: '18px' }}>
-                                                        <button onClick={() => moveRole(role.id, 'up')} disabled={roleIdx === 0} style={{ padding: '4px 8px', fontSize: '10px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '3px', cursor: roleIdx === 0 ? 'not-allowed' : 'pointer' }}>▲</button>
-                                                        <button onClick={() => moveRole(role.id, 'down')} disabled={roleIdx === roles.length - 1} style={{ padding: '4px 8px', fontSize: '10px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '3px', cursor: roleIdx === roles.length - 1 ? 'not-allowed' : 'pointer' }}>▼</button>
-                                                        <button onClick={() => deleteRole(role.id)} style={{ padding: '4px 8px', fontSize: '10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>🗑️</button>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {role.bullets.map((bullet, bulletIdx) => (
-                                        <div key={bullet.id} style={{ marginBottom: '16px', paddingLeft: '12px', borderLeft: '2px solid #e6e4dd' }}>
-                                            <textarea value={bullet.text} onChange={(e) => updateBullet(role.id, bullet.id, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} rows={2} style={{ width: '100%', padding: '10px', border: '1px solid #e6e4dd', borderRadius: '8px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit' }} placeholder="Enter bullet point..." />
-                                            <div style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap' }}>
-                                                {(bullet.veritas || bullet.hiddenBrief) && (
-                                                    <button onClick={() => setRoles(prev => prev.map(r => r.id === role.id ? { ...r, bullets: r.bullets.map(b => b.id === bullet.id ? { ...b, showAlternatives: !b.showAlternatives } : b) } : r))} style={{ fontSize: '10px', padding: '4px 10px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '4px', cursor: 'pointer' }}>
-                                                        {bullet.showAlternatives ? '▼ Hide transformations' : '▶ Show alternative versions'}
-                                                    </button>
-                                                )}
-                                                {editMode && (
-                                                    <button onClick={() => deleteBullet(role.id, bullet.id)} style={{ fontSize: '10px', padding: '4px 10px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '4px', cursor: 'pointer', color: '#ef4444' }}>
-                                                        🗑️ Delete
-                                                    </button>
-                                                )}
-                                            </div>
-                                            {bullet.showAlternatives && (
-                                                <div style={{ marginTop: '8px', padding: '10px', background: '#f8f7f4', borderRadius: '6px' }}>
-                                                    {bullet.veritas && bullet.veritas !== bullet.text && (
-                                                        <div style={{ marginBottom: '8px', padding: '8px', background: 'rgba(37,99,235,0.05)', borderRadius: '4px' }}>
-                                                            <div style={{ fontSize: '10px', fontWeight: 600, color: '#2563eb', marginBottom: '4px' }}>✨ Veritas Version</div>
-                                                            <div style={{ fontSize: '11px', marginBottom: '6px' }}>{bullet.veritas}</div>
-                                                            <button onClick={() => applyVeritasVersion(role.id, bullet.id)} style={{ fontSize: '10px', padding: '3px 8px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Apply This Version</button>
-                                                        </div>
-                                                    )}
-                                                    {bullet.hiddenBrief && bullet.hiddenBrief !== bullet.text && (
-                                                        <div style={{ padding: '8px', background: 'rgba(201,168,76,0.08)', borderRadius: '4px' }}>
-                                                            <div style={{ fontSize: '10px', fontWeight: 600, color: '#c9a84c', marginBottom: '4px' }}>🕵️ Hidden Brief Version</div>
-                                                            <div style={{ fontSize: '11px', marginBottom: '6px' }}>{bullet.hiddenBrief}</div>
-                                                            <button onClick={() => applyHBVersion(role.id, bullet.id)} style={{ fontSize: '10px', padding: '3px 8px', background: '#c9a84c', color: '#1a1f2e', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Apply This Version</button>
-                                                        </div>
-                                                    )}
-                                                    {bullet.original && bullet.original !== bullet.text && (
-                                                        <div style={{ marginTop: '8px', padding: '8px', background: 'rgba(16,185,129,0.05)', borderRadius: '4px' }}>
-                                                            <div style={{ fontSize: '10px', fontWeight: 600, color: '#10b981', marginBottom: '4px' }}>📄 Original Version</div>
-                                                            <div style={{ fontSize: '11px', marginBottom: '6px' }}>{bullet.original}</div>
-                                                            <button onClick={() => resetBullet(role.id, bullet.id)} style={{ fontSize: '10px', padding: '3px 8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Restore Original</button>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
-                                    ))}
-                                    {editMode && <button onClick={() => addBullet(role.id)} style={{ marginTop: '8px', fontSize: '11px', padding: '6px 12px', background: 'transparent', border: '1px solid #c9a84c', borderRadius: '4px', cursor: 'pointer', color: '#c9a84c' }}>+ Add Bullet</button>}
-                                </div>
-                            ))}
-                            {editMode && roles.length === 0 && (
-                                <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
-                                    No experience entries yet. Click "Add Role" to get started.
-                                </div>
-                            )}
-                        </div>
-                        
-                        {/* Skills Section */}
-                        <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                                <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>⚙️ Skills ({skills.length})</h3>
-                                <button onClick={() => setAdvancedSkills(!advancedSkills)} style={{ padding: '4px 10px', fontSize: '10px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '4px', cursor: 'pointer' }}>
-                                    {advancedSkills ? 'Switch to Simple View' : 'Advanced Mode'}
-                                </button>
-                            </div>
-                            {advancedSkills ? (
-                                <SkillsAdvancedEditor skills={skills} setSkills={setSkills} onSave={saveSnapshot} />
-                            ) : (
-                                <>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-                                        {skills.map((skill, idx) => (
-                                            <span key={idx} style={{ padding: '6px 12px', background: 'rgba(201,168,76,0.1)', borderRadius: '20px', fontSize: '12px', color: '#c9a84c', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
-                                                {skill}
-                                                {editMode && <button onClick={() => removeSkill(skill)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '14px' }}>×</button>}
-                                            </span>
-                                        ))}
-                                    </div>
-                                    {editMode && (
-                                        <div style={{ display: 'flex', gap: '8px' }}>
-                                            <input type="text" id="new-skill-input" placeholder="Add new skill..." onBlur={saveSnapshot} style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '12px' }} onKeyPress={(e) => { if (e.key === 'Enter') { const input = e.target; const newSkill = input.value.trim(); if (newSkill && !skills.includes(newSkill)) { addSkill(newSkill); input.value = ''; } } }} />
-                                            <button onClick={() => { const input = document.getElementById('new-skill-input'); const newSkill = input.value.trim(); if (newSkill && !skills.includes(newSkill)) { addSkill(newSkill); input.value = ''; } }} style={{ padding: '6px 12px', fontSize: '12px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '6px', cursor: 'pointer' }}>+ Add Skill</button>
-                                        </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                        
-                        {/* Education Section */}
-                        <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>🎓 Education</h3>
-                                {editMode && <button onClick={addEducation} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Education</button>}
-                            </div>
-                            {education.map((edu) => (
-                                <div key={edu.id} style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #e6e4dd' }}>
-                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', marginBottom: '12px' }}>
-                                        <input type="text" placeholder="Degree" value={edu.degree} onChange={(e) => updateEducation(edu.id, 'degree', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                        <input type="text" placeholder="Institution" value={edu.institution} onChange={(e) => updateEducation(edu.id, 'institution', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                        <input type="text" placeholder="Year" value={edu.year} onChange={(e) => updateEducation(edu.id, 'year', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                    </div>
-                                    {editMode && <button onClick={() => deleteEducation(edu.id)} style={{ fontSize: '11px', padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Delete</button>}
-                                </div>
-                            ))}
-                            {editMode && education.length === 0 && (
-                                <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '12px', padding: '20px' }}>
-                                    No education entries yet. Click "Add Education" to get started.
-                                </div>
-                            )}
-                        </div>
-                        
-                        {/* Certifications Section */}
-                        <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>🏆 Certifications</h3>
-                                {editMode && <button onClick={addCertification} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Certification</button>}
-                            </div>
-                            {certifications.map((cert, idx) => (
-                                <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
-                                    <input type="text" value={cert} onChange={(e) => updateCertification(idx, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} placeholder="e.g., PMP, AWS Certified Solutions Architect" style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                    {editMode && <button onClick={() => deleteCertification(idx)} style={{ padding: '6px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🗑️</button>}
-                                </div>
-                            ))}
-                            {editMode && certifications.length === 0 && (
-                                <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '12px', padding: '20px' }}>
-                                    No certifications added yet. Click "Add Certification" to get started.
-                                </div>
-                            )}
-                        </div>
-                        
-                        {/* Custom Sections */}
-                        {customSections.map((section) => (
-                            <div key={section.id} style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                    <input type="text" value={section.name} onChange={(e) => updateCustomSection(section.id, 'name', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ fontSize: '13px', fontWeight: 600, background: 'transparent', border: 'none', padding: 0, color: '#c9a84c' }} />
-                                    {editMode && <button onClick={() => deleteCustomSection(section.id)} style={{ fontSize: '11px', padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Delete Section</button>}
-                                </div>
-                                {section.type === 'bulleted' ? (
-                                    <>
-                                        {Array.isArray(section.content) && section.content.map((item, idx) => (
-                                            <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
-                                                <input type="text" value={item} onChange={(e) => {
-                                                    const newContent = [...section.content];
-                                                    newContent[idx] = e.target.value;
-                                                    updateCustomSection(section.id, 'content', newContent);
-                                                }} onBlur={saveSnapshot} disabled={!editMode} style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                                {editMode && <button onClick={() => {
-                                                    const newContent = section.content.filter((_, i) => i !== idx);
-                                                    updateCustomSection(section.id, 'content', newContent);
-                                                }} style={{ padding: '6px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🗑️</button>}
-                                            </div>
-                                        ))}
-                                        {editMode && <button onClick={() => updateCustomSection(section.id, 'content', [...(section.content || []), ''])} style={{ padding: '6px 12px', background: 'transparent', border: '1px solid #c9a84c', borderRadius: '4px', cursor: 'pointer', color: '#c9a84c', fontSize: '12px' }}>+ Add Item</button>}
-                                    </>
-                                ) : (
-                                    <textarea value={section.content} onChange={(e) => updateCustomSection(section.id, 'content', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} rows={3} style={{ width: '100%', padding: '12px', border: '1px solid #e6e4dd', borderRadius: '8px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit' }} placeholder={`Enter ${section.name.toLowerCase()} content...`} />
-                                )}
-                            </div>
-                        ))}
+                        {/* Custom sections that aren't in the order list */}
+                        {customSections.filter(s => !sectionOrder.includes(s.id)).map(section => renderSection(s.id))}
                         
                         {/* Add Section Button */}
                         {editMode && (
@@ -2326,7 +2624,7 @@ useEffect(() => {
             {/* Modals */}
             <AddSectionModal isOpen={showAddSectionModal} onClose={() => setShowAddSectionModal(false)} onAdd={addCustomSection} sectionPosition={sectionPosition} setSectionPosition={setSectionPosition} />
             <ExportChecklistModal isOpen={showExportChecklist} onClose={() => setShowExportChecklist(false)} onConfirm={handleExportConfirm} checklist={exportChecklist} />
-            {isAIParsing && <AILoadingOverlay message="🤖 AI is parsing your resume with Gemini 3.1 Flash Lite..." />}
+            {isAIParsing && <AILoadingOverlay message="🤖 AI is parsing your resume with Gemma 4 31B..." />}
             {showAIParseComparison && aiParsedData && (
                 <AIParseComparisonModal 
                     isOpen={showAIParseComparison} 
@@ -2335,7 +2633,34 @@ useEffect(() => {
                     deterministicSkills={skills}
                     deterministicEducation={education}
                     aiParsedData={aiParsedData} 
-                    onAcceptAI={acceptAIResults} 
+                    onAcceptAI={() => {
+                        setRoles(aiParsedData.roles || []);
+                        setSkills(aiParsedData.skills || []);
+                        setEducation(aiParsedData.education || []);
+                        setProjects(aiParsedData.projects || []);
+                        setCertifications(aiParsedData.certifications || []);
+                        setPublications(aiParsedData.publications || []);
+                        if (aiParsedData.header?.name) setPersonalInfo(prev => ({ ...prev, ...aiParsedData.header }));
+                        if (aiParsedData.summary) setSummary(aiParsedData.summary);
+                        saveSnapshot();
+                        setShowAIParseComparison(false);
+                        showToast('AI parser results applied!', 'success');
+                    }} 
+                />
+            )}
+            <SectionReorderModal 
+                isOpen={showReorderModal} 
+                onClose={() => setShowReorderModal(false)} 
+                sections={{ targetTitle: true, summary: true, experience: true, skills: true, projects: true, certifications: true, education: true, publications: true }}
+                onReorder={(newOrder) => setSectionOrder(newOrder)}
+                sectionOrder={sectionOrder}
+                setSectionOrder={setSectionOrder}
+            />
+            {floatingToolbar && (
+                <FloatingToolbar 
+                    position={floatingToolbar} 
+                    onFormat={applyFormatting} 
+                    onClose={() => setFloatingToolbar(null)} 
                 />
             )}
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}

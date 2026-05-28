@@ -1495,21 +1495,24 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     // Build resume text for scoring
     const buildResumeText = useCallback(() => {
         let text = '';
-        if (personalInfo.name) text += `${personalInfo.name}\n`;
-        if (personalInfo.email || personalInfo.phone) text += `${personalInfo.email} | ${personalInfo.phone}\n`;
+        if (personalInfo?.name) text += `${personalInfo.name}\n`;
+        if (personalInfo?.email || personalInfo?.phone) text += `${personalInfo.email || ''} | ${personalInfo.phone || ''}\n`;
         text += '\n';
         if (targetTitle) text += `${targetTitle}\n\n`;
         if (summary) text += `${summary}\n\n`;
         for (const role of roles) {
-            text += `${role.title} @ ${role.company}\n`;
-            for (const bullet of role.bullets) text += `• ${bullet.text}\n`;
+            if (role?.title && role?.company) text += `${role.title} @ ${role.company}\n`;
+            else if (role?.title) text += `${role.title}\n`;
+            for (const bullet of role?.bullets || []) {
+                if (bullet?.text) text += `• ${bullet.text}\n`;
+            }
             text += '\n';
         }
-        if (skills.length) text += `Skills: ${skills.join(', ')}\n`;
-        if (education.length) text += `Education: ${education.map(e => e.degree).join(', ')}\n`;
-        if (certifications.length) text += `Certifications: ${certifications.join(', ')}\n`;
-        if (projects.length) text += `Projects: ${projects.map(p => p.name).join(', ')}\n`;
-        if (publications.length) text += `Publications: ${publications.join(', ')}\n`;
+        if (skills?.length) text += `Skills: ${skills.join(', ')}\n`;
+        if (education?.length) text += `Education: ${education.map(e => e?.degree || '').join(', ')}\n`;
+        if (certifications?.length) text += `Certifications: ${certifications.join(', ')}\n`;
+        if (projects?.length) text += `Projects: ${projects.map(p => p?.name || '').join(', ')}\n`;
+        if (publications?.length) text += `Publications: ${publications.join(', ')}\n`;
         return text;
     }, [personalInfo, targetTitle, summary, roles, skills, education, certifications, projects, publications]);
 
@@ -2415,8 +2418,8 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                             </div>
                             {targetTitle && <div style={{ fontSize: '12px', color: '#c9a84c', marginTop: '4px', marginBottom: '8px' }}>{targetTitle}</div>}
                             <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
-                                {[personalInfo.email, personalInfo.phone, personalInfo.linkedin, personalInfo.location].filter(Boolean).join(' | ')}
-                            </div>
+    {[personalInfo?.email, personalInfo?.phone, personalInfo?.linkedin, personalInfo?.location].filter(Boolean).join(' | ')}
+</div>
                         </div>
                         {summary && (
                             <div style={{ marginBottom: '20px' }}>

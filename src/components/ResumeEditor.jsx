@@ -137,6 +137,15 @@ const createPDFStyles = (templateKey) => {
 const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, education, certifications, projects, publications, selectedTemplate, customSections, dateFormat, formatDate, skillsSeparator }) => {
     const styles = createPDFStyles(selectedTemplate);
     
+    // Safety checks for personalInfo
+    const safePersonalInfo = {
+        name: personalInfo?.name || '',
+        email: personalInfo?.email || '',
+        phone: personalInfo?.phone || '',
+        linkedin: personalInfo?.linkedin || '',
+        location: personalInfo?.location || ''
+    };
+    
     // Format skills based on separator choice
     const formatSkillsList = (skillsArray) => {
         if (!skillsArray || skillsArray.length === 0) return '';
@@ -150,10 +159,10 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
             <Page size="LETTER" style={styles.page}>
                 {/* Header - keep wrap={false} */}
                 <View style={styles.header} wrap={false}>
-                    <Text style={styles.name}>{personalInfo.name || 'Your Name'}</Text>
+                    <Text style={styles.name}>{safePersonalInfo.name || 'Your Name'}</Text>
                     {targetTitle && <Text style={styles.targetTitle}>{targetTitle}</Text>}
                     <Text style={styles.contactRow}>
-                        {[personalInfo.email, personalInfo.phone, personalInfo.linkedin, personalInfo.location].filter(Boolean).join(' | ')}
+                        {[safePersonalInfo.email, safePersonalInfo.phone, safePersonalInfo.linkedin, safePersonalInfo.location].filter(Boolean).join(' | ')}
                     </Text>
                 </View>
                 
@@ -167,31 +176,31 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                 
                 {/* Experience - allow wrap for pagination */}
                 <Text style={styles.sectionTitle}>Experience</Text>
-                {roles.map((role, idx) => (
+                {roles && roles.map((role, idx) => (
                     <View key={idx} style={{ marginBottom: 12 }}>
                         {styles.roleRow ? (
                             <View style={styles.roleRow}>
                                 <View>
-                                    <Text style={styles.roleHeader}>{role.title}</Text>
-                                    <Text style={styles.companyText}>{role.company}</Text>
+                                    <Text style={styles.roleHeader}>{role?.title || 'Untitled'}</Text>
+                                    <Text style={styles.companyText}>{role?.company || 'Unknown Company'}</Text>
                                 </View>
-                                <Text style={styles.dateText}>{formatDate ? formatDate(role.startDate) : role.startDate} – {formatDate ? formatDate(role.endDate) : (role.endDate || 'Present')}</Text>
+                                <Text style={styles.dateText}>{formatDate ? formatDate(role?.startDate) : role?.startDate || ''} – {formatDate ? formatDate(role?.endDate) : (role?.endDate || 'Present')}</Text>
                             </View>
                         ) : (
                             <>
-                                <Text style={styles.roleHeader}>{role.title}</Text>
-                                <Text style={styles.companyText}>{role.company}</Text>
-                                <Text style={styles.dateText}>{formatDate ? formatDate(role.startDate) : role.startDate} – {formatDate ? formatDate(role.endDate) : (role.endDate || 'Present')}</Text>
+                                <Text style={styles.roleHeader}>{role?.title || 'Untitled'}</Text>
+                                <Text style={styles.companyText}>{role?.company || 'Unknown Company'}</Text>
+                                <Text style={styles.dateText}>{formatDate ? formatDate(role?.startDate) : role?.startDate || ''} – {formatDate ? formatDate(role?.endDate) : (role?.endDate || 'Present')}</Text>
                             </>
                         )}
-                        {role.bullets.map((bullet, bidx) => (
-                            <Text key={bidx} style={styles.bullet}>• {bullet.text}</Text>
+                        {role?.bullets && role.bullets.map((bullet, bidx) => (
+                            <Text key={bidx} style={styles.bullet}>• {bullet?.text || ''}</Text>
                         ))}
                     </View>
                 ))}
                 
                 {/* Skills */}
-                {skills.length > 0 && (
+                {skills && skills.length > 0 && (
                     <View>
                         <Text style={styles.sectionTitle}>Skills</Text>
                         <Text style={styles.skillsText}>{formatSkillsList(skills)}</Text>
@@ -199,13 +208,13 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                 )}
                 
                 {/* Education */}
-                {education.length > 0 && education.some(e => e.degree) && (
+                {education && education.length > 0 && education.some(e => e?.degree) && (
                     <View>
                         <Text style={styles.sectionTitle}>Education</Text>
                         {education.map((edu, idx) => (
                             <View key={idx} style={{ marginBottom: 8 }}>
-                                <Text style={styles.roleHeader}>{edu.degree}</Text>
-                                <Text style={styles.companyText}>{edu.institution} {edu.year && `(${edu.year})`}</Text>
+                                <Text style={styles.roleHeader}>{edu?.degree || ''}</Text>
+                                <Text style={styles.companyText}>{edu?.institution || ''} {edu?.year && `(${edu.year})`}</Text>
                             </View>
                         ))}
                     </View>
@@ -227,8 +236,8 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                         <Text style={styles.sectionTitle}>Projects</Text>
                         {projects.map((project, idx) => (
                             <View key={idx} style={{ marginBottom: 8 }}>
-                                <Text style={styles.roleHeader}>{project.name}</Text>
-                                {project.bullets && project.bullets.map((bullet, bidx) => (
+                                <Text style={styles.roleHeader}>{project?.name || 'Untitled Project'}</Text>
+                                {project?.bullets && project.bullets.map((bullet, bidx) => (
                                     <Text key={bidx} style={styles.bullet}>• {bullet}</Text>
                                 ))}
                             </View>
@@ -249,13 +258,13 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                 {/* Custom Sections */}
                 {customSections && customSections.map((section, idx) => (
                     <View key={idx}>
-                        <Text style={styles.sectionTitle}>{section.name}</Text>
-                        {section.type === 'bulleted' ? (
-                            Array.isArray(section.content) && section.content.map((item, i) => (
+                        <Text style={styles.sectionTitle}>{section?.name || 'Section'}</Text>
+                        {section?.type === 'bulleted' ? (
+                            Array.isArray(section?.content) && section.content.map((item, i) => (
                                 <Text key={i} style={styles.bullet}>• {item}</Text>
                             ))
                         ) : (
-                            <Text style={{ fontSize: 10, marginBottom: 8 }}>{section.content}</Text>
+                            <Text style={{ fontSize: 10, marginBottom: 8 }}>{section?.content || ''}</Text>
                         )}
                     </View>
                 ))}
@@ -420,7 +429,7 @@ function extractJDFeatures(jdText) {
 
 function calculateKeywordMatchRate(resumeText, jdKeywords) {
     if (!jdKeywords || jdKeywords.length === 0) return 0;
-    const lowerResume = resumeText.toLowerCase();
+    const lowerResume = (resumeText || '').toLowerCase();
     let matchCount = 0;
     for (const keyword of jdKeywords) { if (lowerResume.includes(keyword)) matchCount++; }
     return Math.round((matchCount / jdKeywords.length) * 100);
@@ -454,7 +463,7 @@ const SectionReorderModal = ({ isOpen, onClose, sections, onReorder, sectionOrde
     const [localOrder, setLocalOrder] = useState([]);
     
     useEffect(() => {
-        if (sections) {
+        if (sections && sectionOrder) {
             setLocalOrder([...sectionOrder]);
         }
     }, [sections, sectionOrder]);
@@ -694,8 +703,8 @@ const AILoadingOverlay = ({ message }) => (
 const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, deterministicSkills, deterministicEducation, aiParsedData, onAcceptAI }) => {
     if (!isOpen || !aiParsedData) return null;
     
-    const deterministicCount = deterministicRoles.reduce((acc, r) => acc + r.bullets.length, 0);
-    const aiCount = aiParsedData.roles?.reduce((acc, r) => acc + r.bullets.length, 0) || 0;
+    const deterministicCount = deterministicRoles?.reduce((acc, r) => acc + (r?.bullets?.length || 0), 0) || 0;
+    const aiCount = aiParsedData.roles?.reduce((acc, r) => acc + (r?.bullets?.length || 0), 0) || 0;
     
     return (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000, overflowY: 'auto', padding: '20px' }}>
@@ -710,13 +719,13 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
                     <div style={{ border: '1px solid #3b82f6', borderRadius: '8px', overflow: 'hidden' }}>
                         <div style={{ background: '#3b82f6', padding: '12px', color: 'white', fontWeight: 600 }}>🔍 Deterministic Parser</div>
                         <div style={{ padding: '16px', maxHeight: '500px', overflowY: 'auto' }}>
-                            <div><strong>{deterministicRoles.length}</strong> roles, <strong>{deterministicCount}</strong> bullets</div>
+                            <div><strong>{deterministicRoles?.length || 0}</strong> roles, <strong>{deterministicCount}</strong> bullets</div>
                             <div><strong>{deterministicSkills?.length || 0}</strong> skills</div>
                             <div><strong>{deterministicEducation?.length || 0}</strong> education entries</div>
-                            {deterministicRoles.slice(0, 3).map((role, i) => (
+                            {deterministicRoles?.slice(0, 3).map((role, i) => (
                                 <div key={i} style={{ marginTop: '12px', padding: '8px', background: '#f8f7f4', borderRadius: '4px', fontSize: '12px' }}>
-                                    <strong>{role.title}</strong> @ {role.company}<br />
-                                    {role.bullets.length} bullets
+                                    <strong>{role?.title || 'Untitled'}</strong> @ {role?.company || 'Unknown'}<br />
+                                    {role?.bullets?.length || 0} bullets
                                 </div>
                             ))}
                         </div>
@@ -735,8 +744,8 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
                             
                             {aiParsedData.roles?.slice(0, 3).map((role, i) => (
                                 <div key={i} style={{ marginTop: '12px', padding: '8px', background: '#f8f7f4', borderRadius: '4px', fontSize: '12px' }}>
-                                    <strong>{role.title}</strong> @ {role.company}<br />
-                                    {role.bullets.length} bullets
+                                    <strong>{role?.title || 'Untitled'}</strong> @ {role?.company || 'Unknown'}<br />
+                                    {role?.bullets?.length || 0} bullets
                                 </div>
                             ))}
                         </div>
@@ -766,7 +775,7 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
     
     // Update when skills prop changes
     useEffect(() => {
-        if (skills.length !== prevSkillsLength || prevSkillsLength === 0) {
+        if (skills && skills.length !== prevSkillsLength || prevSkillsLength === 0) {
             const midPoint = Math.ceil(skills.length / 2);
             setSubcategories([
                 { name: 'Core Competencies', skills: skills.slice(0, midPoint) },
@@ -834,6 +843,7 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
     
     const renderSkillsPreview = () => {
         const allSkills = subcategories.flatMap(cat => cat.skills);
+        if (!allSkills.length) return '';
         if (skillsSeparator === 'pipe') return allSkills.join(' | ');
         if (skillsSeparator === 'bulleted') return allSkills.map(s => `• ${s}`).join('\n');
         return allSkills.join(', ');
@@ -861,7 +871,7 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
                     <div style={{ marginBottom: '12px', padding: '8px', background: '#f8f7f4', borderRadius: '6px' }}>
                         <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '8px' }}>Master Skills Bucket (drag from here to categories):</div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                            {skills.map((skill, idx) => (
+                            {skills && skills.map((skill, idx) => (
                                 <span
                                     key={idx}
                                     draggable
@@ -1008,7 +1018,14 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const [floatingToolbar, setFloatingToolbar] = useState(null);
     const [activeTextarea, setActiveTextarea] = useState(null);
     
-    const [personalInfo, setPersonalInfo] = useState({ name: '', email: '', phone: '', linkedin: '', location: '' });
+    // Initialize personalInfo with empty strings to prevent undefined errors
+    const [personalInfo, setPersonalInfo] = useState({ 
+        name: '', 
+        email: '', 
+        phone: '', 
+        linkedin: '', 
+        location: '' 
+    });
     const [summary, setSummary] = useState('');
     const [roles, setRoles] = useState([]);
     const [skills, setSkills] = useState([]);
@@ -1042,6 +1059,15 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const summaryVersionsRef = useRef({ original: '', veritas: '', hiddenBrief: '' });
     const isInitialAILoadRef = useRef(false);
     
+    // Safety wrapper for personalInfo to use in render
+    const safePersonalInfo = {
+        name: personalInfo?.name || '',
+        email: personalInfo?.email || '',
+        phone: personalInfo?.phone || '',
+        linkedin: personalInfo?.linkedin || '',
+        location: personalInfo?.location || ''
+    };
+    
     const showToast = (message, type = 'info') => {
         setToast({ message, type });
     };
@@ -1049,18 +1075,18 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     // Update state ref
     useEffect(() => {
         stateRef.current = {
-            roles: JSON.parse(JSON.stringify(roles)),
-            summary,
-            skills: [...skills],
-            personalInfo: { ...personalInfo },
-            education: JSON.parse(JSON.stringify(education)),
-            certifications: [...certifications],
-            projects: JSON.parse(JSON.stringify(projects)),
-            publications: [...publications],
-            customSections: JSON.parse(JSON.stringify(customSections)),
-            targetTitle
+            roles: JSON.parse(JSON.stringify(roles || [])),
+            summary: summary || '',
+            skills: [...(skills || [])],
+            personalInfo: { ...safePersonalInfo },
+            education: JSON.parse(JSON.stringify(education || [])),
+            certifications: [...(certifications || [])],
+            projects: JSON.parse(JSON.stringify(projects || [])),
+            publications: [...(publications || [])],
+            customSections: JSON.parse(JSON.stringify(customSections || [])),
+            targetTitle: targetTitle || ''
         };
-    }, [roles, summary, skills, personalInfo, education, certifications, projects, publications, customSections, targetTitle]);
+    }, [roles, summary, skills, safePersonalInfo, education, certifications, projects, publications, customSections, targetTitle]);
 
     // Undo/Redo
     const saveSnapshot = useCallback(() => {
@@ -1112,10 +1138,10 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     useEffect(() => {
         if (autosaveTimer.current) clearInterval(autosaveTimer.current);
         autosaveTimer.current = setInterval(() => {
-            if (hasUnsavedChanges && roles.length > 0) {
+            if (hasUnsavedChanges && roles && roles.length > 0) {
                 try {
                     const draft = {
-                        roles, summary, skills, personalInfo, education, certifications,
+                        roles, summary, skills, personalInfo: safePersonalInfo, education, certifications,
                         projects, publications, customSections, selectedTemplate, targetTitle,
                         sectionOrder, timestamp: Date.now()
                     };
@@ -1127,7 +1153,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             }
         }, 30000);
         return () => { if (autosaveTimer.current) clearInterval(autosaveTimer.current); };
-    }, [roles, summary, skills, personalInfo, education, certifications, projects, publications, customSections, selectedTemplate, targetTitle, sectionOrder, hasUnsavedChanges]);
+    }, [roles, summary, skills, safePersonalInfo, education, certifications, projects, publications, customSections, selectedTemplate, targetTitle, sectionOrder, hasUnsavedChanges]);
 
     // beforeunload event
     useEffect(() => {
@@ -1170,7 +1196,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const saveDraftFn = useCallback(() => {
         try {
             const draft = {
-                roles, summary, skills, personalInfo, education, certifications,
+                roles, summary, skills, personalInfo: safePersonalInfo, education, certifications,
                 projects, publications, customSections, selectedTemplate, targetTitle,
                 sectionOrder, timestamp: Date.now()
             };
@@ -1181,7 +1207,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             console.warn('Save draft failed:', e);
             showToast('Failed to save draft', 'error');
         }
-    }, [roles, summary, skills, personalInfo, education, certifications, projects, publications, customSections, selectedTemplate, targetTitle, sectionOrder]);
+    }, [roles, summary, skills, safePersonalInfo, education, certifications, projects, publications, customSections, selectedTemplate, targetTitle, sectionOrder]);
     
     const handleExportClickFn = useCallback(() => setShowExportChecklist(true), []);
     
@@ -1336,14 +1362,21 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 setShowAIParseComparison(true);
                 return true;
             } else {
-                // Apply directly
-                setRoles(aiRoles);
-                setSkills(aiSkills);
-                setEducation(aiEducation);
-                setProjects(aiProjects);
-                setCertifications(aiCertifications);
-                setPublications(aiPublications);
-                if (aiHeader.name) setPersonalInfo(prev => ({ ...prev, name: aiHeader.name, email: aiHeader.email || prev.email, phone: aiHeader.phone || prev.phone, linkedin: aiHeader.linkedin || prev.linkedin, location: aiHeader.location || prev.location }));
+                // Apply directly with safety checks
+                setRoles(aiRoles || []);
+                setSkills(aiSkills || []);
+                setEducation(aiEducation || []);
+                setProjects(aiProjects || []);
+                setCertifications(aiCertifications || []);
+                setPublications(aiPublications || []);
+                if (aiHeader?.name) setPersonalInfo(prev => ({ 
+                    ...prev, 
+                    name: aiHeader.name || prev.name, 
+                    email: aiHeader.email || prev.email, 
+                    phone: aiHeader.phone || prev.phone, 
+                    linkedin: aiHeader.linkedin || prev.linkedin, 
+                    location: aiHeader.location || prev.location 
+                }));
                 if (aiSummary) setSummary(aiSummary);
                 saveSnapshot();
                 showToast('AI parser completed successfully!', 'success');
@@ -1402,9 +1435,15 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         setCertifications(parsed.certifications || []);
         setPublications(parsed.publications || []);
         
-        const extracted = extractPersonalInfo(resumeText);
-        if (extracted.location && !extracted.location.includes('Google') && !extracted.location.includes('Collab')) {
-            setPersonalInfo(extracted);
+        const extracted = extractPersonalInfo(resumeText || '');
+        if (extracted?.location && !extracted.location.includes('Google') && !extracted.location.includes('Collab')) {
+            setPersonalInfo({
+                name: extracted.name || '',
+                email: extracted.email || '',
+                phone: extracted.phone || '',
+                linkedin: extracted.linkedin || '',
+                location: extracted.location || ''
+            });
         }
         
         // Initialize summary from LLM analysis (if available)
@@ -1423,23 +1462,23 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
 
     // ENRICH with Veritas and Hidden Brief versions
     useEffect(() => {
-        if (bulletAnalysis?.bullets && bulletAnalysis.bullets.length > 0 && roles.length > 0) {
+        if (bulletAnalysis?.bullets && bulletAnalysis.bullets.length > 0 && roles && roles.length > 0) {
             console.log('🔍 Enriching with LLM transformations for', bulletAnalysis.bullets.length, 'bullets');
             
             setRoles(prevRoles => {
-                const updatedRoles = JSON.parse(JSON.stringify(prevRoles));
+                const updatedRoles = JSON.parse(JSON.stringify(prevRoles || []));
                 let matchedCount = 0;
                 
                 for (const transformed of bulletAnalysis.bullets) {
                     let matched = false;
                     
                     for (const role of updatedRoles) {
-                        const bulletIndex = role.bullets.findIndex(b => 
-                            b.id === transformed.id || 
-                            b.id === transformed.sequentialId ||
-                            b.original === transformed.original_text
+                        const bulletIndex = role?.bullets?.findIndex(b => 
+                            b?.id === transformed.id || 
+                            b?.id === transformed.sequentialId ||
+                            b?.original === transformed.original_text
                         );
-                        if (bulletIndex !== -1) {
+                        if (bulletIndex !== undefined && bulletIndex !== -1 && role?.bullets) {
                             role.bullets[bulletIndex].veritas = transformed.transformed_text;
                             role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
                             matched = true;
@@ -1450,14 +1489,14 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                     
                     if (!matched && transformed.original_text) {
                         for (const role of updatedRoles) {
-                            const bulletIndex = role.bullets.findIndex(b => 
-                                b.original && (
+                            const bulletIndex = role?.bullets?.findIndex(b => 
+                                b?.original && (
                                     b.original === transformed.original_text ||
                                     b.original.includes(transformed.original_text.substring(0, 50)) ||
                                     transformed.original_text.includes(b.original.substring(0, 50))
                                 )
                             );
-                            if (bulletIndex !== -1) {
+                            if (bulletIndex !== undefined && bulletIndex !== -1 && role?.bullets) {
                                 role.bullets[bulletIndex].veritas = transformed.transformed_text;
                                 role.bullets[bulletIndex].hiddenBrief = transformed.hb_transformed_text;
                                 matched = true;
@@ -1472,7 +1511,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 return updatedRoles;
             });
         }
-    }, [bulletAnalysis, roles.length]);
+    }, [bulletAnalysis, roles?.length]);
 
     // Summary versions from LLM
     useEffect(() => {
@@ -1492,18 +1531,18 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         if (jdText) setJdFeatures(extractJDFeatures(jdText));
     }, [jdText]);
 
-    // Build resume text for scoring
+    // Build resume text for scoring (with safety checks)
     const buildResumeText = useCallback(() => {
         let text = '';
-        if (personalInfo?.name) text += `${personalInfo.name}\n`;
-        if (personalInfo?.email || personalInfo?.phone) text += `${personalInfo.email || ''} | ${personalInfo.phone || ''}\n`;
+        if (safePersonalInfo.name) text += `${safePersonalInfo.name}\n`;
+        if (safePersonalInfo.email || safePersonalInfo.phone) text += `${safePersonalInfo.email || ''} | ${safePersonalInfo.phone || ''}\n`;
         text += '\n';
         if (targetTitle) text += `${targetTitle}\n\n`;
         if (summary) text += `${summary}\n\n`;
-        for (const role of roles) {
+        for (const role of (roles || [])) {
             if (role?.title && role?.company) text += `${role.title} @ ${role.company}\n`;
             else if (role?.title) text += `${role.title}\n`;
-            for (const bullet of role?.bullets || []) {
+            for (const bullet of (role?.bullets || [])) {
                 if (bullet?.text) text += `• ${bullet.text}\n`;
             }
             text += '\n';
@@ -1514,7 +1553,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         if (projects?.length) text += `Projects: ${projects.map(p => p?.name || '').join(', ')}\n`;
         if (publications?.length) text += `Publications: ${publications.join(', ')}\n`;
         return text;
-    }, [personalInfo, targetTitle, summary, roles, skills, education, certifications, projects, publications]);
+    }, [safePersonalInfo, targetTitle, summary, roles, skills, education, certifications, projects, publications]);
 
     // Bullet Functions
     const updateBullet = (roleId, bulletId, newText) => {
@@ -1695,7 +1734,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             } else if (position === 'after-summary') {
                 newSections.splice(1, 0, newSection);
             } else if (position === 'after-experience') {
-                const insertIndex = 1 + (summary ? 1 : 0) + roles.length;
+                const insertIndex = 1 + (summary ? 1 : 0) + (roles?.length || 0);
                 newSections.splice(insertIndex, 0, newSection);
             } else {
                 newSections.push(newSection);
@@ -1746,7 +1785,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     // Floating toolbar for text formatting
     const handleTextSelection = (e, textareaId) => {
         const selection = window.getSelection();
-        const selectedText = selection.toString();
+        const selectedText = selection?.toString();
         
         if (selectedText && selectedText.length > 0) {
             const range = selection.getRangeAt(0);
@@ -1767,8 +1806,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const applyFormatting = (formatType) => {
         if (!activeTextarea) return;
         
-        // For simplicity, we'll use markdown-style formatting
-        // This preserves plain text compatibility
         const textarea = document.getElementById(activeTextarea);
         if (!textarea) return;
         
@@ -1801,33 +1838,33 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     
     // Live scoring
     const updateLiveScores = useCallback(() => {
-        if (!roles.length && !summary) return;
+        if (!roles?.length && !summary) return;
         const fullResumeText = buildResumeText();
         const candidateSeniority = detectSeniorityFromText(fullResumeText);
         const candidateYears = candidateSeniority.years_detected || 0;
         const candidateLevelNum = { entry: 1, mid: 2, senior: 3, executive: 4 }[candidateSeniority.level] || 2;
         const keywordMatchRate = jdFeatures ? calculateKeywordMatchRate(fullResumeText, jdFeatures.critical_keywords) : 0;
-        const atsResult = calculateATSScore(fullResumeText, jdText, { keywordMatchRate, skillsCount: skills.length });
+        const atsResult = calculateATSScore(fullResumeText, jdText, { keywordMatchRate, skillsCount: skills?.length || 0 });
         let fitResult = { score: 50, label: 'Moderate' };
         if (jdFeatures) {
-            const levelGap = candidateLevelNum - jdFeatures.seniority_level_num;
+            const levelGap = candidateLevelNum - (jdFeatures.seniority_level_num || 2);
             const yearsGap = candidateYears - (jdFeatures.years_required || 3);
             fitResult = calculateFitScore({ keywordMatchRate, levelGap, yearsGap, matchingCertifications: 0, skillsMatchRate: 50 });
         }
         let candidateBloomLevel = 3.5, bloomDelta = 0, bloomMeetsExpectation = true;
-        if (roles.length > 0) {
-            const bulletTexts = roles.flatMap(r => r.bullets.map(b => b.text));
+        if (roles?.length > 0) {
+            const bulletTexts = roles.flatMap(r => r?.bullets?.map(b => b?.text || '') || []);
             if (bulletTexts.length) {
                 const bloomAnalysis = analyzeBulletBloom(bulletTexts);
                 candidateBloomLevel = bloomAnalysis.averageLevel;
             }
         }
         if (jdFeatures) {
-            bloomDelta = candidateBloomLevel - jdFeatures.jd_bloom_level;
+            bloomDelta = candidateBloomLevel - (jdFeatures.jd_bloom_level || 3.5);
             bloomMeetsExpectation = bloomDelta >= -0.3;
         }
         const semanticResult = calculateSemanticPosition(fullResumeText, candidateYears);
-        const credibilityResult = calculateCredibilityScore(fullResumeText, { titles: roles.map(r => ({ title: r.title })) });
+        const credibilityResult = calculateCredibilityScore(fullResumeText, { titles: roles?.map(r => ({ title: r?.title || '' })) || [] });
         const verbAnalysis = analyzeVerbs(fullResumeText);
         const metricStrength = calculateMetricStrength(fullResumeText);
         const buzzwords = detectBuzzwords(fullResumeText);
@@ -1856,17 +1893,17 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         if (debounceTimer.current) clearTimeout(debounceTimer.current);
         debounceTimer.current = setTimeout(() => updateLiveScores(), 500);
         return () => { if (debounceTimer.current) clearTimeout(debounceTimer.current); };
-    }, [roles, summary, skills, personalInfo, targetTitle, updateLiveScores]);
+    }, [roles, summary, skills, safePersonalInfo, targetTitle, updateLiveScores]);
 
     // Export
     const getExportChecklist = () => {
-        const hasName = !!personalInfo.name.trim();
-        const hasEmail = !!personalInfo.email.trim() && personalInfo.email.includes('@');
-        const hasPhone = !!personalInfo.phone.trim();
-        const hasLinkedIn = !!personalInfo.linkedin.trim();
-        const hasExperience = roles.some(r => r.bullets.length > 0);
-        const hasEducation = education.length > 0 && education.some(e => e.degree.trim());
-        const hasSkills = skills.length > 0;
+        const hasName = !!(safePersonalInfo.name?.trim());
+        const hasEmail = !!(safePersonalInfo.email?.trim() && safePersonalInfo.email.includes('@'));
+        const hasPhone = !!(safePersonalInfo.phone?.trim());
+        const hasLinkedIn = !!(safePersonalInfo.linkedin?.trim());
+        const hasExperience = roles?.some(r => r?.bullets?.length > 0);
+        const hasEducation = education?.length > 0 && education.some(e => e?.degree?.trim());
+        const hasSkills = skills?.length > 0;
         return {
             critical: [
                 { label: 'Full Name', met: hasName },
@@ -1875,13 +1912,13 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 { label: 'LinkedIn URL', met: hasLinkedIn },
                 { label: 'Experience Section (at least 1 bullet)', met: hasExperience },
                 { label: 'Education Section', met: hasEducation },
-                { label: 'Skills Section (at least 3 skills)', met: skills.length >= 3 }
+                { label: 'Skills Section (at least 3 skills)', met: (skills?.length || 0) >= 3 }
             ],
             recommended: [
-                { label: 'Professional Summary', met: !!summary.trim() },
-                { label: 'Target Title', met: !!targetTitle.trim() },
-                { label: 'Certifications (if applicable)', met: certifications.length > 0 },
-                { label: 'Projects (if applicable)', met: projects.length > 0 }
+                { label: 'Professional Summary', met: !!summary?.trim() },
+                { label: 'Target Title', met: !!targetTitle?.trim() },
+                { label: 'Certifications (if applicable)', met: certifications?.length > 0 },
+                { label: 'Projects (if applicable)', met: projects?.length > 0 }
             ]
         };
     };
@@ -1893,17 +1930,17 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             const { pdf } = await import('@react-pdf/renderer');
             const blob = await pdf(
                 <ResumePDF
-                    personalInfo={personalInfo}
+                    personalInfo={safePersonalInfo}
                     targetTitle={targetTitle}
                     summary={summary}
-                    roles={roles}
-                    skills={skills}
-                    education={education}
-                    certifications={certifications}
-                    projects={projects}
-                    publications={publications}
+                    roles={roles || []}
+                    skills={skills || []}
+                    education={education || []}
+                    certifications={certifications || []}
+                    projects={projects || []}
+                    publications={publications || []}
                     selectedTemplate={selectedTemplate}
-                    customSections={customSections}
+                    customSections={customSections || []}
                     dateFormat={dateFormat}
                     formatDate={formatDate}
                     skillsSeparator={skillsSeparator}
@@ -1927,7 +1964,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const saveDraft = () => {
         try {
             const draft = {
-                roles, summary, skills, personalInfo, education, certifications,
+                roles, summary, skills, personalInfo: safePersonalInfo, education, certifications,
                 projects, publications, customSections, selectedTemplate, targetTitle,
                 sectionOrder, timestamp: Date.now()
             };
@@ -1991,10 +2028,12 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                     <div key="target-title" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', marginBottom: '20px', padding: '20px' }}>
                         <h3 style={{ fontSize: '13px', marginBottom: '16px', color: '#c9a84c' }}>🎯 Target Title</h3>
                         <input
+                            id="target-title-input"
                             type="text"
                             value={targetTitle}
-                            onChange={(e) => setTargetTitle(e.targetValue)}
+                            onChange={(e) => setTargetTitle(e.target.value)}
                             onBlur={saveSnapshot}
+                            onMouseUp={(e) => handleTextSelection(e, 'target-title-input')}
                             disabled={!editMode}
                             placeholder="e.g., Results-driven Project Operations Lead | 5+ Years in Public Health"
                             maxLength={250}
@@ -2037,31 +2076,31 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 return (
                     <div key="experience" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', marginBottom: '20px', overflow: 'hidden' }}>
                         <div style={{ padding: '16px 20px', background: '#f8f7f4', borderBottom: '1px solid #e6e4dd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>📝 Experience ({roles.reduce((acc, r) => acc + r.bullets.length, 0)} bullets)</h3>
+                            <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>📝 Experience ({roles?.reduce((acc, r) => acc + (r?.bullets?.length || 0), 0) || 0} bullets)</h3>
                             {editMode && <button onClick={addRole} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Role</button>}
                         </div>
-                        {roles.map((role, roleIdx) => (
+                        {roles && roles.map((role, roleIdx) => (
                             <div key={role.id} style={{ padding: '20px', borderBottom: roleIdx < roles.length - 1 ? '1px solid #e6e4dd' : 'none' }}>
                                 <div style={{ marginBottom: '16px', display: 'flex', gap: '12px' }}>
                                     <div style={{ flex: 1 }}>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '12px' }}>
                                             <div>
                                                 <label style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Job Title</label>
-                                                <input type="text" value={role.title} onChange={(e) => updateRoleTitle(role.id, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                                <input type="text" value={role.title || ''} onChange={(e) => updateRoleTitle(role.id, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
                                             </div>
                                             <div>
                                                 <label style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Company</label>
-                                                <input type="text" value={role.company} onChange={(e) => updateRoleCompany(role.id, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                                <input type="text" value={role.company || ''} onChange={(e) => updateRoleCompany(role.id, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
                                             </div>
                                         </div>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', alignItems: 'center' }}>
                                             <div>
                                                 <label style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>Start Date</label>
-                                                <input type="text" placeholder="MM/YYYY" value={role.startDate} onChange={(e) => updateRoleDates(role.id, e.target.value, role.endDate)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                                <input type="text" placeholder="MM/YYYY" value={role.startDate || ''} onChange={(e) => updateRoleDates(role.id, e.target.value, role.endDate)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
                                             </div>
                                             <div>
                                                 <label style={{ fontSize: '10px', color: '#6b7280', display: 'block', marginBottom: '4px' }}>End Date (or "Present")</label>
-                                                <input type="text" placeholder="MM/YYYY or Present" value={role.endDate} onChange={(e) => updateRoleDates(role.id, role.startDate, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                                <input type="text" placeholder="MM/YYYY or Present" value={role.endDate || ''} onChange={(e) => updateRoleDates(role.id, role.startDate, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ width: '100%', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
                                             </div>
                                             {editMode && (
                                                 <div style={{ display: 'flex', gap: '4px', marginTop: '18px' }}>
@@ -2073,11 +2112,11 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                                         </div>
                                     </div>
                                 </div>
-                                {role.bullets.map((bullet, bulletIdx) => (
+                                {role.bullets && role.bullets.map((bullet, bulletIdx) => (
                                     <div key={bullet.id} style={{ marginBottom: '16px', paddingLeft: '12px', borderLeft: '2px solid #e6e4dd' }}>
                                         <textarea
                                             id={`bullet_${role.id}_${bullet.id}`}
-                                            value={bullet.text}
+                                            value={bullet.text || ''}
                                             onChange={(e) => updateBullet(role.id, bullet.id, e.target.value)}
                                             onBlur={saveSnapshot}
                                             onMouseUp={(e) => handleTextSelection(e, `bullet_${role.id}_${bullet.id}`)}
@@ -2128,7 +2167,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                                 {editMode && <button onClick={() => addBullet(role.id)} style={{ marginTop: '8px', fontSize: '11px', padding: '6px 12px', background: 'transparent', border: '1px solid #c9a84c', borderRadius: '4px', cursor: 'pointer', color: '#c9a84c' }}>+ Add Bullet</button>}
                             </div>
                         ))}
-                        {editMode && roles.length === 0 && (
+                        {editMode && (!roles || roles.length === 0) && (
                             <div style={{ padding: '40px', textAlign: 'center', color: '#6b7280' }}>
                                 No experience entries yet. Click "Add Role" to get started.
                             </div>
@@ -2139,17 +2178,17 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 return (
                     <div key="skills" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                            <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>⚙️ Skills ({skills.length})</h3>
+                            <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>⚙️ Skills ({skills?.length || 0})</h3>
                             <button onClick={() => setAdvancedSkills(!advancedSkills)} style={{ padding: '4px 10px', fontSize: '10px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '4px', cursor: 'pointer' }}>
                                 {advancedSkills ? 'Switch to Simple View' : 'Advanced Mode'}
                             </button>
                         </div>
                         {advancedSkills ? (
-                            <SkillsAdvancedEditor skills={skills} setSkills={setSkills} onSave={saveSnapshot} skillsSeparator={skillsSeparator} setSkillsSeparator={setSkillsSeparator} />
+                            <SkillsAdvancedEditor skills={skills || []} setSkills={setSkills} onSave={saveSnapshot} skillsSeparator={skillsSeparator} setSkillsSeparator={setSkillsSeparator} />
                         ) : (
                             <>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
-                                    {skills.map((skill, idx) => (
+                                    {(skills || []).map((skill, idx) => (
                                         <span key={idx} style={{ padding: '6px 12px', background: 'rgba(201,168,76,0.1)', borderRadius: '20px', fontSize: '12px', color: '#c9a84c', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
                                             {skill}
                                             {editMode && <button onClick={() => removeSkill(skill)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '14px' }}>×</button>}
@@ -2171,29 +2210,29 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                     <div key="projects" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                             <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>🚀 Projects</h3>
-                            {editMode && <button onClick={() => setProjects(prev => [...prev, { id: safeUUID(), name: 'New Project', bullets: [] }])} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Project</button>}
+                            {editMode && <button onClick={() => setProjects(prev => [...(prev || []), { id: safeUUID(), name: 'New Project', bullets: [] }])} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Project</button>}
                         </div>
-                        {projects.map((project, idx) => (
+                        {(projects || []).map((project, idx) => (
                             <div key={project.id} style={{ marginBottom: '16px', padding: '12px', background: '#f8f7f4', borderRadius: '8px' }}>
-                                <input type="text" value={project.name} onChange={(e) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, name: e.target.value } : p))} onBlur={saveSnapshot} disabled={!editMode} placeholder="Project Name" style={{ width: '100%', marginBottom: '8px', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px', fontWeight: 600 }} />
-                                {project.bullets.map((bullet, bidx) => (
+                                <input type="text" value={project.name || ''} onChange={(e) => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, name: e.target.value } : p))} onBlur={saveSnapshot} disabled={!editMode} placeholder="Project Name" style={{ width: '100%', marginBottom: '8px', padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px', fontWeight: 600 }} />
+                                {(project.bullets || []).map((bullet, bidx) => (
                                     <div key={bidx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
-                                        <textarea value={bullet} onChange={(e) => {
-                                            const newBullets = [...project.bullets];
+                                        <textarea value={bullet || ''} onChange={(e) => {
+                                            const newBullets = [...(project.bullets || [])];
                                             newBullets[bidx] = e.target.value;
                                             setProjects(prev => prev.map(p => p.id === project.id ? { ...p, bullets: newBullets } : p));
                                         }} onBlur={saveSnapshot} disabled={!editMode} rows={1} style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '12px', resize: 'vertical' }} placeholder="Bullet point..." />
                                         {editMode && <button onClick={() => {
-                                            const newBullets = project.bullets.filter((_, i) => i !== bidx);
+                                            const newBullets = (project.bullets || []).filter((_, i) => i !== bidx);
                                             setProjects(prev => prev.map(p => p.id === project.id ? { ...p, bullets: newBullets } : p));
                                         }} style={{ padding: '6px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>✕</button>}
                                     </div>
                                 ))}
-                                {editMode && <button onClick={() => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, bullets: [...p.bullets, ''] } : p))} style={{ marginTop: '8px', padding: '4px 10px', fontSize: '10px', background: 'transparent', border: '1px solid #c9a84c', borderRadius: '4px', cursor: 'pointer', color: '#c9a84c' }}>+ Add Bullet</button>}
+                                {editMode && <button onClick={() => setProjects(prev => prev.map(p => p.id === project.id ? { ...p, bullets: [...(p.bullets || []), ''] } : p))} style={{ marginTop: '8px', padding: '4px 10px', fontSize: '10px', background: 'transparent', border: '1px solid #c9a84c', borderRadius: '4px', cursor: 'pointer', color: '#c9a84c' }}>+ Add Bullet</button>}
                                 {editMode && <button onClick={() => setProjects(prev => prev.filter(p => p.id !== project.id))} style={{ marginTop: '8px', marginLeft: '8px', padding: '4px 10px', fontSize: '10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Delete Project</button>}
                             </div>
                         ))}
-                        {editMode && projects.length === 0 && (
+                        {editMode && (!projects || projects.length === 0) && (
                             <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '12px', padding: '20px' }}>
                                 No projects added yet. Click "Add Project" to get started.
                             </div>
@@ -2207,13 +2246,13 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                             <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>🏆 Certifications</h3>
                             {editMode && <button onClick={addCertification} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Certification</button>}
                         </div>
-                        {certifications.map((cert, idx) => (
+                        {(certifications || []).map((cert, idx) => (
                             <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
-                                <input type="text" value={cert} onChange={(e) => updateCertification(idx, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} placeholder="e.g., PMP, AWS Certified Solutions Architect" style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                <input type="text" value={cert || ''} onChange={(e) => updateCertification(idx, e.target.value)} onBlur={saveSnapshot} disabled={!editMode} placeholder="e.g., PMP, AWS Certified Solutions Architect" style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
                                 {editMode && <button onClick={() => deleteCertification(idx)} style={{ padding: '6px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🗑️</button>}
                             </div>
                         ))}
-                        {editMode && certifications.length === 0 && (
+                        {editMode && (!certifications || certifications.length === 0) && (
                             <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '12px', padding: '20px' }}>
                                 No certifications added yet. Click "Add Certification" to get started.
                             </div>
@@ -2227,17 +2266,17 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                             <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>🎓 Education</h3>
                             {editMode && <button onClick={addEducation} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Education</button>}
                         </div>
-                        {education.map((edu) => (
+                        {(education || []).map((edu) => (
                             <div key={edu.id} style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid #e6e4dd' }}>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '12px', marginBottom: '12px' }}>
-                                    <input type="text" placeholder="Degree" value={edu.degree} onChange={(e) => updateEducation(edu.id, 'degree', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                    <input type="text" placeholder="Institution" value={edu.institution} onChange={(e) => updateEducation(edu.id, 'institution', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                    <input type="text" placeholder="Year" value={edu.year} onChange={(e) => updateEducation(edu.id, 'year', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                    <input type="text" placeholder="Degree" value={edu.degree || ''} onChange={(e) => updateEducation(edu.id, 'degree', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                    <input type="text" placeholder="Institution" value={edu.institution || ''} onChange={(e) => updateEducation(edu.id, 'institution', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                    <input type="text" placeholder="Year" value={edu.year || ''} onChange={(e) => updateEducation(edu.id, 'year', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
                                 </div>
                                 {editMode && <button onClick={() => deleteEducation(edu.id)} style={{ fontSize: '11px', padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Delete</button>}
                             </div>
                         ))}
-                        {editMode && education.length === 0 && (
+                        {editMode && (!education || education.length === 0) && (
                             <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '12px', padding: '20px' }}>
                                 No education entries yet. Click "Add Education" to get started.
                             </div>
@@ -2249,19 +2288,19 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                     <div key="publications" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                             <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>📝 Publications</h3>
-                            {editMode && <button onClick={() => setPublications(prev => [...prev, ''])} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Publication</button>}
+                            {editMode && <button onClick={() => setPublications(prev => [...(prev || []), ''])} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Publication</button>}
                         </div>
-                        {publications.map((pub, idx) => (
+                        {(publications || []).map((pub, idx) => (
                             <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
-                                <textarea value={pub} onChange={(e) => {
-                                    const updated = [...publications];
+                                <textarea value={pub || ''} onChange={(e) => {
+                                    const updated = [...(publications || [])];
                                     updated[idx] = e.target.value;
                                     setPublications(updated);
                                 }} onBlur={saveSnapshot} disabled={!editMode} rows={2} placeholder="Citation or publication title" style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                {editMode && <button onClick={() => setPublications(prev => prev.filter((_, i) => i !== idx))} style={{ padding: '6px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🗑️</button>}
+                                {editMode && <button onClick={() => setPublications(prev => (prev || []).filter((_, i) => i !== idx))} style={{ padding: '6px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🗑️</button>}
                             </div>
                         ))}
-                        {editMode && publications.length === 0 && (
+                        {editMode && (!publications || publications.length === 0) && (
                             <div style={{ textAlign: 'center', color: '#6b7280', fontSize: '12px', padding: '20px' }}>
                                 No publications added yet. Click "Add Publication" to get started.
                             </div>
@@ -2275,20 +2314,20 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                     return (
                         <div key={customSection.id} style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                                <input type="text" value={customSection.name} onChange={(e) => updateCustomSection(customSection.id, 'name', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ fontSize: '13px', fontWeight: 600, background: 'transparent', border: 'none', padding: 0, color: '#c9a84c' }} />
+                                <input type="text" value={customSection.name || ''} onChange={(e) => updateCustomSection(customSection.id, 'name', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ fontSize: '13px', fontWeight: 600, background: 'transparent', border: 'none', padding: 0, color: '#c9a84c' }} />
                                 {editMode && <button onClick={() => deleteCustomSection(customSection.id)} style={{ fontSize: '11px', padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Delete Section</button>}
                             </div>
                             {customSection.type === 'bulleted' ? (
                                 <>
                                     {Array.isArray(customSection.content) && customSection.content.map((item, idx) => (
                                         <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
-                                            <input type="text" value={item} onChange={(e) => {
-                                                const newContent = [...customSection.content];
+                                            <input type="text" value={item || ''} onChange={(e) => {
+                                                const newContent = [...(customSection.content || [])];
                                                 newContent[idx] = e.target.value;
                                                 updateCustomSection(customSection.id, 'content', newContent);
                                             }} onBlur={saveSnapshot} disabled={!editMode} style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
                                             {editMode && <button onClick={() => {
-                                                const newContent = customSection.content.filter((_, i) => i !== idx);
+                                                const newContent = (customSection.content || []).filter((_, i) => i !== idx);
                                                 updateCustomSection(customSection.id, 'content', newContent);
                                             }} style={{ padding: '6px 10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🗑️</button>}
                                         </div>
@@ -2296,7 +2335,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                                     {editMode && <button onClick={() => updateCustomSection(customSection.id, 'content', [...(customSection.content || []), ''])} style={{ padding: '6px 12px', background: 'transparent', border: '1px solid #c9a84c', borderRadius: '4px', cursor: 'pointer', color: '#c9a84c', fontSize: '12px' }}>+ Add Item</button>}
                                 </>
                             ) : (
-                                <textarea value={customSection.content} onChange={(e) => updateCustomSection(customSection.id, 'content', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} rows={3} style={{ width: '100%', padding: '12px', border: '1px solid #e6e4dd', borderRadius: '8px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit' }} placeholder={`Enter ${customSection.name.toLowerCase()} content...`} />
+                                <textarea value={customSection.content || ''} onChange={(e) => updateCustomSection(customSection.id, 'content', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} rows={3} style={{ width: '100%', padding: '12px', border: '1px solid #e6e4dd', borderRadius: '8px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit' }} placeholder={`Enter ${customSection.name.toLowerCase()} content...`} />
                             )}
                         </div>
                     );
@@ -2414,12 +2453,12 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                     <div style={{ fontFamily: currentTemplate.fontFamily, maxWidth: '8.5in', margin: '0 auto', background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
                         <div style={{ textAlign: 'center', marginBottom: '24px', ...currentTemplate.headerStyle }}>
                             <div style={{ fontSize: currentTemplate.nameStyle?.fontSize || '28px', fontWeight: currentTemplate.nameStyle?.fontWeight || 700, color: currentTemplate.nameStyle?.color || '#1a1f2e', ...currentTemplate.nameStyle }}>
-                                {personalInfo.name || 'Your Name'}
+                                {safePersonalInfo.name || 'Your Name'}
                             </div>
                             {targetTitle && <div style={{ fontSize: '12px', color: '#c9a84c', marginTop: '4px', marginBottom: '8px' }}>{targetTitle}</div>}
                             <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
-    {[personalInfo?.email, personalInfo?.phone, personalInfo?.linkedin, personalInfo?.location].filter(Boolean).join(' | ')}
-</div>
+                                {[safePersonalInfo.email, safePersonalInfo.phone, safePersonalInfo.linkedin, safePersonalInfo.location].filter(Boolean).join(' | ')}
+                            </div>
                         </div>
                         {summary && (
                             <div style={{ marginBottom: '20px' }}>
@@ -2429,91 +2468,91 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                         )}
                         <div>
                             <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', ...currentTemplate.sectionStyle }}>Experience</div>
-                            {roles.slice(0, 5).map((role, idx) => (
+                            {(roles || []).slice(0, 5).map((role, idx) => (
                                 <div key={idx} style={{ marginBottom: '16px' }}>
                                     {currentTemplate.roleRow ? (
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', ...currentTemplate.roleRow }}>
                                             <div>
-                                                <span style={{ fontWeight: 600, fontSize: '12px' }}>{role.title}</span>
-                                                <span style={{ fontSize: '11px', color: '#666', marginLeft: '8px' }}>@ {role.company}</span>
+                                                <span style={{ fontWeight: 600, fontSize: '12px' }}>{role?.title || 'Untitled'}</span>
+                                                <span style={{ fontSize: '11px', color: '#666', marginLeft: '8px' }}>@ {role?.company || 'Unknown'}</span>
                                             </div>
                                             <div style={{ fontSize: '10px', color: '#666', ...currentTemplate.dateText }}>
-                                                {formatDate(role.startDate, dateFormat)} - {formatDate(role.endDate, dateFormat) || 'Present'}
+                                                {formatDate(role?.startDate, dateFormat)} - {formatDate(role?.endDate, dateFormat) || 'Present'}
                                             </div>
                                         </div>
                                     ) : (
                                         <div>
-                                            <div style={{ fontWeight: 600, fontSize: '12px' }}>{role.title} @ {role.company}</div>
-                                            <div style={{ fontSize: '10px', color: '#666', marginBottom: '4px' }}>{formatDate(role.startDate, dateFormat)} - {formatDate(role.endDate, dateFormat) || 'Present'}</div>
+                                            <div style={{ fontWeight: 600, fontSize: '12px' }}>{role?.title || 'Untitled'} @ {role?.company || 'Unknown'}</div>
+                                            <div style={{ fontSize: '10px', color: '#666', marginBottom: '4px' }}>{formatDate(role?.startDate, dateFormat)} - {formatDate(role?.endDate, dateFormat) || 'Present'}</div>
                                         </div>
                                     )}
-                                    {role.bullets.slice(0, 3).map((bullet, bidx) => (
-                                        <div key={bidx} style={{ fontSize: '11px', marginLeft: '12px', marginTop: '4px' }}>• {bullet.text}</div>
+                                    {(role?.bullets || []).slice(0, 3).map((bullet, bidx) => (
+                                        <div key={bidx} style={{ fontSize: '11px', marginLeft: '12px', marginTop: '4px' }}>• {bullet?.text || ''}</div>
                                     ))}
-                                    {role.bullets.length > 3 && (
-                                        <div style={{ fontSize: '10px', color: '#6b7280', marginLeft: '12px', fontStyle: 'italic' }}>... and {role.bullets.length - 3} more</div>
+                                    {(role?.bullets?.length || 0) > 3 && (
+                                        <div style={{ fontSize: '10px', color: '#6b7280', marginLeft: '12px', fontStyle: 'italic' }}>... and {(role?.bullets?.length || 0) - 3} more</div>
                                     )}
                                 </div>
                             ))}
-                            {roles.length > 5 && <div style={{ fontSize: '11px', color: '#6b7280', fontStyle: 'italic' }}>... and {roles.length - 5} more roles</div>}
+                            {(roles?.length || 0) > 5 && <div style={{ fontSize: '11px', color: '#6b7280', fontStyle: 'italic' }}>... and {(roles?.length || 0) - 5} more roles</div>}
                         </div>
-                        {skills.length > 0 && (
+                        {(skills?.length || 0) > 0 && (
                             <div style={{ marginTop: '20px' }}>
                                 <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>Skills</div>
                                 {advancedSkills ? (
-                                    <SkillsAdvancedEditor skills={skills} setSkills={setSkills} onSave={saveSnapshot} skillsSeparator={skillsSeparator} setSkillsSeparator={setSkillsSeparator} />
+                                    <SkillsAdvancedEditor skills={skills || []} setSkills={setSkills} onSave={saveSnapshot} skillsSeparator={skillsSeparator} setSkillsSeparator={setSkillsSeparator} />
                                 ) : (
                                     <div style={{ fontSize: '11px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                        {skills.slice(0, 15).map(skill => (<span key={skill} style={{ padding: '2px 8px', background: '#f0f0f0', borderRadius: '4px' }}>{skill}</span>))}
-                                        {skills.length > 15 && <span style={{ fontSize: '10px', color: '#6b7280' }}>+{skills.length - 15} more</span>}
+                                        {(skills || []).slice(0, 15).map(skill => (<span key={skill} style={{ padding: '2px 8px', background: '#f0f0f0', borderRadius: '4px' }}>{skill}</span>))}
+                                        {(skills?.length || 0) > 15 && <span style={{ fontSize: '10px', color: '#6b7280' }}>+{(skills?.length || 0) - 15} more</span>}
                                     </div>
                                 )}
                             </div>
                         )}
-                        {education.length > 0 && education.some(e => e.degree) && (
+                        {(education?.length || 0) > 0 && education.some(e => e?.degree) && (
                             <div style={{ marginTop: '20px' }}>
                                 <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>Education</div>
                                 {education.map((edu, idx) => (
                                     <div key={idx} style={{ fontSize: '11px', marginBottom: '8px' }}>
-                                        <strong>{edu.degree}</strong> {edu.institution && `from ${edu.institution}`} {edu.year && `(${edu.year})`}
+                                        <strong>{edu?.degree || ''}</strong> {edu?.institution && `from ${edu.institution}`} {edu?.year && `(${edu.year})`}
                                     </div>
                                 ))}
                             </div>
                         )}
-                        {certifications.length > 0 && (
+                        {(certifications?.length || 0) > 0 && (
                             <div style={{ marginTop: '20px' }}>
                                 <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>Certifications</div>
                                 <div style={{ fontSize: '11px' }}>{certifications.join(', ')}</div>
                             </div>
                         )}
-                        {projects.length > 0 && (
+                        {(projects?.length || 0) > 0 && (
                             <div style={{ marginTop: '20px' }}>
                                 <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>Projects</div>
                                 {projects.map((project, idx) => (
                                     <div key={idx} style={{ marginBottom: '12px' }}>
-                                        <div style={{ fontWeight: 600, fontSize: '12px' }}>{project.name}</div>
-                                        {project.bullets.map((bullet, bidx) => (
+                                        <div style={{ fontWeight: 600, fontSize: '12px' }}>{project?.name || 'Untitled Project'}</div>
+                                        {(project?.bullets || []).map((bullet, bidx) => (
                                             <div key={bidx} style={{ fontSize: '11px', marginLeft: '12px' }}>• {bullet}</div>
                                         ))}
                                     </div>
                                 ))}
                             </div>
                         )}
-                        {publications.length > 0 && (
+                        {(publications?.length || 0) > 0 && (
                             <div style={{ marginTop: '20px' }}>
                                 <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>Publications</div>
                                 <div style={{ fontSize: '11px' }}>{publications.map(p => `• ${p}`).join('\n')}</div>
                             </div>
                         )}
-                        {customSections.length > 0 && customSections.map((section, idx) => (
+                        {(customSections || []).length > 0 && customSections.map((section, idx) => (
                             <div key={idx} style={{ marginTop: '20px' }}>
-                                <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>{section.name}</div>
-                                {section.type === 'bulleted' ? (
-                                    Array.isArray(section.content) && section.content.map((item, i) => (
+                                <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>{section?.name || 'Section'}</div>
+                                {section?.type === 'bulleted' ? (
+                                    Array.isArray(section?.content) && section.content.map((item, i) => (
                                         <div key={i} style={{ fontSize: '11px', marginBottom: '4px' }}>• {item}</div>
                                     ))
                                 ) : (
-                                    <div style={{ fontSize: '12px' }}>{section.content}</div>
+                                    <div style={{ fontSize: '12px' }}>{section?.content || ''}</div>
                                 )}
                             </div>
                         ))}
@@ -2525,11 +2564,11 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                         <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', marginBottom: '20px', padding: '20px' }}>
                             <h3 style={{ fontSize: '13px', marginBottom: '16px', color: '#c9a84c' }}>👤 Personal Information</h3>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                                <input type="text" placeholder="Full Name" value={personalInfo.name} onChange={(e) => updatePersonalInfo('name', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                <input type="email" placeholder="Email" value={personalInfo.email} onChange={(e) => updatePersonalInfo('email', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                <input type="tel" placeholder="Phone" value={personalInfo.phone} onChange={(e) => updatePersonalInfo('phone', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                <input type="text" placeholder="LinkedIn URL" value={personalInfo.linkedin} onChange={(e) => updatePersonalInfo('linkedin', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
-                                <input type="text" placeholder="Location" value={personalInfo.location} onChange={(e) => updatePersonalInfo('location', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                <input type="text" placeholder="Full Name" value={safePersonalInfo.name} onChange={(e) => updatePersonalInfo('name', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                <input type="email" placeholder="Email" value={safePersonalInfo.email} onChange={(e) => updatePersonalInfo('email', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                <input type="tel" placeholder="Phone" value={safePersonalInfo.phone} onChange={(e) => updatePersonalInfo('phone', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                <input type="text" placeholder="LinkedIn URL" value={safePersonalInfo.linkedin} onChange={(e) => updatePersonalInfo('linkedin', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                <input type="text" placeholder="Location" value={safePersonalInfo.location} onChange={(e) => updatePersonalInfo('location', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
                             </div>
                         </div>
                         

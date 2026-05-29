@@ -141,7 +141,7 @@ const createPDFStyles = (templateKey) => {
 };
 
 // ============================================================
-// PDF Document Component - FIXED (#6: Certifications new lines, #4: Skills columns)
+// PDF Document Component
 // ============================================================
 const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, education, certifications, projects, publications, selectedTemplate, customSections, dateFormat, formatDate, skillsSeparator, skillsColumns, certificationsFormat }) => {
     const styles = createPDFStyles(selectedTemplate);
@@ -264,7 +264,7 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                     </View>
                 )}
                 
-                {/* Certifications - FIXED #6 */}
+                {/* Certifications */}
                 {certifications && certifications.length > 0 && (
                     <View>
                         <Text style={styles.sectionTitle}>Certifications</Text>
@@ -498,7 +498,7 @@ function formatDate(dateStr, dateFormatPreference) {
 }
 
 // ============================================================
-// DRAG AND DROP SECTION REORDERING COMPONENT - FIXED (#1)
+// DRAG AND DROP SECTION REORDERING COMPONENT
 // ============================================================
 const SectionReorderModal = ({ isOpen, onClose, sections, sectionOrder, setSectionOrder, removedSections, setRemovedSections, onReorder }) => {
     const [dragIndex, setDragIndex] = useState(null);
@@ -536,7 +536,6 @@ const SectionReorderModal = ({ isOpen, onClose, sections, sectionOrder, setSecti
     
     const handleRestoreSection = (sectionId) => {
         setRemovedSections(prev => prev.filter(id => id !== sectionId));
-        // Find where to insert - default to end
         setLocalOrder(prev => [...prev, sectionId]);
     };
     
@@ -626,7 +625,7 @@ const SectionReorderModal = ({ isOpen, onClose, sections, sectionOrder, setSecti
 };
 
 // ============================================================
-// FLOATING TEXT FORMATTING TOOLBAR - FIXED (#5)
+// FLOATING TEXT FORMATTING TOOLBAR
 // ============================================================
 const FloatingToolbar = ({ position, onFormat, onClose }) => {
     const toolbarRef = useRef(null);
@@ -790,6 +789,7 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
                 </div>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', padding: '20px' }}>
+                    {/* Deterministic Column */}
                     <div style={{ border: '1px solid #3b82f6', borderRadius: '8px', overflow: 'hidden' }}>
                         <div style={{ background: '#3b82f6', padding: '12px', color: 'white', fontWeight: 600 }}>🔍 Deterministic Parser</div>
                         <div style={{ padding: '16px', maxHeight: '500px', overflowY: 'auto' }}>
@@ -805,6 +805,7 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
                         </div>
                     </div>
                     
+                    {/* AI Column */}
                     <div style={{ border: '1px solid #8b5cf6', borderRadius: '8px', overflow: 'hidden' }}>
                         <div style={{ background: '#8b5cf6', padding: '12px', color: 'white', fontWeight: 600 }}>🤖 AI Parser (Gemma 4 31B)</div>
                         <div style={{ padding: '16px', maxHeight: '500px', overflowY: 'auto' }}>
@@ -835,7 +836,7 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
 };
 
 // ============================================================
-// SKILLS ADVANCED EDITOR - FIXED (#4: Drag & Drop from master bucket)
+// SKILLS ADVANCED EDITOR
 // ============================================================
 const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setSkillsSeparator, skillsColumns, setSkillsColumns }) => {
     const [subcategories, setSubcategories] = useState([
@@ -873,7 +874,6 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
             const updated = [...subcategories];
             updated[catIdx].skills.push(skill);
             setSubcategories(updated);
-            // Remove from master bucket
             setSkills(prev => prev.filter(s => s !== skill));
         }
     };
@@ -883,7 +883,6 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
         const removedSkill = updated[catIdx].skills[skillIdx];
         updated[catIdx].skills.splice(skillIdx, 1);
         setSubcategories(updated);
-        // Add back to master bucket
         setSkills(prev => [...prev, removedSkill]);
     };
     
@@ -903,7 +902,6 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
         const newSubcategories = [...subcategories];
         
         if (dragSourceIsMaster) {
-            // Dragging from master bucket to category
             const draggedSkill = skills[dragIndex];
             if (draggedSkill && !newSubcategories[targetCategoryIndex].skills.includes(draggedSkill)) {
                 newSubcategories[targetCategoryIndex].skills.splice(targetSkillIndex, 0, draggedSkill);
@@ -911,7 +909,6 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
                 setSkills(prev => prev.filter((_, i) => i !== dragIndex));
             }
         } else {
-            // Dragging from category to category
             const draggedSkill = newSubcategories[dragCategoryIndex].skills[dragIndex];
             newSubcategories[dragCategoryIndex].skills.splice(dragIndex, 1);
             newSubcategories[targetCategoryIndex].skills.splice(targetSkillIndex, 0, draggedSkill);
@@ -1120,7 +1117,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const [activeTextarea, setActiveTextarea] = useState(null);
     const [hasSavedState, setHasSavedState] = useState(false);
     
-    // Initialize personalInfo with empty strings
     const [personalInfo, setPersonalInfo] = useState({ 
         name: '', 
         email: '', 
@@ -1171,6 +1167,21 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     
     const showToast = (message, type = 'info') => {
         setToast({ message, type });
+    };
+    
+    // ============================================================
+    // SIDEBAR TOGGLE FUNCTIONS - ADDED
+    // ============================================================
+    const toggleLeftSidebar = () => {
+        const newState = !isLeftSidebarOpen;
+        setIsLeftSidebarOpen(newState);
+        localStorage.setItem('veritas_left_sidebar_open', newState);
+    };
+    
+    const toggleRightSidebar = () => {
+        const newState = !showRightSidebar;
+        setShowRightSidebar(newState);
+        localStorage.setItem('veritas_right_sidebar_open', newState);
     };
     
     // Save state to localStorage when going back to analysis
@@ -1242,7 +1253,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         return () => window.removeEventListener('beforeunload', handleBeforeUnload);
     }, [hasUnsavedChanges]);
     
-    // Try to load saved state on mount (if coming back from analysis)
+    // Try to load saved state on mount
     useEffect(() => {
         const loaded = loadEditorState();
         if (!loaded && resumeText && resumeText.trim().length > 100 && !isInitialAILoadRef.current && !isAIParsing && roles.length === 0) {
@@ -1357,9 +1368,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         }
     }, [extractPDFText, setResumeText, showToast]);
 
-    // ============================================================
     // AI Parser as Primary
-    // ============================================================
     const runAIParser = async (showComparison = false) => {
         if (!resumeText || resumeText.trim().length < 100) {
             showToast('Please provide valid resume text (minimum 100 characters)', 'error');
@@ -1812,7 +1821,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         setPersonalInfo(prev => ({ ...prev, [field]: value }));
     };
     
-    // Floating toolbar for text formatting - FIXED (#5)
+    // Floating toolbar for text formatting
     const handleTextSelection = (e, textareaId) => {
         const selection = window.getSelection();
         const selectedText = selection?.toString();

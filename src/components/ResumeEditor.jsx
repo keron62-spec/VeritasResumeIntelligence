@@ -194,6 +194,23 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
         return certsArray.map((cert, idx) => <Text key={cert} style={{ fontSize: 10, marginBottom: 4 }}>{cert}</Text>);
     };
     
+    // Render custom sections
+    const renderCustomSections = () => {
+        if (!customSections || customSections.length === 0) return null;
+        return customSections.map((section, idx) => (
+            <View key={idx}>
+                <Text style={styles.sectionTitle}>{section?.name || 'Section'}</Text>
+                {section?.type === 'bulleted' ? (
+                    Array.isArray(section?.content) && section.content.map((item, i) => (
+                        <Text key={i} style={styles.bullet}>• {item}</Text>
+                    ))
+                ) : (
+                    <Text style={{ fontSize: 10, marginBottom: 8 }}>{section?.content || ''}</Text>
+                )}
+            </View>
+        ));
+    };
+    
     return (
         <Document>
             <Page size="LETTER" style={styles.page}>
@@ -298,18 +315,7 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                 )}
                 
                 {/* Custom Sections */}
-                {customSections && customSections.map((section, idx) => (
-                    <View key={idx}>
-                        <Text style={styles.sectionTitle}>{section?.name || 'Section'}</Text>
-                        {section?.type === 'bulleted' ? (
-                            Array.isArray(section?.content) && section.content.map((item, i) => (
-                                <Text key={i} style={styles.bullet}>• {item}</Text>
-                            ))
-                        ) : (
-                            <Text style={{ fontSize: 10, marginBottom: 8 }}>{section?.content || ''}</Text>
-                        )}
-                    </View>
-                ))}
+                {renderCustomSections()}
             </Page>
         </Document>
     );
@@ -498,17 +504,20 @@ function formatDate(dateStr, dateFormatPreference) {
 }
 
 // ============================================================
-// DRAG AND DROP SECTION REORDERING COMPONENT
+// DRAG AND DROP SECTION REORDERING COMPONENT (FIXED)
 // ============================================================
-const SectionReorderModal = ({ isOpen, onClose, sections, sectionOrder, setSectionOrder, removedSections, setRemovedSections, onReorder }) => {
-    const [dragIndex, setDragIndex] = useState(null);
+const SectionReorderModal = ({ isOpen, onClose, sectionOrder, setSectionOrder, removedSections, setRemovedSections }) => {
     const [localOrder, setLocalOrder] = useState([]);
+    const [localRemoved, setLocalRemoved] = useState([]);
+    const [dragIndex, setDragIndex] = useState(null);
     
+    // Sync with props when modal opens
     useEffect(() => {
-        if (sections && sectionOrder) {
+        if (isOpen) {
             setLocalOrder([...sectionOrder]);
+            setLocalRemoved([...removedSections]);
         }
-    }, [sections, sectionOrder]);
+    }, [isOpen, sectionOrder, removedSections]);
     
     const handleDragStart = (index) => {
         setDragIndex(index);
@@ -529,19 +538,18 @@ const SectionReorderModal = ({ isOpen, onClose, sections, sectionOrder, setSecti
     };
     
     const handleRemoveSection = (sectionId) => {
-        setRemovedSections(prev => [...prev, sectionId]);
-        const newOrder = localOrder.filter(id => id !== sectionId);
-        setLocalOrder(newOrder);
+        setLocalRemoved(prev => [...prev, sectionId]);
+        setLocalOrder(prev => prev.filter(id => id !== sectionId));
     };
     
     const handleRestoreSection = (sectionId) => {
-        setRemovedSections(prev => prev.filter(id => id !== sectionId));
+        setLocalRemoved(prev => prev.filter(id => id !== sectionId));
         setLocalOrder(prev => [...prev, sectionId]);
     };
     
     const handleSave = () => {
         setSectionOrder(localOrder);
-        onReorder(localOrder);
+        setRemovedSections(localRemoved);
         onClose();
     };
     
@@ -597,11 +605,11 @@ const SectionReorderModal = ({ isOpen, onClose, sections, sectionOrder, setSecti
                     </div>
                 </div>
                 
-                {removedSections.length > 0 && (
+                {localRemoved.length > 0 && (
                     <div>
-                        <div style={{ fontWeight: 600, marginBottom: '8px', fontSize: '12px' }}>Removed Sections (Undo available)</div>
+                        <div style={{ fontWeight: 600, marginBottom: '8px', fontSize: '12px' }}>Removed Sections</div>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {removedSections.map((sectionId) => {
+                            {localRemoved.map((sectionId) => {
                                 const info = sectionLabels[sectionId] || { label: sectionId, icon: '📌' };
                                 return (
                                     <div key={sectionId} style={{ padding: '12px 16px', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -625,30 +633,84 @@ const SectionReorderModal = ({ isOpen, onClose, sections, sectionOrder, setSecti
 };
 
 // ============================================================
-// FLOATING TEXT FORMATTING TOOLBAR
+// FLOATING TEXT FORMATTING TOOLBAR (REWRITTEN - FIXED)
 // ============================================================
-const FloatingToolbar = ({ position, onFormat, onClose }) => {
+const FloatingToolbar = ({ onFormat, onClose }) => {
     const toolbarRef = useRef(null);
+    const [position, setPosition] = useState({ top: 0, left: 0 });
+    const [visible, setVisible] = useState(false);
+    const [selectedText, setSelectedText] = useState('');
     
     useEffect(() => {
-        const handleClickOutside = (e) => {
-            if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
-                onClose();
+        const handleSelectionChange = () => {
+            const selection = window.getSelection();
+            const text = selection?.toString();
+            
+            if (text && text.length > 0 && !selection.isCollapsed) {
+                const range = selection.getRangeAt(0);
+                const rect = range.getBoundingClientRect();
+                
+                setSelectedText(text);
+                setPosition({
+                    top: rect.top - 40,
+                    left: rect.left + (rect.width / 2) - 60
+                });
+                setVisible(true);
+            } else {
+                setVisible(false);
             }
         };
+        
+        const handleClickOutside = (e) => {
+            if (toolbarRef.current && !toolbarRef.current.contains(e.target)) {
+                setVisible(false);
+            }
+        };
+        
+        document.addEventListener('selectionchange', handleSelectionChange);
         document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [onClose]);
+        
+        return () => {
+            document.removeEventListener('selectionchange', handleSelectionChange);
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, []);
     
-    if (!position) return null;
+    const handleFormat = (formatType) => {
+        if (!selectedText) return;
+        
+        let formattedText = '';
+        if (formatType === 'bold') formattedText = `**${selectedText}**`;
+        else if (formatType === 'italic') formattedText = `*${selectedText}*`;
+        else if (formatType === 'underline') formattedText = `__${selectedText}__`;
+        
+        const activeElement = document.activeElement;
+        if (activeElement && (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT')) {
+            const start = activeElement.selectionStart;
+            const end = activeElement.selectionEnd;
+            const value = activeElement.value;
+            const newValue = value.substring(0, start) + formattedText + value.substring(end);
+            activeElement.value = newValue;
+            
+            const event = new Event('input', { bubbles: true });
+            activeElement.dispatchEvent(event);
+        }
+        
+        onFormat(formatType);
+        setVisible(false);
+    };
+    
+    if (!visible) return null;
+    
+    const adjustedLeft = Math.max(10, Math.min(position.left, window.innerWidth - 140));
     
     return (
         <div
             ref={toolbarRef}
             style={{
                 position: 'fixed',
-                top: position.top - 40,
-                left: position.left,
+                top: position.top,
+                left: adjustedLeft,
                 background: '#1a1f2e',
                 borderRadius: '8px',
                 padding: '6px 12px',
@@ -659,26 +721,300 @@ const FloatingToolbar = ({ position, onFormat, onClose }) => {
             }}
         >
             <button
-                onClick={() => onFormat('bold')}
-                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}
+                onClick={() => handleFormat('bold')}
+                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', padding: '4px 8px' }}
                 title="Bold"
             >
                 <strong>B</strong>
             </button>
             <button
-                onClick={() => onFormat('italic')}
-                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', fontStyle: 'italic' }}
+                onClick={() => handleFormat('italic')}
+                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', fontStyle: 'italic', padding: '4px 8px' }}
                 title="Italic"
             >
                 <em>I</em>
             </button>
             <button
-                onClick={() => onFormat('underline')}
-                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', textDecoration: 'underline' }}
+                onClick={() => handleFormat('underline')}
+                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', textDecoration: 'underline', padding: '4px 8px' }}
                 title="Underline"
             >
                 <u>U</u>
             </button>
+        </div>
+    );
+};
+
+// ============================================================
+// COMPLETE SKILLS EDITOR COMPONENT (REWRITTEN - FIXED)
+// ============================================================
+const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setSkillsSeparator, skillsColumns, setSkillsColumns, showToast }) => {
+    const [mode, setMode] = useState('flat');
+    const [categories, setCategories] = useState([
+        { id: 'cat1', name: 'Core Competencies', skills: [] },
+        { id: 'cat2', name: 'Tools & Technologies', skills: [] }
+    ]);
+    const [flatSkills, setFlatSkills] = useState([]);
+    const [dragIndex, setDragIndex] = useState(null);
+    const [dragCategoryId, setDragCategoryId] = useState(null);
+    
+    useEffect(() => {
+        if (skills && skills.length > 0 && flatSkills.length === 0) {
+            setFlatSkills([...skills]);
+            setCategories([
+                { id: 'cat1', name: 'Core Competencies', skills: [...skills] },
+                { id: 'cat2', name: 'Tools & Technologies', skills: [] }
+            ]);
+        }
+    }, [skills]);
+    
+    const addCategory = () => {
+        const newId = `cat_${Date.now()}`;
+        setCategories([...categories, { id: newId, name: 'New Category', skills: [] }]);
+    };
+    
+    const updateCategoryName = (id, newName) => {
+        setCategories(categories.map(cat => cat.id === id ? { ...cat, name: newName } : cat));
+    };
+    
+    const deleteCategory = (id) => {
+        if (categories.length <= 1) {
+            if (showToast) showToast('Cannot delete the last category', 'warning');
+            return;
+        }
+        const categoryToDelete = categories.find(c => c.id === id);
+        if (categoryToDelete && categoryToDelete.skills.length > 0) {
+            const firstCategory = categories.find(c => c.id !== id);
+            if (firstCategory) {
+                setCategories(categories.map(cat => 
+                    cat.id === firstCategory.id 
+                        ? { ...cat, skills: [...cat.skills, ...categoryToDelete.skills] }
+                        : cat.id === id ? null : cat
+                ).filter(Boolean));
+            }
+        } else {
+            setCategories(categories.filter(cat => cat.id !== id));
+        }
+    };
+    
+    const addSkillToCategory = (categoryId, skillName) => {
+        if (!skillName.trim()) return;
+        setCategories(categories.map(cat => 
+            cat.id === categoryId 
+                ? { ...cat, skills: [...cat.skills, skillName.trim()] }
+                : cat
+        ));
+        if (!flatSkills.includes(skillName.trim())) {
+            setFlatSkills([...flatSkills, skillName.trim()]);
+        }
+    };
+    
+    const removeSkillFromCategory = (categoryId, skillIndex) => {
+        setCategories(categories.map(cat => 
+            cat.id === categoryId 
+                ? { ...cat, skills: cat.skills.filter((_, i) => i !== skillIndex) }
+                : cat
+        ));
+    };
+    
+    const moveSkillBetweenCategories = (sourceCatId, sourceIndex, targetCatId, targetIndex) => {
+        const sourceCat = categories.find(c => c.id === sourceCatId);
+        const targetCat = categories.find(c => c.id === targetCatId);
+        if (!sourceCat || !targetCat) return;
+        
+        const movedSkill = sourceCat.skills[sourceIndex];
+        const newCategories = categories.map(cat => {
+            if (cat.id === sourceCatId) {
+                const newSkills = [...cat.skills];
+                newSkills.splice(sourceIndex, 1);
+                return { ...cat, skills: newSkills };
+            }
+            if (cat.id === targetCatId) {
+                const newSkills = [...cat.skills];
+                newSkills.splice(targetIndex, 0, movedSkill);
+                return { ...cat, skills: newSkills };
+            }
+            return cat;
+        });
+        setCategories(newCategories);
+    };
+    
+    const handleDragStart = (categoryId, skillIndex) => {
+        setDragCategoryId(categoryId);
+        setDragIndex(skillIndex);
+    };
+    
+    const handleDragOver = (e) => {
+        e.preventDefault();
+    };
+    
+    const handleDrop = (targetCategoryId, targetIndex) => {
+        if (dragCategoryId !== null && dragIndex !== null) {
+            moveSkillBetweenCategories(dragCategoryId, dragIndex, targetCategoryId, targetIndex);
+        }
+        setDragCategoryId(null);
+        setDragIndex(null);
+    };
+    
+    const getAllSkills = () => {
+        return categories.flatMap(cat => cat.skills);
+    };
+    
+    const saveSkills = () => {
+        const allSkills = getAllSkills();
+        setSkills(allSkills);
+        if (onSave) onSave();
+        if (showToast) showToast('Skills saved!', 'success');
+    };
+    
+    const renderSkillsPreview = () => {
+        const allSkills = getAllSkills();
+        if (!allSkills.length) return '';
+        
+        if (skillsSeparator === 'pipe') {
+            return allSkills.join(' | ');
+        } else if (skillsSeparator === 'bulleted') {
+            if (skillsColumns > 1) {
+                const itemsPerColumn = Math.ceil(allSkills.length / skillsColumns);
+                const columns = [];
+                for (let i = 0; i < skillsColumns; i++) {
+                    const start = i * itemsPerColumn;
+                    const end = Math.min(start + itemsPerColumn, allSkills.length);
+                    columns.push(allSkills.slice(start, end));
+                }
+                return (
+                    <div style={{ display: 'grid', gridTemplateColumns: `repeat(${skillsColumns}, 1fr)`, gap: '8px' }}>
+                        {columns.map((col, colIdx) => (
+                            <div key={colIdx}>
+                                {col.map((skill, skillIdx) => (
+                                    <div key={skillIdx} style={{ marginBottom: '4px' }}>• {skill}</div>
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+                );
+            }
+            return allSkills.map(s => `• ${s}`).join('\n');
+        }
+        return allSkills.join(', ');
+    };
+    
+    return (
+        <div>
+            <div style={{ marginBottom: '16px', padding: '12px', background: '#f8f7f4', borderRadius: '8px' }}>
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap', marginBottom: '12px' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 500 }}>Display Mode:</label>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <button onClick={() => setMode('flat')} style={{ padding: '4px 12px', fontSize: '11px', borderRadius: '4px', border: '1px solid #e6e4dd', background: mode === 'flat' ? '#c9a84c' : 'white', color: mode === 'flat' ? 'white' : '#333', cursor: 'pointer' }}>Flat List</button>
+                        <button onClick={() => setMode('categorized')} style={{ padding: '4px 12px', fontSize: '11px', borderRadius: '4px', border: '1px solid #e6e4dd', background: mode === 'categorized' ? '#c9a84c' : 'white', color: mode === 'categorized' ? 'white' : '#333', cursor: 'pointer' }}>Categorized</button>
+                    </div>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <label style={{ fontSize: '11px', fontWeight: 500 }}>Separator:</label>
+                    <select value={skillsSeparator} onChange={(e) => setSkillsSeparator(e.target.value)} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px', border: '1px solid #e6e4dd' }}>
+                        <option value="comma">Comma-separated (e.g., Skill A, Skill B)</option>
+                        <option value="pipe">Pipe-separated (e.g., Skill A | Skill B)</option>
+                        <option value="bulleted">Bulleted list</option>
+                    </select>
+                    
+                    {skillsSeparator === 'bulleted' && (
+                        <>
+                            <label style={{ fontSize: '11px', fontWeight: 500 }}>Columns:</label>
+                            <select value={skillsColumns} onChange={(e) => setSkillsColumns(parseInt(e.target.value))} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px', border: '1px solid #e6e4dd' }}>
+                                <option value={1}>1 column</option>
+                                <option value={2}>2 columns</option>
+                                <option value={3}>3 columns</option>
+                                <option value={4}>4 columns</option>
+                            </select>
+                        </>
+                    )}
+                </div>
+            </div>
+            
+            <div style={{ marginBottom: '16px', padding: '12px', background: '#e6e4dd', borderRadius: '8px' }}>
+                <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '8px' }}>Live Preview (how it will look in PDF):</div>
+                <div style={{ fontSize: '11px', background: 'white', padding: '12px', borderRadius: '4px' }}>
+                    {typeof renderSkillsPreview() === 'string' ? (
+                        <div style={{ whiteSpace: 'pre-wrap' }}>{renderSkillsPreview()}</div>
+                    ) : (
+                        renderSkillsPreview()
+                    )}
+                </div>
+            </div>
+            
+            {mode === 'flat' ? (
+                <div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px', minHeight: '60px', padding: '12px', background: '#f8f7f4', borderRadius: '8px' }}>
+                        {flatSkills.map((skill, idx) => (
+                            <span key={idx} style={{ padding: '6px 12px', background: 'rgba(201,168,76,0.15)', borderRadius: '20px', fontSize: '12px', color: '#c9a84c', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                                {skill}
+                                <button onClick={() => {
+                                    setFlatSkills(flatSkills.filter((_, i) => i !== idx));
+                                    setCategories(categories.map(cat => ({
+                                        ...cat,
+                                        skills: cat.skills.filter(s => s !== skill)
+                                    })));
+                                }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '14px' }}>×</button>
+                            </span>
+                        ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                        <input type="text" id="flat-skill-input" placeholder="Add new skill..." style={{ flex: 1, padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '12px' }} onKeyPress={(e) => { if (e.key === 'Enter') { const input = e.target; const newSkill = input.value.trim(); if (newSkill && !flatSkills.includes(newSkill)) { setFlatSkills([...flatSkills, newSkill]); input.value = ''; } } }} />
+                        <button onClick={() => {
+                            const input = document.getElementById('flat-skill-input');
+                            const newSkill = input.value.trim();
+                            if (newSkill && !flatSkills.includes(newSkill)) {
+                                setFlatSkills([...flatSkills, newSkill]);
+                                input.value = '';
+                            }
+                        }} style={{ padding: '6px 12px', background: '#c9a84c', border: 'none', borderRadius: '6px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add</button>
+                    </div>
+                </div>
+            ) : (
+                <div>
+                    {categories.map((category, catIdx) => (
+                        <div key={category.id} style={{ marginBottom: '20px', padding: '12px', background: '#f8f7f4', borderRadius: '8px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                                <input type="text" value={category.name} onChange={(e) => updateCategoryName(category.id, e.target.value)} style={{ fontWeight: 600, background: 'transparent', border: 'none', fontSize: '12px', flex: 1, padding: '4px 0' }} />
+                                {categories.length > 1 && (
+                                    <button onClick={() => deleteCategory(category.id)} style={{ padding: '2px 6px', fontSize: '10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>Delete</button>
+                                )}
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px', minHeight: '40px' }}>
+                                {category.skills.map((skill, skillIdx) => (
+                                    <span
+                                        key={skillIdx}
+                                        draggable
+                                        onDragStart={() => handleDragStart(category.id, skillIdx)}
+                                        onDragOver={handleDragOver}
+                                        onDrop={() => handleDrop(category.id, skillIdx)}
+                                        style={{ padding: '6px 12px', background: 'rgba(201,168,76,0.15)', borderRadius: '20px', fontSize: '12px', color: '#c9a84c', cursor: 'grab', display: 'inline-flex', alignItems: 'center', gap: '8px' }}
+                                    >
+                                        {skill}
+                                        <button onClick={() => removeSkillFromCategory(category.id, skillIdx)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444', fontSize: '14px' }}>×</button>
+                                    </span>
+                                ))}
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                <input type="text" placeholder={`Add skill to ${category.name}...`} className={`skill-input-${category.id}`} style={{ flex: 1, padding: '6px 10px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '11px' }} onKeyPress={(e) => { if (e.key === 'Enter') { addSkillToCategory(category.id, e.target.value); e.target.value = ''; } }} />
+                                <button onClick={() => {
+                                    const input = document.querySelector(`.skill-input-${category.id}`);
+                                    if (input) {
+                                        addSkillToCategory(category.id, input.value);
+                                        input.value = '';
+                                    }
+                                }} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>Add</button>
+                            </div>
+                        </div>
+                    ))}
+                    <button onClick={addCategory} style={{ padding: '6px 12px', fontSize: '11px', background: 'transparent', border: '1px solid #c9a84c', borderRadius: '4px', cursor: 'pointer', color: '#c9a84c' }}>+ Add Category</button>
+                </div>
+            )}
+            
+            <div style={{ marginTop: '16px', display: 'flex', justifyContent: 'flex-end' }}>
+                <button onClick={saveSkills} style={{ padding: '8px 16px', background: '#c9a84c', border: 'none', borderRadius: '6px', cursor: 'pointer', color: '#1a1f2e', fontWeight: 500 }}>Apply Skills to Resume</button>
+            </div>
         </div>
     );
 };
@@ -789,7 +1125,6 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
                 </div>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', padding: '20px' }}>
-                    {/* Deterministic Column */}
                     <div style={{ border: '1px solid #3b82f6', borderRadius: '8px', overflow: 'hidden' }}>
                         <div style={{ background: '#3b82f6', padding: '12px', color: 'white', fontWeight: 600 }}>🔍 Deterministic Parser</div>
                         <div style={{ padding: '16px', maxHeight: '500px', overflowY: 'auto' }}>
@@ -805,7 +1140,6 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
                         </div>
                     </div>
                     
-                    {/* AI Column */}
                     <div style={{ border: '1px solid #8b5cf6', borderRadius: '8px', overflow: 'hidden' }}>
                         <div style={{ background: '#8b5cf6', padding: '12px', color: 'white', fontWeight: 600 }}>🤖 AI Parser (Gemma 4 31B)</div>
                         <div style={{ padding: '16px', maxHeight: '500px', overflowY: 'auto' }}>
@@ -831,212 +1165,6 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
                     <button onClick={onAcceptAI} style={{ padding: '8px 16px', background: '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 500 }}>Use AI Parser Results</button>
                 </div>
             </div>
-        </div>
-    );
-};
-
-// ============================================================
-// SKILLS ADVANCED EDITOR
-// ============================================================
-const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setSkillsSeparator, skillsColumns, setSkillsColumns }) => {
-    const [subcategories, setSubcategories] = useState([
-        { name: 'Core Competencies', skills: [] },
-        { name: 'Tools & Technologies', skills: [] }
-    ]);
-    const [prevSkillsLength, setPrevSkillsLength] = useState(0);
-    const [dragIndex, setDragIndex] = useState(null);
-    const [dragCategoryIndex, setDragCategoryIndex] = useState(null);
-    const [dragSourceIsMaster, setDragSourceIsMaster] = useState(false);
-    
-    useEffect(() => {
-        if (skills && skills.length !== prevSkillsLength || prevSkillsLength === 0) {
-            const midPoint = Math.ceil(skills.length / 2);
-            setSubcategories([
-                { name: 'Core Competencies', skills: skills.slice(0, midPoint) },
-                { name: 'Tools & Technologies', skills: skills.slice(midPoint) }
-            ]);
-            setPrevSkillsLength(skills.length);
-        }
-    }, [skills, prevSkillsLength]);
-    
-    const addSubcategory = () => {
-        setSubcategories([...subcategories, { name: 'New Category', skills: [] }]);
-    };
-    
-    const updateSubcategoryName = (idx, name) => {
-        const updated = [...subcategories];
-        updated[idx].name = name;
-        setSubcategories(updated);
-    };
-    
-    const addSkillToSubcategory = (catIdx, skill) => {
-        if (skill && !subcategories[catIdx].skills.includes(skill)) {
-            const updated = [...subcategories];
-            updated[catIdx].skills.push(skill);
-            setSubcategories(updated);
-            setSkills(prev => prev.filter(s => s !== skill));
-        }
-    };
-    
-    const removeSkillFromSubcategory = (catIdx, skillIdx) => {
-        const updated = [...subcategories];
-        const removedSkill = updated[catIdx].skills[skillIdx];
-        updated[catIdx].skills.splice(skillIdx, 1);
-        setSubcategories(updated);
-        setSkills(prev => [...prev, removedSkill]);
-    };
-    
-    const handleDragStart = (categoryIndex, skillIndex, isMaster = false) => {
-        setDragCategoryIndex(categoryIndex);
-        setDragIndex(skillIndex);
-        setDragSourceIsMaster(isMaster);
-    };
-    
-    const handleDragOver = (e) => {
-        e.preventDefault();
-    };
-    
-    const handleDrop = (targetCategoryIndex, targetSkillIndex) => {
-        if (dragIndex === null || dragCategoryIndex === null) return;
-        
-        const newSubcategories = [...subcategories];
-        
-        if (dragSourceIsMaster) {
-            const draggedSkill = skills[dragIndex];
-            if (draggedSkill && !newSubcategories[targetCategoryIndex].skills.includes(draggedSkill)) {
-                newSubcategories[targetCategoryIndex].skills.splice(targetSkillIndex, 0, draggedSkill);
-                setSubcategories(newSubcategories);
-                setSkills(prev => prev.filter((_, i) => i !== dragIndex));
-            }
-        } else {
-            const draggedSkill = newSubcategories[dragCategoryIndex].skills[dragIndex];
-            newSubcategories[dragCategoryIndex].skills.splice(dragIndex, 1);
-            newSubcategories[targetCategoryIndex].skills.splice(targetSkillIndex, 0, draggedSkill);
-            setSubcategories(newSubcategories);
-        }
-        
-        setDragIndex(null);
-        setDragCategoryIndex(null);
-        setDragSourceIsMaster(false);
-    };
-    
-    const saveSkills = () => {
-        const allSkills = subcategories.flatMap(cat => cat.skills);
-        setSkills(allSkills);
-        if (onSave) onSave();
-    };
-    
-    const renderSkillsPreview = () => {
-        const allSkills = subcategories.flatMap(cat => cat.skills);
-        if (!allSkills.length) return '';
-        if (skillsSeparator === 'pipe') return allSkills.join(' | ');
-        if (skillsSeparator === 'bulleted') return allSkills.map(s => `• ${s}`).join('\n');
-        return allSkills.join(', ');
-    };
-    
-    return (
-        <div>
-            <div style={{ marginBottom: '12px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <label style={{ fontSize: '11px', color: '#6b7280' }}>Separator for rendered output:</label>
-                <select value={skillsSeparator} onChange={(e) => setSkillsSeparator(e.target.value)} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px' }}>
-                    <option value="comma">Comma-separated (e.g., Skill A, Skill B)</option>
-                    <option value="pipe">Pipe-separated (e.g., Skill A | Skill B)</option>
-                    <option value="bulleted">Bulleted list</option>
-                </select>
-                
-                {skillsSeparator === 'bulleted' && (
-                    <>
-                        <label style={{ fontSize: '11px', color: '#6b7280' }}>Columns:</label>
-                        <select value={skillsColumns} onChange={(e) => setSkillsColumns(parseInt(e.target.value))} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px' }}>
-                            <option value={1}>1 column</option>
-                            <option value={2}>2 columns</option>
-                            <option value={3}>3 columns</option>
-                            <option value={4}>4 columns</option>
-                        </select>
-                    </>
-                )}
-            </div>
-            
-            <div style={{ marginBottom: '12px', padding: '10px', background: '#f8f7f4', borderRadius: '6px' }}>
-                <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px' }}>Preview (how it will look in PDF):</div>
-                <div style={{ fontSize: '11px' }}>{renderSkillsPreview()}</div>
-            </div>
-            
-            <details style={{ marginTop: '12px' }}>
-                <summary style={{ fontSize: '11px', cursor: 'pointer', color: '#c9a84c' }}>Edit Skill Categories (Drag & Drop)</summary>
-                <div style={{ marginTop: '12px' }}>
-                    <div style={{ marginBottom: '12px', padding: '8px', background: '#f8f7f4', borderRadius: '6px' }}>
-                        <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '8px' }}>Master Skills Bucket (drag from here to categories):</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', minHeight: '50px' }}>
-                            {skills && skills.map((skill, idx) => (
-                                <span
-                                    key={idx}
-                                    draggable
-                                    onDragStart={() => handleDragStart(-1, idx, true)}
-                                    onDragEnd={() => {
-                                        setDragIndex(null);
-                                        setDragCategoryIndex(null);
-                                        setDragSourceIsMaster(false);
-                                    }}
-                                    style={{
-                                        padding: '4px 10px',
-                                        background: '#e6e4dd',
-                                        borderRadius: '20px',
-                                        fontSize: '11px',
-                                        cursor: 'grab',
-                                        color: '#1a1f2e'
-                                    }}
-                                >
-                                    {skill}
-                                </span>
-                            ))}
-                        </div>
-                    </div>
-                    
-                    {subcategories.map((cat, catIdx) => (
-                        <div key={catIdx} style={{ marginBottom: '20px', padding: '12px', background: '#f8f7f4', borderRadius: '8px' }}>
-                            <input type="text" value={cat.name} onChange={(e) => updateSubcategoryName(catIdx, e.target.value)} style={{ fontWeight: 600, marginBottom: '8px', background: 'transparent', border: 'none', fontSize: '12px', width: '100%' }} />
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px', minHeight: '50px' }}>
-                                {cat.skills.map((skill, skillIdx) => (
-                                    <span
-                                        key={skillIdx}
-                                        draggable
-                                        onDragStart={() => handleDragStart(catIdx, skillIdx, false)}
-                                        onDragOver={handleDragOver}
-                                        onDrop={() => handleDrop(catIdx, skillIdx)}
-                                        style={{
-                                            padding: '4px 10px',
-                                            background: 'rgba(201,168,76,0.1)',
-                                            borderRadius: '20px',
-                                            fontSize: '11px',
-                                            color: '#c9a84c',
-                                            display: 'inline-flex',
-                                            alignItems: 'center',
-                                            gap: '6px',
-                                            cursor: 'grab'
-                                        }}
-                                    >
-                                        {skill}
-                                        <button onClick={() => removeSkillFromSubcategory(catIdx, skillIdx)} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '12px' }}>×</button>
-                                    </span>
-                                ))}
-                            </div>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                <input type="text" placeholder="Add skill..." onKeyPress={(e) => { if (e.key === 'Enter') { addSkillToSubcategory(catIdx, e.target.value); e.target.value = ''; } }} style={{ flex: 1, padding: '6px 10px', fontSize: '11px', borderRadius: '4px', border: '1px solid #e6e4dd' }} />
-                                <button onClick={() => {
-                                    const input = document.activeElement;
-                                    if (input && input.tagName === 'INPUT' && input.value) {
-                                        addSkillToSubcategory(catIdx, input.value);
-                                        input.value = '';
-                                    }
-                                }} style={{ padding: '4px 10px', fontSize: '11px' }}>Add</button>
-                            </div>
-                        </div>
-                    ))}
-                    <button onClick={addSubcategory} style={{ padding: '6px 12px', fontSize: '11px', background: 'transparent', border: '1px solid #c9a84c', borderRadius: '4px', cursor: 'pointer', color: '#c9a84c' }}>+ Add Category</button>
-                    <button onClick={saveSkills} style={{ marginLeft: '12px', padding: '6px 12px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>Apply Skills to Resume</button>
-                </div>
-            </details>
         </div>
     );
 };
@@ -1106,6 +1234,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [toast, setToast] = useState(null);
     const [targetTitle, setTargetTitle] = useState('');
+    const [summary, setSummary] = useState('');
     const [summaryVersion, setSummaryVersion] = useState('original');
     const [skillsSeparator, setSkillsSeparator] = useState('comma');
     const [skillsColumns, setSkillsColumns] = useState(2);
@@ -1113,8 +1242,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const [sectionOrder, setSectionOrder] = useState(['target-title', 'summary', 'experience', 'skills', 'projects', 'certifications', 'education', 'publications']);
     const [removedSections, setRemovedSections] = useState([]);
     const [showReorderModal, setShowReorderModal] = useState(false);
-    const [floatingToolbar, setFloatingToolbar] = useState(null);
-    const [activeTextarea, setActiveTextarea] = useState(null);
     const [hasSavedState, setHasSavedState] = useState(false);
     
     const [personalInfo, setPersonalInfo] = useState({ 
@@ -1124,7 +1251,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         linkedin: '', 
         location: '' 
     });
-    const [summary, setSummary] = useState('');
     const [roles, setRoles] = useState([]);
     const [skills, setSkills] = useState([]);
     const [education, setEducation] = useState([]);
@@ -1170,7 +1296,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     };
     
     // ============================================================
-    // SIDEBAR TOGGLE FUNCTIONS - ADDED
+    // SIDEBAR TOGGLE FUNCTIONS
     // ============================================================
     const toggleLeftSidebar = () => {
         const newState = !isLeftSidebarOpen;
@@ -1261,6 +1387,30 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             runAIParser(false);
         }
     }, []);
+    
+    // Initialize summary versions from analysis (FIXED - Issue A)
+    useEffect(() => {
+        console.log('🔍 Summary Analysis received:', summaryAnalysis);
+        
+        if (summaryAnalysis) {
+            const originalText = summaryAnalysis.original_text || '';
+            const veritasText = summaryAnalysis.veritas_transformed_summary || 
+                               summaryAnalysis.transformed_summary || '';
+            const hbText = summaryAnalysis.hb_transformed_summary || 
+                          summaryAnalysis.hidden_brief_summary || '';
+            
+            console.log('📝 Summary versions - Original:', originalText?.substring(0, 50));
+            console.log('📝 Summary versions - Veritas:', veritasText?.substring(0, 50));
+            console.log('📝 Summary versions - HB:', hbText?.substring(0, 50));
+            
+            setSummary(originalText);
+            summaryVersionsRef.current = { 
+                original: originalText, 
+                veritas: veritasText, 
+                hiddenBrief: hbText 
+            };
+        }
+    }, [summaryAnalysis]);
     
     // Update state ref
     useEffect(() => {
@@ -1370,6 +1520,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
 
     // AI Parser as Primary
     const runAIParser = async (showComparison = false) => {
+        if (isAIParsing) return;
         if (!resumeText || resumeText.trim().length < 100) {
             showToast('Please provide valid resume text (minimum 100 characters)', 'error');
             return false;
@@ -1821,57 +1972,22 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         setPersonalInfo(prev => ({ ...prev, [field]: value }));
     };
     
-    // Floating toolbar for text formatting
-    const handleTextSelection = (e, textareaId) => {
-        const selection = window.getSelection();
-        const selectedText = selection?.toString();
-        
-        if (selectedText && selectedText.length > 0) {
-            const range = selection.getRangeAt(0);
-            const rect = range.getBoundingClientRect();
-            
-            setFloatingToolbar({
-                top: rect.top,
-                left: rect.left + (rect.width / 2) - 50,
-                textareaId
-            });
-            setActiveTextarea(textareaId);
-        } else {
-            setFloatingToolbar(null);
-            setActiveTextarea(null);
+    // Apply summary version from stored refs (FIXED - Issue A)
+    const applySummaryVersion = (version) => {
+        const versions = summaryVersionsRef.current;
+        if (version === 'veritas' && versions.veritas) {
+            setSummary(versions.veritas);
+            setSummaryVersion('veritas');
+            showToast('Applied Veritas version', 'success');
+        } else if (version === 'hiddenBrief' && versions.hiddenBrief) {
+            setSummary(versions.hiddenBrief);
+            setSummaryVersion('hiddenBrief');
+            showToast('Applied Hidden Brief version', 'success');
+        } else if (version === 'original' && versions.original) {
+            setSummary(versions.original);
+            setSummaryVersion('original');
+            showToast('Reset to original', 'info');
         }
-    };
-    
-    const applyFormatting = (formatType) => {
-        if (!activeTextarea) return;
-        
-        const textarea = document.getElementById(activeTextarea);
-        if (!textarea) return;
-        
-        const start = textarea.selectionStart;
-        const end = textarea.selectionEnd;
-        const selectedText = textarea.value.substring(start, end);
-        
-        if (!selectedText) return;
-        
-        let formattedText = '';
-        if (formatType === 'bold') formattedText = `**${selectedText}**`;
-        else if (formatType === 'italic') formattedText = `*${selectedText}*`;
-        else if (formatType === 'underline') formattedText = `__${selectedText}__`;
-        
-        const newValue = textarea.value.substring(0, start) + formattedText + textarea.value.substring(end);
-        
-        if (activeTextarea.startsWith('summary')) {
-            setSummary(newValue);
-        } else if (activeTextarea.startsWith('target')) {
-            setTargetTitle(newValue);
-        } else if (activeTextarea.startsWith('bullet')) {
-            const [_, roleId, bulletId] = activeTextarea.split('_');
-            updateBullet(roleId, bulletId, newValue);
-        }
-        
-        setFloatingToolbar(null);
-        setActiveTextarea(null);
     };
     
     // Live scoring
@@ -2085,7 +2201,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                             value={targetTitle}
                             onChange={(e) => setTargetTitle(e.target.value)}
                             onBlur={saveSnapshot}
-                            onMouseUp={(e) => handleTextSelection(e, 'target-title-input')}
                             disabled={!editMode}
                             placeholder="e.g., Results-driven Project Operations Lead | 5+ Years in Public Health"
                             maxLength={250}
@@ -2101,6 +2216,23 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                     <div key="summary" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', marginBottom: '20px', overflow: 'hidden' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: '#f8f7f4', borderBottom: '1px solid #e6e4dd' }}>
                             <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>📄 Professional Summary</h3>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                                {summaryVersionsRef.current.veritas && (
+                                    <button onClick={() => applySummaryVersion('veritas')} style={{ padding: '4px 10px', fontSize: '10px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                                        ✨ Use Veritas
+                                    </button>
+                                )}
+                                {summaryVersionsRef.current.hiddenBrief && (
+                                    <button onClick={() => applySummaryVersion('hiddenBrief')} style={{ padding: '4px 10px', fontSize: '10px', background: '#c9a84c', color: '#1a1f2e', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                                        🕵️ Use Hidden Brief
+                                    </button>
+                                )}
+                                {summaryVersionsRef.current.original && summary !== summaryVersionsRef.current.original && (
+                                    <button onClick={() => applySummaryVersion('original')} style={{ padding: '4px 10px', fontSize: '10px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '4px', cursor: 'pointer' }}>
+                                        ↺ Reset
+                                    </button>
+                                )}
+                            </div>
                         </div>
                         <div style={{ padding: '20px' }}>
                             <textarea
@@ -2108,10 +2240,9 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                                 value={summary}
                                 onChange={(e) => updateSummary(e.target.value)}
                                 onBlur={saveSnapshot}
-                                onMouseUp={(e) => handleTextSelection(e, 'summary-textarea')}
                                 disabled={!editMode}
                                 rows={4}
-                                style={{ width: '100%', padding: '12px', border: `1px solid #e6e4dd`, borderRadius: '8px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit' }}
+                                style={{ width: '100%', padding: '12px', border: `1px solid ${summaryVersion === 'hiddenBrief' ? '#c9a84c' : summaryVersion === 'veritas' ? '#2563eb' : '#e6e4dd'}`, borderRadius: '8px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit' }}
                                 placeholder="Professional summary goes here..."
                             />
                         </div>
@@ -2164,7 +2295,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                                             value={bullet.text || ''}
                                             onChange={(e) => updateBullet(role.id, bullet.id, e.target.value)}
                                             onBlur={saveSnapshot}
-                                            onMouseUp={(e) => handleTextSelection(e, `bullet_${role.id}_${bullet.id}`)}
                                             disabled={!editMode}
                                             rows={2}
                                             style={{ width: '100%', padding: '10px', border: '1px solid #e6e4dd', borderRadius: '8px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit' }}
@@ -2237,6 +2367,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                                 setSkillsSeparator={setSkillsSeparator}
                                 skillsColumns={skillsColumns}
                                 setSkillsColumns={setSkillsColumns}
+                                showToast={showToast}
                             />
                         ) : (
                             <>
@@ -2580,28 +2711,16 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                         {(skills?.length || 0) > 0 && (
                             <div style={{ marginTop: '20px' }}>
                                 <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>Skills</div>
-                                {advancedSkills ? (
-                                    <SkillsAdvancedEditor 
-                                        skills={skills || []} 
-                                        setSkills={setSkills} 
-                                        onSave={saveSnapshot} 
-                                        skillsSeparator={skillsSeparator} 
-                                        setSkillsSeparator={setSkillsSeparator}
-                                        skillsColumns={skillsColumns}
-                                        setSkillsColumns={setSkillsColumns}
-                                    />
-                                ) : (
-                                    <div style={{ fontSize: '11px' }}>
-                                        {skillsSeparator === 'bulleted' ? (
-                                            skills.slice(0, 15).map((s, i) => <div key={i}>• {s}</div>)
-                                        ) : skillsSeparator === 'pipe' ? (
-                                            skills.slice(0, 15).join(' | ')
-                                        ) : (
-                                            skills.slice(0, 15).join(', ')
-                                        )}
-                                        {skills.length > 15 && <span style={{ fontSize: '10px', color: '#6b7280' }}> +{skills.length - 15} more</span>}
-                                    </div>
-                                )}
+                                <div style={{ fontSize: '11px' }}>
+                                    {skillsSeparator === 'bulleted' ? (
+                                        skills.slice(0, 15).map((s, i) => <div key={i}>• {s}</div>)
+                                    ) : skillsSeparator === 'pipe' ? (
+                                        skills.slice(0, 15).join(' | ')
+                                    ) : (
+                                        skills.slice(0, 15).join(', ')
+                                    )}
+                                    {skills.length > 15 && <span style={{ fontSize: '10px', color: '#6b7280' }}> +{skills.length - 15} more</span>}
+                                </div>
                             </div>
                         )}
                         {(education?.length || 0) > 0 && education.some(e => e?.degree) && (
@@ -2793,20 +2912,15 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             <SectionReorderModal 
                 isOpen={showReorderModal} 
                 onClose={() => setShowReorderModal(false)} 
-                sections={{ targetTitle: true, summary: true, experience: true, skills: true, projects: true, certifications: true, education: true, publications: true }}
-                onReorder={(newOrder) => setSectionOrder(newOrder)}
                 sectionOrder={sectionOrder}
                 setSectionOrder={setSectionOrder}
                 removedSections={removedSections}
                 setRemovedSections={setRemovedSections}
             />
-            {floatingToolbar && (
-                <FloatingToolbar 
-                    position={floatingToolbar} 
-                    onFormat={applyFormatting} 
-                    onClose={() => setFloatingToolbar(null)} 
-                />
-            )}
+            <FloatingToolbar 
+                onFormat={() => {}} 
+                onClose={() => {}} 
+            />
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             
             <style>{`

@@ -21,6 +21,21 @@ import { calculateRIASECDeterministic } from '../utils/riasec.js';
 import { extractPersonalInfo } from '../utils/personalInfoExtractor.js';
 
 // ============================================================
+// DEBOUNCE UTILITY
+// ============================================================
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// ============================================================
 // PDF STYLES
 // ============================================================
 const createPDFStyles = (templateKey) => {
@@ -191,7 +206,6 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                     <Text style={styles.contactRow}>
                         {[safePersonalInfo.email, safePersonalInfo.phone, safePersonalInfo.linkedin, safePersonalInfo.location].filter(Boolean).join(' | ')}
                     </Text>
-                    {/* FIX #2: Target Title below contact info, above summary */}
                     {targetTitle && <Text style={styles.targetTitle}>{targetTitle}</Text>}
                 </View>
                 
@@ -253,7 +267,7 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                     </View>
                 )}
                 
-                {/* Certifications - FIX #6: Each on new line */}
+                {/* Certifications - each on new line */}
                 {certifications && certifications.length > 0 && (
                     <View>
                         <Text style={styles.sectionTitle}>Certifications</Text>
@@ -489,7 +503,7 @@ function formatDate(dateStr, dateFormatPreference) {
 }
 
 // ============================================================
-// DRAG AND DROP SECTION REORDERING COMPONENT (FIXED #1)
+// DRAG AND DROP SECTION REORDERING COMPONENT
 // ============================================================
 const SectionReorderModal = ({ isOpen, onClose, sections, onReorder, sectionOrder, setSectionOrder, hiddenSections, setHiddenSections }) => {
     const [dragIndex, setDragIndex] = useState(null);
@@ -497,7 +511,6 @@ const SectionReorderModal = ({ isOpen, onClose, sections, onReorder, sectionOrde
     
     useEffect(() => {
         if (sections && sectionOrder) {
-            // Filter out hidden sections from display order
             const visibleOrder = sectionOrder.filter(s => !hiddenSections.includes(s));
             setLocalOrder([...visibleOrder]);
         }
@@ -522,7 +535,6 @@ const SectionReorderModal = ({ isOpen, onClose, sections, onReorder, sectionOrde
     };
     
     const handleSave = () => {
-        // Merge hidden sections back into order (they stay at their original positions but hidden)
         const allSections = [...localOrder, ...hiddenSections];
         setSectionOrder(allSections);
         onReorder(allSections);
@@ -531,11 +543,9 @@ const SectionReorderModal = ({ isOpen, onClose, sections, onReorder, sectionOrde
     
     const handleToggleSection = (sectionId) => {
         if (hiddenSections.includes(sectionId)) {
-            // Show section: remove from hidden, add back to order at end
             setHiddenSections(prev => prev.filter(s => s !== sectionId));
             setLocalOrder(prev => [...prev, sectionId]);
         } else {
-            // Hide section: remove from localOrder, add to hidden
             setHiddenSections(prev => [...prev, sectionId]);
             setLocalOrder(prev => prev.filter(s => s !== sectionId));
         }
@@ -543,7 +553,6 @@ const SectionReorderModal = ({ isOpen, onClose, sections, onReorder, sectionOrde
     
     if (!isOpen) return null;
     
-    // Define section icons and labels
     const sectionLabels = {
         'target-title': { label: 'Target Title', icon: '🎯' },
         'summary': { label: 'Professional Summary', icon: '📄' },
@@ -615,7 +624,7 @@ const SectionReorderModal = ({ isOpen, onClose, sections, onReorder, sectionOrde
 };
 
 // ============================================================
-// FLOATING TEXT FORMATTING TOOLBAR (FIXED #5)
+// FLOATING TEXT FORMATTING TOOLBAR
 // ============================================================
 const FloatingToolbar = ({ position, onFormat, onClose }) => {
     const toolbarRef = useRef(null);
@@ -779,7 +788,6 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
                 </div>
                 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', padding: '20px' }}>
-                    {/* Deterministic Column */}
                     <div style={{ border: '1px solid #3b82f6', borderRadius: '8px', overflow: 'hidden' }}>
                         <div style={{ background: '#3b82f6', padding: '12px', color: 'white', fontWeight: 600 }}>🔍 Deterministic Parser</div>
                         <div style={{ padding: '16px', maxHeight: '500px', overflowY: 'auto' }}>
@@ -795,7 +803,6 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
                         </div>
                     </div>
                     
-                    {/* AI Column */}
                     <div style={{ border: '1px solid #8b5cf6', borderRadius: '8px', overflow: 'hidden' }}>
                         <div style={{ background: '#8b5cf6', padding: '12px', color: 'white', fontWeight: 600 }}>🤖 AI Parser (Gemma 4 31B)</div>
                         <div style={{ padding: '16px', maxHeight: '500px', overflowY: 'auto' }}>
@@ -805,7 +812,6 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
                             {aiParsedData.projects?.length > 0 && <div><strong>{aiParsedData.projects.length}</strong> projects</div>}
                             {aiParsedData.certifications?.length > 0 && <div><strong>{aiParsedData.certifications.length}</strong> certifications</div>}
                             {aiParsedData.publications?.length > 0 && <div><strong>{aiParsedData.publications.length}</strong> publications</div>}
-                            
                             {aiParsedData.roles?.slice(0, 3).map((role, i) => (
                                 <div key={i} style={{ marginTop: '12px', padding: '8px', background: '#f8f7f4', borderRadius: '4px', fontSize: '12px' }}>
                                     <strong>{role?.title || 'Untitled'}</strong> @ {role?.company || 'Unknown'}<br />
@@ -826,7 +832,7 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
 };
 
 // ============================================================
-// SKILLS ADVANCED EDITOR (FIXED #4 - Drag & Drop + Column Selector)
+// SKILLS ADVANCED EDITOR
 // ============================================================
 const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setSkillsSeparator, skillsColumns, setSkillsColumns }) => {
     const [subcategories, setSubcategories] = useState([
@@ -838,7 +844,6 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
     const [dragCategoryIndex, setDragCategoryIndex] = useState(null);
     const [dragSourceIsMaster, setDragSourceIsMaster] = useState(false);
     
-    // Update when skills prop changes
     useEffect(() => {
         if (skills && skills.length !== prevSkillsLength || prevSkillsLength === 0) {
             const midPoint = Math.ceil(skills.length / 2);
@@ -874,7 +879,6 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
         setSubcategories(updated);
     };
     
-    // FIXED #4: Drag & Drop from master bucket to categories
     const handleDragStart = (source, categoryIndex, skillIndex) => {
         if (source === 'master') {
             setDragSourceIsMaster(true);
@@ -897,22 +901,16 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
         const newSubcategories = [...subcategories];
         
         if (dragSourceIsMaster) {
-            // Moving from master bucket to category
             const draggedSkill = skills[dragIndex];
             if (draggedSkill && !newSubcategories[targetCategoryIndex].skills.includes(draggedSkill)) {
                 newSubcategories[targetCategoryIndex].skills.splice(targetSkillIndex, 0, draggedSkill);
                 setSubcategories(newSubcategories);
             }
         } else {
-            // Moving between categories
             if (dragCategoryIndex === null) return;
             const draggedSkill = newSubcategories[dragCategoryIndex].skills[dragIndex];
             if (!draggedSkill) return;
-            
-            // Remove from source
             newSubcategories[dragCategoryIndex].skills.splice(dragIndex, 1);
-            
-            // Insert at target
             newSubcategories[targetCategoryIndex].skills.splice(targetSkillIndex, 0, draggedSkill);
             setSubcategories(newSubcategories);
         }
@@ -1122,7 +1120,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const [floatingToolbar, setFloatingToolbar] = useState(null);
     const [activeTextarea, setActiveTextarea] = useState(null);
     
-    // Initialize personalInfo with empty strings to prevent undefined errors
     const [personalInfo, setPersonalInfo] = useState({ 
         name: '', 
         email: '', 
@@ -1163,7 +1160,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const summaryVersionsRef = useRef({ original: '', veritas: '', hiddenBrief: '' });
     const isInitialAILoadRef = useRef(false);
     
-    // Safety wrapper for personalInfo to use in render
     const safePersonalInfo = {
         name: personalInfo?.name || '',
         email: personalInfo?.email || '',
@@ -1177,9 +1173,9 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     };
     
     // ============================================================
-    // FIX #7: Save/Load State from localStorage
+    // FIX #7: Debounced State Save (30 seconds inactivity)
     // ============================================================
-    const saveEditorState = useCallback(() => {
+    const saveEditorStateImmediate = useCallback(() => {
         const stateToSave = {
             roles,
             summary,
@@ -1202,16 +1198,50 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         };
         localStorage.setItem(EDITOR_STATE_KEY, JSON.stringify(stateToSave));
         console.log('💾 Editor state saved to localStorage');
-    }, [roles, summary, skills, safePersonalInfo, education, certifications, projects, publications, customSections, selectedTemplate, targetTitle, sectionOrder, hiddenSections, summaryVersion, skillsSeparator, skillsColumns]);
+    }, [roles, summary, skills, safePersonalInfo, education, certifications, projects, publications, 
+        customSections, selectedTemplate, targetTitle, sectionOrder, hiddenSections, summaryVersion, 
+        skillsSeparator, skillsColumns]);
     
-    const loadEditorState = useCallback(() => {
+    const debouncedSaveEditorState = useCallback(
+        debounce(() => {
+            saveEditorStateImmediate();
+        }, 30000), // 30 seconds of inactivity
+        [saveEditorStateImmediate]
+    );
+    
+    // Save on unmount (immediate)
+    useEffect(() => {
+        return () => {
+            saveEditorStateImmediate();
+            console.log('💾 Editor state saved on unmount');
+        };
+    }, [saveEditorStateImmediate]);
+    
+    // Save on page hide (user navigates away)
+    useEffect(() => {
+        const handlePageHide = () => {
+            saveEditorStateImmediate();
+        };
+        window.addEventListener('pagehide', handlePageHide);
+        return () => window.removeEventListener('pagehide', handlePageHide);
+    }, [saveEditorStateImmediate]);
+    
+    // Trigger debounced save when relevant state changes
+    useEffect(() => {
+        if (hasUnsavedChanges) {
+            debouncedSaveEditorState();
+        }
+    }, [roles, summary, skills, safePersonalInfo, education, certifications, projects, publications, 
+        customSections, targetTitle, sectionOrder, hiddenSections, skillsSeparator, skillsColumns, 
+        hasUnsavedChanges, debouncedSaveEditorState]);
+    
+    // Load saved state on mount
+    useEffect(() => {
         try {
             const saved = localStorage.getItem(EDITOR_STATE_KEY);
-            if (!saved) return false;
+            if (!saved) return;
             
             const state = JSON.parse(saved);
-            
-            // Restore state
             if (state.roles) setRoles(state.roles);
             if (state.summary !== undefined) setSummary(state.summary);
             if (state.skills) setSkills(state.skills);
@@ -1230,28 +1260,12 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             if (state.skillsSeparator) setSkillsSeparator(state.skillsSeparator);
             if (state.skillsColumns) setSkillsColumns(state.skillsColumns);
             
+            setHasUnsavedChanges(true);
             showToast('Loaded previous session', 'success');
-            return true;
         } catch (err) {
             console.warn('Failed to load editor state:', err);
-            return false;
         }
     }, [showToast]);
-    
-    // Save state when component unmounts or on changes
-    useEffect(() => {
-        if (hasUnsavedChanges || roles.length > 0) {
-            saveEditorState();
-        }
-    }, [roles, summary, skills, personalInfo, education, certifications, projects, publications, customSections, targetTitle, sectionOrder, hiddenSections, skillsSeparator, skillsColumns, hasUnsavedChanges, saveEditorState]);
-    
-    // Load saved state on mount
-    useEffect(() => {
-        const hasSavedState = loadEditorState();
-        if (hasSavedState) {
-            setHasUnsavedChanges(true);
-        }
-    }, [loadEditorState]);
     
     // Update state ref
     useEffect(() => {
@@ -1315,7 +1329,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         }
     }, [historyIndex, stateHistory]);
 
-    // Autosave
+    // Autosave (separate from editor state - for draft recovery)
     useEffect(() => {
         if (autosaveTimer.current) clearInterval(autosaveTimer.current);
         autosaveTimer.current = setInterval(() => {
@@ -1543,7 +1557,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 setShowAIParseComparison(true);
                 return true;
             } else {
-                // Apply directly with safety checks
                 setRoles(aiRoles || []);
                 setSkills(aiSkills || []);
                 setEducation(aiEducation || []);
@@ -1628,7 +1641,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
             });
         }
         
-        // Initialize summary from LLM analysis (if available)
         if (summaryAnalysis && summaryVersionsRef.current.original === '') {
             const originalText = summaryAnalysis.original_text || '';
             setSummary(originalText);
@@ -1695,7 +1707,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         }
     }, [bulletAnalysis, roles?.length]);
 
-    // FIX #3: Summary versions from LLM - ensure they're loaded
+    // Summary versions from LLM
     useEffect(() => {
         if (summaryAnalysis && summaryVersionsRef.current.original === '') {
             const originalText = summaryAnalysis.original_text || '';
@@ -1715,14 +1727,13 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 hiddenBrief: hbText
             };
             
-            // If we have alternative versions, ensure the toggle buttons will work
             if (veritasText || hbText) {
                 console.log('✅ Alternative summary versions available');
             }
         }
     }, [summaryAnalysis]);
 
-    // FIX #3: Summary version switching handler
+    // Summary version switching handler
     const switchSummaryVersion = (version) => {
         const versions = summaryVersionsRef.current;
         let newSummary = '';
@@ -1750,7 +1761,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         if (jdText) setJdFeatures(extractJDFeatures(jdText));
     }, [jdText]);
 
-    // Build resume text for scoring (with safety checks)
+    // Build resume text for scoring
     const buildResumeText = useCallback(() => {
         let text = '';
         if (safePersonalInfo.name) text += `${safePersonalInfo.name}\n`;
@@ -1985,7 +1996,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         setPersonalInfo(prev => ({ ...prev, [field]: value }));
     };
     
-    // FIX #5: Floating toolbar for text formatting
+    // Floating toolbar for text formatting
     const handleTextSelection = (e, textareaId) => {
         const selection = window.getSelection();
         const selectedText = selection?.toString();
@@ -2025,7 +2036,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         
         const newValue = textarea.value.substring(0, start) + formattedText + textarea.value.substring(end);
         
-        // Update the corresponding state based on which textarea
         if (activeTextarea.startsWith('summary')) {
             setSummary(newValue);
         } else if (activeTextarea.startsWith('target')) {
@@ -2518,7 +2528,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                     </div>
                 );
             default:
-                // Custom sections
                 const customSection = customSections.find(s => s.id === sectionId);
                 if (customSection) {
                     return (
@@ -2614,7 +2623,6 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                             <button onClick={toggleRightSidebar} style={{ padding: '8px', fontSize: '12px', width: '100%', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>
                                 {showRightSidebar ? '▶ Hide Scores' : '◀ Show Scores'}
                             </button>
-                            {/* Section Reorder Button */}
                             <button onClick={() => setShowReorderModal(true)} style={{ padding: '8px', fontSize: '12px', width: '100%', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>
                                 📋 Reorder Sections
                             </button>
@@ -2661,6 +2669,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 
                 {previewMode ? (
                     <div style={{ fontFamily: currentTemplate.fontFamily, maxWidth: '8.5in', margin: '0 auto', background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
+                        {/* Preview content - uses safePersonalInfo and same structure as before */}
                         <div style={{ textAlign: 'center', marginBottom: '24px', ...currentTemplate.headerStyle }}>
                             <div style={{ fontSize: currentTemplate.nameStyle?.fontSize || '28px', fontWeight: currentTemplate.nameStyle?.fontWeight || 700, color: currentTemplate.nameStyle?.color || '#1a1f2e', ...currentTemplate.nameStyle }}>
                                 {safePersonalInfo.name || 'Your Name'}
@@ -2774,7 +2783,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                         <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', marginBottom: '20px', padding: '20px' }}>
                             <h3 style={{ fontSize: '13px', marginBottom: '16px', color: '#c9a84c' }}>👤 Personal Information</h3>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                                <input type="text" placeholder="Full Name" value={safePersonalInfo.name} onChange={(e) => updatePersonalInfo('name', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                <input type="text" placeholder= "Full Name" value={safePersonalInfo.name} onChange={(e) => updatePersonalInfo('name', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
                                 <input type="email" placeholder="Email" value={safePersonalInfo.email} onChange={(e) => updatePersonalInfo('email', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
                                 <input type="tel" placeholder="Phone" value={safePersonalInfo.phone} onChange={(e) => updatePersonalInfo('phone', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
                                 <input type="text" placeholder="LinkedIn URL" value={safePersonalInfo.linkedin} onChange={(e) => updatePersonalInfo('linkedin', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
@@ -2782,13 +2791,10 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                             </div>
                         </div>
                         
-                        {/* Render all other sections in user-defined order (excluding hidden sections) */}
-                        {sectionOrder.filter(s => !hiddenSections.includes(s)).map(sectionId => renderSection(sectionId))}
+                        {renderVisibleSections()}
                         
-                        {/* Custom sections that aren't in the order list */}
                         {customSections.filter(s => !sectionOrder.includes(s.id)).map(section => renderSection(s.id))}
                         
-                        {/* Add Section Button */}
                         {editMode && (
                             <button onClick={() => setShowAddSectionModal(true)} style={{ width: '100%', padding: '12px', background: 'transparent', border: '2px dashed #c9a84c', borderRadius: '12px', cursor: 'pointer', color: '#c9a84c', fontSize: '13px', marginBottom: '20px' }}>
                                 + Add Custom Section

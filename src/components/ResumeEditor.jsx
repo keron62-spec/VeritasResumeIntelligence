@@ -1172,59 +1172,57 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         setToast({ message, type });
     };
     
-    // ============================================================
-    // FIX #7: Debounced State Save (30 seconds inactivity)
-    // ============================================================
-    const saveEditorStateImmediate = useCallback(() => {
-        const stateToSave = {
-            roles,
-            summary,
-            skills,
-            personalInfo: safePersonalInfo,
-            education,
-            certifications,
-            projects,
-            publications,
-            customSections,
-            selectedTemplate,
-            targetTitle,
-            sectionOrder,
-            hiddenSections,
-            summaryVersion,
-            summaryVersions: summaryVersionsRef.current,
-            skillsSeparator,
-            skillsColumns,
-            timestamp: Date.now()
-        };
-        localStorage.setItem(EDITOR_STATE_KEY, JSON.stringify(stateToSave));
-        console.log('💾 Editor state saved to localStorage');
-    }, [roles, summary, skills, safePersonalInfo, education, certifications, projects, publications, 
-        customSections, selectedTemplate, targetTitle, sectionOrder, hiddenSections, summaryVersion, 
-        skillsSeparator, skillsColumns]);
-    
-    const debouncedSaveEditorState = useCallback(
-        debounce(() => {
-            saveEditorStateImmediate();
-        }, 30000), // 30 seconds of inactivity
-        [saveEditorStateImmediate]
-    );
-    
-    // Save on unmount (immediate)
-    useEffect(() => {
-        return () => {
-            saveEditorStateImmediate();
-            console.log('💾 Editor state saved on unmount');
-        };
-    }, [saveEditorStateImmediate]);
-    
-    // Save on page hide (user navigates away)
-    useEffect(() => {
-        const handlePageHide = () => {
-            saveEditorStateImmediate();
-        };
-        window.addEventListener('pagehide', handlePageHide);
-        return () => window.removeEventListener('pagehide', handlePageHide);
-    }, [saveEditorStateImmediate]);
+// ============================================================
+// FIX #7: Manual State Save (No automatic saves)
+// ============================================================
+
+// Save function - only called manually
+const saveEditorStateImmediate = useCallback(() => {
+    const stateToSave = {
+        roles,
+        summary,
+        skills,
+        personalInfo: safePersonalInfo,
+        education,
+        certifications,
+        projects,
+        publications,
+        customSections,
+        selectedTemplate,
+        targetTitle,
+        sectionOrder,
+        hiddenSections,
+        summaryVersion,
+        summaryVersions: summaryVersionsRef.current,
+        skillsSeparator,
+        skillsColumns,
+        timestamp: Date.now()
+    };
+    localStorage.setItem(EDITOR_STATE_KEY, JSON.stringify(stateToSave));
+    console.log('💾 Editor state saved to localStorage (manual)');
+}, [roles, summary, skills, safePersonalInfo, education, certifications, projects, publications, 
+    customSections, selectedTemplate, targetTitle, sectionOrder, hiddenSections, summaryVersion, 
+    skillsSeparator, skillsColumns]);
+
+// Save on unmount only
+useEffect(() => {
+    return () => {
+        saveEditorStateImmediate();
+        console.log('💾 Editor state saved on unmount');
+    };
+}, [saveEditorStateImmediate]);
+
+// Save on page hide (user navigates away)
+useEffect(() => {
+    const handlePageHide = () => {
+        saveEditorStateImmediate();
+    };
+    window.addEventListener('pagehide', handlePageHide);
+    return () => window.removeEventListener('pagehide', handlePageHide);
+}, [saveEditorStateImmediate]);
+
+// Save when user clicks the "Save Draft" button (already exists in saveDraft)
+// No automatic saves on state changes - user controls when to save
     
     // Trigger debounced save when relevant state changes
     useEffect(() => {

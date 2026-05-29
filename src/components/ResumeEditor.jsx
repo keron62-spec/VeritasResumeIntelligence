@@ -141,9 +141,9 @@ const createPDFStyles = (templateKey) => {
 };
 
 // ============================================================
-// PDF Document Component
+// PDF Document Component (UPDATED to respect section order)
 // ============================================================
-const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, education, certifications, projects, publications, selectedTemplate, customSections, dateFormat, formatDate, skillsSeparator, skillsColumns, certificationsFormat }) => {
+const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, education, certifications, projects, publications, selectedTemplate, customSections, dateFormat, formatDate, skillsSeparator, skillsColumns, certificationsFormat, sectionOrder, removedSections }) => {
     const styles = createPDFStyles(selectedTemplate);
     
     const safePersonalInfo = {
@@ -159,7 +159,6 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
         if (!skillsArray || skillsArray.length === 0) return '';
         if (skillsSeparator === 'pipe') return skillsArray.join(' | ');
         if (skillsSeparator === 'bulleted') {
-            // Multi-column bulleted list
             if (skillsColumns > 1) {
                 const itemsPerColumn = Math.ceil(skillsArray.length / skillsColumns);
                 const columns = [];
@@ -194,21 +193,138 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
         return certsArray.map((cert, idx) => <Text key={cert} style={{ fontSize: 10, marginBottom: 4 }}>{cert}</Text>);
     };
     
-    // Render custom sections
-    const renderCustomSections = () => {
-        if (!customSections || customSections.length === 0) return null;
-        return customSections.map((section, idx) => (
-            <View key={idx}>
-                <Text style={styles.sectionTitle}>{section?.name || 'Section'}</Text>
-                {section?.type === 'bulleted' ? (
-                    Array.isArray(section?.content) && section.content.map((item, i) => (
-                        <Text key={i} style={styles.bullet}>• {item}</Text>
-                    ))
+    // Helper to check if a section should be rendered
+    const shouldRenderSection = (sectionId) => {
+        return !removedSections?.includes(sectionId);
+    };
+    
+    // Experience rendering helper
+    const renderExperience = () => {
+        if (!roles || roles.length === 0) return null;
+        return roles.map((role, idx) => (
+            <View key={idx} style={{ marginBottom: 12 }}>
+                {styles.roleRow ? (
+                    <View style={styles.roleRow}>
+                        <View>
+                            <Text style={styles.roleHeader}>{role?.title || 'Untitled'}</Text>
+                            <Text style={styles.companyText}>{role?.company || 'Unknown Company'}</Text>
+                        </View>
+                        <Text style={styles.dateText}>
+                            {formatDate ? formatDate(role?.startDate) : role?.startDate || ''} – {formatDate ? formatDate(role?.endDate) : (role?.endDate || 'Present')}
+                        </Text>
+                    </View>
                 ) : (
-                    <Text style={{ fontSize: 10, marginBottom: 8 }}>{section?.content || ''}</Text>
+                    <>
+                        <Text style={styles.roleHeader}>{role?.title || 'Untitled'}</Text>
+                        <Text style={styles.companyText}>{role?.company || 'Unknown Company'}</Text>
+                        <Text style={styles.dateText}>
+                            {formatDate ? formatDate(role?.startDate) : role?.startDate || ''} – {formatDate ? formatDate(role?.endDate) : (role?.endDate || 'Present')}
+                        </Text>
+                    </>
                 )}
+                {role?.bullets?.map((bullet, bidx) => (
+                    <Text key={bidx} style={styles.bullet}>• {bullet?.text || ''}</Text>
+                ))}
             </View>
         ));
+    };
+    
+    // Helper to render sections in order
+    const renderSectionByOrder = (sectionId) => {
+        if (!shouldRenderSection(sectionId)) return null;
+        
+        switch (sectionId) {
+            case 'target-title':
+                return targetTitle && (
+                    <View key="target-title">
+                        <Text style={styles.targetTitle}>{targetTitle}</Text>
+                    </View>
+                );
+            case 'summary':
+                return summary && (
+                    <View key="summary">
+                        <Text style={styles.sectionTitle}>Professional Summary</Text>
+                        <Text style={{ fontSize: 10, marginBottom: 12 }}>{summary}</Text>
+                    </View>
+                );
+            case 'experience':
+                return roles && roles.length > 0 && (
+                    <View key="experience">
+                        <Text style={styles.sectionTitle}>Experience</Text>
+                        {renderExperience()}
+                    </View>
+                );
+            case 'skills':
+                return skills && skills.length > 0 && (
+                    <View key="skills">
+                        <Text style={styles.sectionTitle}>Skills</Text>
+                        {typeof formatSkillsList(skills) === 'string' ? (
+                            <Text style={styles.skillsText}>{formatSkillsList(skills)}</Text>
+                        ) : (
+                            formatSkillsList(skills)
+                        )}
+                    </View>
+                );
+            case 'education':
+                return education && education.length > 0 && education.some(e => e?.degree) && (
+                    <View key="education">
+                        <Text style={styles.sectionTitle}>Education</Text>
+                        {education.map((edu, idx) => (
+                            <View key={idx} style={{ marginBottom: 8 }}>
+                                <Text style={styles.roleHeader}>{edu?.degree || ''}</Text>
+                                <Text style={styles.companyText}>{edu?.institution || ''} {edu?.year && `(${edu.year})`}</Text>
+                            </View>
+                        ))}
+                    </View>
+                );
+            case 'certifications':
+                return certifications && certifications.length > 0 && (
+                    <View key="certifications">
+                        <Text style={styles.sectionTitle}>Certifications</Text>
+                        {formatCertifications(certifications)}
+                    </View>
+                );
+            case 'projects':
+                return projects && projects.length > 0 && (
+                    <View key="projects">
+                        <Text style={styles.sectionTitle}>Projects</Text>
+                        {projects.map((project, idx) => (
+                            <View key={idx} style={{ marginBottom: 12 }}>
+                                <Text style={styles.roleHeader}>{project?.name || 'Untitled Project'}</Text>
+                                {project?.bullets?.map((bullet, bidx) => (
+                                    <Text key={bidx} style={styles.bullet}>• {bullet}</Text>
+                                ))}
+                            </View>
+                        ))}
+                    </View>
+                );
+            case 'publications':
+                return publications && publications.length > 0 && (
+                    <View key="publications">
+                        <Text style={styles.sectionTitle}>Publications</Text>
+                        {publications.map((pub, idx) => (
+                            <Text key={idx} style={styles.bullet}>• {pub}</Text>
+                        ))}
+                    </View>
+                );
+            default:
+                const customSection = customSections?.find(s => s.id === sectionId);
+                if (customSection) {
+                    return (
+                        <View key={customSection.id}>
+                            <Text style={styles.sectionTitle}>{customSection.name}</Text>
+                            {customSection.type === 'bulleted' ? (
+                                Array.isArray(customSection.content) && customSection.content.map((item, i) => (
+                                    <Text key={i} style={styles.bullet}>• {item}</Text>
+                                ))
+                            ) : (
+                                <Text style={{ fontSize: 10, marginBottom: 8 }}>{customSection.content || ''}</Text>
+                            )}
+                        </View>
+                    );
+                }
+                return null;
+        }
     };
     
     return (
@@ -223,99 +339,11 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                     {targetTitle && <Text style={styles.targetTitle}>{targetTitle}</Text>}
                 </View>
                 
-                {/* Summary */}
-                {summary && (
-                    <View>
-                        <Text style={styles.sectionTitle}>Professional Summary</Text>
-                        <Text style={{ fontSize: 10, marginBottom: 12 }}>{summary}</Text>
-                    </View>
-                )}
+                {/* Render sections in user-defined order */}
+                {sectionOrder?.map(sectionId => renderSectionByOrder(sectionId))}
                 
-                {/* Experience */}
-                <Text style={styles.sectionTitle}>Experience</Text>
-                {roles && roles.map((role, idx) => (
-                    <View key={idx} style={{ marginBottom: 12 }}>
-                        {styles.roleRow ? (
-                            <View style={styles.roleRow}>
-                                <View>
-                                    <Text style={styles.roleHeader}>{role?.title || 'Untitled'}</Text>
-                                    <Text style={styles.companyText}>{role?.company || 'Unknown Company'}</Text>
-                                </View>
-                                <Text style={styles.dateText}>{formatDate ? formatDate(role?.startDate) : role?.startDate || ''} – {formatDate ? formatDate(role?.endDate) : (role?.endDate || 'Present')}</Text>
-                            </View>
-                        ) : (
-                            <>
-                                <Text style={styles.roleHeader}>{role?.title || 'Untitled'}</Text>
-                                <Text style={styles.companyText}>{role?.company || 'Unknown Company'}</Text>
-                                <Text style={styles.dateText}>{formatDate ? formatDate(role?.startDate) : role?.startDate || ''} – {formatDate ? formatDate(role?.endDate) : (role?.endDate || 'Present')}</Text>
-                            </>
-                        )}
-                        {role?.bullets && role.bullets.map((bullet, bidx) => (
-                            <Text key={bidx} style={styles.bullet}>• {bullet?.text || ''}</Text>
-                        ))}
-                    </View>
-                ))}
-                
-                {/* Skills */}
-                {skills && skills.length > 0 && (
-                    <View>
-                        <Text style={styles.sectionTitle}>Skills</Text>
-                        {typeof formatSkillsList(skills) === 'string' ? (
-                            <Text style={styles.skillsText}>{formatSkillsList(skills)}</Text>
-                        ) : (
-                            formatSkillsList(skills)
-                        )}
-                    </View>
-                )}
-                
-                {/* Education */}
-                {education && education.length > 0 && education.some(e => e?.degree) && (
-                    <View>
-                        <Text style={styles.sectionTitle}>Education</Text>
-                        {education.map((edu, idx) => (
-                            <View key={idx} style={{ marginBottom: 8 }}>
-                                <Text style={styles.roleHeader}>{edu?.degree || ''}</Text>
-                                <Text style={styles.companyText}>{edu?.institution || ''} {edu?.year && `(${edu.year})`}</Text>
-                            </View>
-                        ))}
-                    </View>
-                )}
-                
-                {/* Certifications */}
-                {certifications && certifications.length > 0 && (
-                    <View>
-                        <Text style={styles.sectionTitle}>Certifications</Text>
-                        {formatCertifications(certifications)}
-                    </View>
-                )}
-                
-                {/* Projects */}
-                {projects && projects.length > 0 && (
-                    <View>
-                        <Text style={styles.sectionTitle}>Projects</Text>
-                        {projects.map((project, idx) => (
-                            <View key={idx} style={{ marginBottom: 8 }}>
-                                <Text style={styles.roleHeader}>{project?.name || 'Untitled Project'}</Text>
-                                {project?.bullets && project.bullets.map((bullet, bidx) => (
-                                    <Text key={bidx} style={styles.bullet}>• {bullet}</Text>
-                                ))}
-                            </View>
-                        ))}
-                    </View>
-                )}
-                
-                {/* Publications */}
-                {publications && publications.length > 0 && (
-                    <View>
-                        <Text style={styles.sectionTitle}>Publications</Text>
-                        {publications.map((pub, idx) => (
-                            <Text key={idx} style={styles.bullet}>• {pub}</Text>
-                        ))}
-                    </View>
-                )}
-                
-                {/* Custom Sections */}
-                {renderCustomSections()}
+                {/* Custom sections that aren't in the order list */}
+                {customSections?.filter(s => !sectionOrder?.includes(s.id)).map(section => renderSectionByOrder(section.id))}
             </Page>
         </Document>
     );
@@ -504,14 +532,13 @@ function formatDate(dateStr, dateFormatPreference) {
 }
 
 // ============================================================
-// DRAG AND DROP SECTION REORDERING COMPONENT (FIXED)
+// DRAG AND DROP SECTION REORDERING COMPONENT
 // ============================================================
 const SectionReorderModal = ({ isOpen, onClose, sectionOrder, setSectionOrder, removedSections, setRemovedSections }) => {
     const [localOrder, setLocalOrder] = useState([]);
     const [localRemoved, setLocalRemoved] = useState([]);
     const [dragIndex, setDragIndex] = useState(null);
     
-    // Sync with props when modal opens
     useEffect(() => {
         if (isOpen) {
             setLocalOrder([...sectionOrder]);
@@ -635,29 +662,42 @@ const SectionReorderModal = ({ isOpen, onClose, sectionOrder, setSectionOrder, r
 // ============================================================
 // FLOATING TEXT FORMATTING TOOLBAR (REWRITTEN - FIXED)
 // ============================================================
-const FloatingToolbar = ({ onFormat, onClose }) => {
+const FloatingToolbar = () => {
     const toolbarRef = useRef(null);
-    const [position, setPosition] = useState({ top: 0, left: 0 });
+    const [position, setPosition] = useState(null);
     const [visible, setVisible] = useState(false);
-    const [selectedText, setSelectedText] = useState('');
+    const activeElementRef = useRef(null);
+    const selectionRangeRef = useRef(null);
     
     useEffect(() => {
         const handleSelectionChange = () => {
             const selection = window.getSelection();
             const text = selection?.toString();
+            const activeEl = document.activeElement;
             
-            if (text && text.length > 0 && !selection.isCollapsed) {
-                const range = selection.getRangeAt(0);
-                const rect = range.getBoundingClientRect();
-                
-                setSelectedText(text);
-                setPosition({
-                    top: rect.top - 40,
-                    left: rect.left + (rect.width / 2) - 60
-                });
-                setVisible(true);
+            const isEditable = activeEl && (activeEl.tagName === 'TEXTAREA' || activeEl.tagName === 'INPUT');
+            
+            if (text && text.length > 0 && !selection.isCollapsed && isEditable) {
+                try {
+                    const range = selection.getRangeAt(0);
+                    const rect = range.getBoundingClientRect();
+                    
+                    activeElementRef.current = activeEl;
+                    selectionRangeRef.current = { start: activeEl.selectionStart, end: activeEl.selectionEnd };
+                    
+                    setPosition({
+                        top: rect.top - 45,
+                        left: rect.left + (rect.width / 2) - 70
+                    });
+                    setVisible(true);
+                } catch (e) {
+                    console.warn('Failed to get selection position:', e);
+                    setVisible(false);
+                }
             } else {
                 setVisible(false);
+                activeElementRef.current = null;
+                selectionRangeRef.current = null;
             }
         };
         
@@ -667,49 +707,59 @@ const FloatingToolbar = ({ onFormat, onClose }) => {
             }
         };
         
+        const handleScroll = () => {
+            setVisible(false);
+        };
+        
         document.addEventListener('selectionchange', handleSelectionChange);
         document.addEventListener('mousedown', handleClickOutside);
+        window.addEventListener('scroll', handleScroll, true);
         
         return () => {
             document.removeEventListener('selectionchange', handleSelectionChange);
             document.removeEventListener('mousedown', handleClickOutside);
+            window.removeEventListener('scroll', handleScroll, true);
         };
     }, []);
     
-    const handleFormat = (formatType) => {
+    const applyFormatting = (formatType) => {
+        const activeEl = activeElementRef.current;
+        if (!activeEl || !selectionRangeRef.current) return;
+        
+        const { start, end } = selectionRangeRef.current;
+        const originalText = activeEl.value;
+        const selectedText = originalText.substring(start, end);
+        
         if (!selectedText) return;
         
-        let formattedText = '';
-        if (formatType === 'bold') formattedText = `**${selectedText}**`;
-        else if (formatType === 'italic') formattedText = `*${selectedText}*`;
-        else if (formatType === 'underline') formattedText = `__${selectedText}__`;
+        let wrappedText = '';
+        if (formatType === 'bold') wrappedText = `**${selectedText}**`;
+        else if (formatType === 'italic') wrappedText = `*${selectedText}*`;
+        else if (formatType === 'underline') wrappedText = `__${selectedText}__`;
         
-        const activeElement = document.activeElement;
-        if (activeElement && (activeElement.tagName === 'TEXTAREA' || activeElement.tagName === 'INPUT')) {
-            const start = activeElement.selectionStart;
-            const end = activeElement.selectionEnd;
-            const value = activeElement.value;
-            const newValue = value.substring(0, start) + formattedText + value.substring(end);
-            activeElement.value = newValue;
-            
-            const event = new Event('input', { bubbles: true });
-            activeElement.dispatchEvent(event);
-        }
+        const newText = originalText.substring(0, start) + wrappedText + originalText.substring(end);
+        activeEl.value = newText;
         
-        onFormat(formatType);
+        const inputEvent = new Event('input', { bubbles: true });
+        activeEl.dispatchEvent(inputEvent);
+        
+        const newCursorPos = start + wrappedText.length;
+        activeEl.setSelectionRange(newCursorPos, newCursorPos);
+        
         setVisible(false);
     };
     
-    if (!visible) return null;
+    if (!visible || !position) return null;
     
-    const adjustedLeft = Math.max(10, Math.min(position.left, window.innerWidth - 140));
+    const adjustedLeft = Math.max(8, Math.min(position.left, window.innerWidth - 160));
+    const adjustedTop = Math.max(8, position.top);
     
     return (
         <div
             ref={toolbarRef}
             style={{
                 position: 'fixed',
-                top: position.top,
+                top: adjustedTop,
                 left: adjustedLeft,
                 background: '#1a1f2e',
                 borderRadius: '8px',
@@ -721,22 +771,22 @@ const FloatingToolbar = ({ onFormat, onClose }) => {
             }}
         >
             <button
-                onClick={() => handleFormat('bold')}
-                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', padding: '4px 8px' }}
+                onClick={() => applyFormatting('bold')}
+                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', padding: '4px 8px', borderRadius: '4px' }}
                 title="Bold"
             >
                 <strong>B</strong>
             </button>
             <button
-                onClick={() => handleFormat('italic')}
-                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', fontStyle: 'italic', padding: '4px 8px' }}
+                onClick={() => applyFormatting('italic')}
+                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', fontStyle: 'italic', padding: '4px 8px', borderRadius: '4px' }}
                 title="Italic"
             >
                 <em>I</em>
             </button>
             <button
-                onClick={() => handleFormat('underline')}
-                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', textDecoration: 'underline', padding: '4px 8px' }}
+                onClick={() => applyFormatting('underline')}
+                style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', textDecoration: 'underline', padding: '4px 8px', borderRadius: '4px' }}
                 title="Underline"
             >
                 <u>U</u>
@@ -746,7 +796,7 @@ const FloatingToolbar = ({ onFormat, onClose }) => {
 };
 
 // ============================================================
-// COMPLETE SKILLS EDITOR COMPONENT (REWRITTEN - FIXED)
+// COMPLETE SKILLS EDITOR COMPONENT
 // ============================================================
 const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setSkillsSeparator, skillsColumns, setSkillsColumns, showToast }) => {
     const [mode, setMode] = useState('flat');
@@ -1388,7 +1438,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         }
     }, []);
     
-    // Initialize summary versions from analysis (FIXED - Issue A)
+    // Initialize summary versions from analysis
     useEffect(() => {
         console.log('🔍 Summary Analysis received:', summaryAnalysis);
         
@@ -1972,7 +2022,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         setPersonalInfo(prev => ({ ...prev, [field]: value }));
     };
     
-    // Apply summary version from stored refs (FIXED - Issue A)
+    // Apply summary version from stored refs
     const applySummaryVersion = (version) => {
         const versions = summaryVersionsRef.current;
         if (version === 'veritas' && versions.veritas) {
@@ -2100,6 +2150,8 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                     skillsSeparator={skillsSeparator}
                     skillsColumns={skillsColumns}
                     certificationsFormat={certificationsFormat}
+                    sectionOrder={sectionOrder}
+                    removedSections={removedSections}
                 />
             ).toBlob();
             const url = URL.createObjectURL(blob);
@@ -2917,10 +2969,7 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
                 removedSections={removedSections}
                 setRemovedSections={setRemovedSections}
             />
-            <FloatingToolbar 
-                onFormat={() => {}} 
-                onClose={() => {}} 
-            />
+            <FloatingToolbar />
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             
             <style>{`

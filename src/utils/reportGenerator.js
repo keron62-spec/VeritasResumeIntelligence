@@ -105,6 +105,7 @@ export function generateDeterministicHtmlReport(hiddenBrief, resumeText = '', na
   const burnoutRisk = hiddenBrief?.burnout_risk || {};
   const scaleSurge = hiddenBrief?.scale_surge_risk || {};
   const scopeMismatch = hiddenBrief?.scope_grade_mismatch || {};
+  const coreProblemHypotheses = hiddenBriefJson?.core_problem_hypotheses || [];
   const repetitionSignals = hiddenBrief?.repetition_signals || [];
   const stakeholderComplexity = hiddenBrief?.stakeholder_complexity || {};
   const languagePattern = hiddenBrief?.language_pattern || {};
@@ -706,6 +707,91 @@ const operationalRealityDecodedHtml = narrative?.operational_reality ? `
       margin: 20px 0 10px 0;
     }
     
+    /* Hypotheses Section */
+.hypotheses-section {
+  margin: 24px 0;
+}
+
+.hypotheses-section h3 {
+  font-size: 16px;
+  margin-bottom: 8px;
+  color: #c9a84c;
+}
+
+.hypotheses-note {
+  font-size: 12px;
+  color: #6b7280;
+  margin-bottom: 16px;
+  font-style: italic;
+}
+
+.hypotheses-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.hypothesis-card {
+  background: #f8f7f4;
+  border-radius: 8px;
+  padding: 16px;
+  border-left: 3px solid #c9a84c;
+}
+
+.hypothesis-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.hypothesis-confidence {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+  color: white;
+}
+
+.hypothesis-angle {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: #6b7280;
+}
+
+.hypothesis-statement {
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 12px;
+  line-height: 1.5;
+}
+
+.hypothesis-evidence {
+  margin: 8px 0;
+  font-size: 12px;
+}
+
+.hypothesis-evidence summary {
+  cursor: pointer;
+  color: #c9a84c;
+  font-weight: 500;
+}
+
+.hypothesis-evidence ul {
+  margin: 8px 0 0 20px;
+  color: #6b7280;
+}
+
+.hypothesis-alternative {
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid #e6e4dd;
+  font-size: 12px;
+  color: #6b7280;
+}
     .key-findings {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
@@ -1057,6 +1143,37 @@ const operationalRealityDecodedHtml = narrative?.operational_reality ? `
       ` : ''}
     </section>
     
+    <!-- NEW: Multiple hypotheses with confidence (more honest) -->
+    ${coreProblemHypotheses && coreProblemHypotheses.length > 0 ? `
+      <div class="hypotheses-section">
+        <h3>🤔 What We Think Is Going On</h3>
+        <p class="hypotheses-note">These are inferences based on language patterns. Each has a confidence level.</p>
+        <div class="hypotheses-list">
+          ${coreProblemHypotheses.map(hyp => `
+            <div class="hypothesis-card">
+              <div class="hypothesis-header">
+                <span class="hypothesis-confidence" style="background: ${hyp.confidence_percentage >= 75 ? '#ef4444' : hyp.confidence_percentage >= 50 ? '#f59e0b' : '#c9a84c'}">
+                  ${hyp.confidence_percentage}% confidence
+                </span>
+                <span class="hypothesis-angle">${escapeHtml(hyp.angle || 'structural')}</span>
+              </div>
+              <div class="hypothesis-statement">${escapeHtml(hyp.hypothesis)}</div>
+              <details class="hypothesis-evidence">
+                <summary>📌 Evidence</summary>
+                <ul>
+                  ${hyp.evidence.map(e => `<li>“${escapeHtml(e)}”</li>`).join('')}
+                </ul>
+              </details>
+              <div class="hypothesis-alternative">
+                <strong>🤔 Alternative interpretation:</strong> ${escapeHtml(hyp.alternative_interpretation)}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+  </section>
+
     <!-- JD Quality Assessment -->
     <section>
       <h2>JD Quality Assessment</h2>

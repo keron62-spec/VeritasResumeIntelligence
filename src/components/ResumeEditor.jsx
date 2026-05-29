@@ -21,21 +21,6 @@ import { calculateRIASECDeterministic } from '../utils/riasec.js';
 import { extractPersonalInfo } from '../utils/personalInfoExtractor.js';
 
 // ============================================================
-// DEBOUNCE UTILITY
-// ============================================================
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-// ============================================================
 // PDF STYLES
 // ============================================================
 const createPDFStyles = (templateKey) => {
@@ -77,19 +62,19 @@ const createPDFStyles = (templateKey) => {
             letterSpacing: t.nameStyle?.letterSpacing || 1,
             color: t.nameStyle?.color || '#1a1f2e'
         },
-        targetTitle: {
-            fontSize: 12,
-            fontWeight: 'normal',
-            color: '#666',
-            textAlign: 'center',
-            marginTop: 8,
-            marginBottom: 16
-        },
         contactRow: {
             fontSize: t.contactRow?.fontSize || 9,
             color: t.contactRow?.color || '#666',
             textAlign: t.contactRow?.textAlign || 'center',
             marginTop: t.contactRow?.marginTop || 5
+        },
+        targetTitle: {
+            fontSize: t.nameStyle?.fontSize ? t.nameStyle.fontSize - 8 : 16,
+            fontWeight: 'normal',
+            color: '#666',
+            textAlign: 'center',
+            marginTop: 8,
+            marginBottom: 16
         },
         sectionTitle: {
             fontSize: t.sectionStyle?.fontSize || 12,
@@ -143,25 +128,24 @@ const createPDFStyles = (templateKey) => {
             marginBottom: 8,
             lineHeight: 1.4
         },
-        skillsGrid: {
+        multiColumnContainer: {
             display: 'flex',
             flexDirection: 'row',
-            flexWrap: 'wrap',
-            gap: 16
+            flexWrap: 'wrap'
         },
-        skillsColumn: {
-            flex: 1
+        column: {
+            flex: 1,
+            paddingRight: 10
         }
     });
 };
 
 // ============================================================
-// PDF Document Component
+// PDF Document Component - FIXED (#6: Certifications new lines, #4: Skills columns)
 // ============================================================
-const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, education, certifications, projects, publications, selectedTemplate, customSections, dateFormat, formatDate, skillsSeparator, skillsColumns }) => {
+const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, education, certifications, projects, publications, selectedTemplate, customSections, dateFormat, formatDate, skillsSeparator, skillsColumns, certificationsFormat }) => {
     const styles = createPDFStyles(selectedTemplate);
     
-    // Safety checks for personalInfo
     const safePersonalInfo = {
         name: personalInfo?.name || '',
         email: personalInfo?.email || '',
@@ -175,32 +159,45 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
         if (!skillsArray || skillsArray.length === 0) return '';
         if (skillsSeparator === 'pipe') return skillsArray.join(' | ');
         if (skillsSeparator === 'bulleted') {
-            // Split into columns
-            const columns = Math.min(skillsColumns || 2, 4);
-            const itemsPerColumn = Math.ceil(skillsArray.length / columns);
-            const columnData = [];
-            for (let i = 0; i < columns; i++) {
-                columnData.push(skillsArray.slice(i * itemsPerColumn, (i + 1) * itemsPerColumn));
+            // Multi-column bulleted list
+            if (skillsColumns > 1) {
+                const itemsPerColumn = Math.ceil(skillsArray.length / skillsColumns);
+                const columns = [];
+                for (let i = 0; i < skillsColumns; i++) {
+                    const start = i * itemsPerColumn;
+                    const end = start + itemsPerColumn;
+                    columns.push(skillsArray.slice(start, end));
+                }
+                return (
+                    <View style={styles.multiColumnContainer}>
+                        {columns.map((col, idx) => (
+                            <View key={idx} style={styles.column}>
+                                {col.map((skill, skillIdx) => (
+                                    <Text key={skillIdx} style={styles.bullet}>• {skill}</Text>
+                                ))}
+                            </View>
+                        ))}
+                    </View>
+                );
             }
-            return (
-                <View style={styles.skillsGrid}>
-                    {columnData.map((col, idx) => (
-                        <View key={idx} style={styles.skillsColumn}>
-                            {col.map((skill, i) => (
-                                <Text key={i} style={{ fontSize: 9, marginBottom: 4 }}>• {skill}</Text>
-                            ))}
-                        </View>
-                    ))}
-                </View>
-            );
+            return skillsArray.map(skill => `• ${skill}`).join('\n');
         }
         return skillsArray.join(', ');
+    };
+    
+    // Format certifications with user preference
+    const formatCertifications = (certsArray) => {
+        if (!certsArray || certsArray.length === 0) return null;
+        if (certificationsFormat === 'bulleted') {
+            return certsArray.map(cert => <Text key={cert} style={styles.bullet}>• {cert}</Text>);
+        }
+        return certsArray.map((cert, idx) => <Text key={cert} style={{ fontSize: 10, marginBottom: 4 }}>{cert}</Text>);
     };
     
     return (
         <Document>
             <Page size="LETTER" style={styles.page}>
-                {/* Header - keep wrap={false} */}
+                {/* Header */}
                 <View style={styles.header} wrap={false}>
                     <Text style={styles.name}>{safePersonalInfo.name || 'Your Name'}</Text>
                     <Text style={styles.contactRow}>
@@ -209,7 +206,7 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                     {targetTitle && <Text style={styles.targetTitle}>{targetTitle}</Text>}
                 </View>
                 
-                {/* Summary - allow wrap */}
+                {/* Summary */}
                 {summary && (
                     <View>
                         <Text style={styles.sectionTitle}>Professional Summary</Text>
@@ -217,7 +214,7 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                     </View>
                 )}
                 
-                {/* Experience - allow wrap for pagination */}
+                {/* Experience */}
                 <Text style={styles.sectionTitle}>Experience</Text>
                 {roles && roles.map((role, idx) => (
                     <View key={idx} style={{ marginBottom: 12 }}>
@@ -267,17 +264,15 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                     </View>
                 )}
                 
-                {/* Certifications - each on new line */}
+                {/* Certifications - FIXED #6 */}
                 {certifications && certifications.length > 0 && (
                     <View>
                         <Text style={styles.sectionTitle}>Certifications</Text>
-                        {certifications.map((cert, idx) => (
-                            <Text key={idx} style={styles.bullet}>• {cert}</Text>
-                        ))}
+                        {formatCertifications(certifications)}
                     </View>
                 )}
                 
-                {/* Projects - bulleted list */}
+                {/* Projects */}
                 {projects && projects.length > 0 && (
                     <View>
                         <Text style={styles.sectionTitle}>Projects</Text>
@@ -292,7 +287,7 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                     </View>
                 )}
                 
-                {/* Publications - bulleted list */}
+                {/* Publications */}
                 {publications && publications.length > 0 && (
                     <View>
                         <Text style={styles.sectionTitle}>Publications</Text>
@@ -503,18 +498,17 @@ function formatDate(dateStr, dateFormatPreference) {
 }
 
 // ============================================================
-// DRAG AND DROP SECTION REORDERING COMPONENT
+// DRAG AND DROP SECTION REORDERING COMPONENT - FIXED (#1)
 // ============================================================
-const SectionReorderModal = ({ isOpen, onClose, sections, onReorder, sectionOrder, setSectionOrder, hiddenSections, setHiddenSections }) => {
+const SectionReorderModal = ({ isOpen, onClose, sections, sectionOrder, setSectionOrder, removedSections, setRemovedSections, onReorder }) => {
     const [dragIndex, setDragIndex] = useState(null);
     const [localOrder, setLocalOrder] = useState([]);
     
     useEffect(() => {
         if (sections && sectionOrder) {
-            const visibleOrder = sectionOrder.filter(s => !hiddenSections.includes(s));
-            setLocalOrder([...visibleOrder]);
+            setLocalOrder([...sectionOrder]);
         }
-    }, [sections, sectionOrder, hiddenSections]);
+    }, [sections, sectionOrder]);
     
     const handleDragStart = (index) => {
         setDragIndex(index);
@@ -534,21 +528,22 @@ const SectionReorderModal = ({ isOpen, onClose, sections, onReorder, sectionOrde
         setDragIndex(null);
     };
     
-    const handleSave = () => {
-        const allSections = [...localOrder, ...hiddenSections];
-        setSectionOrder(allSections);
-        onReorder(allSections);
-        onClose();
+    const handleRemoveSection = (sectionId) => {
+        setRemovedSections(prev => [...prev, sectionId]);
+        const newOrder = localOrder.filter(id => id !== sectionId);
+        setLocalOrder(newOrder);
     };
     
-    const handleToggleSection = (sectionId) => {
-        if (hiddenSections.includes(sectionId)) {
-            setHiddenSections(prev => prev.filter(s => s !== sectionId));
-            setLocalOrder(prev => [...prev, sectionId]);
-        } else {
-            setHiddenSections(prev => [...prev, sectionId]);
-            setLocalOrder(prev => prev.filter(s => s !== sectionId));
-        }
+    const handleRestoreSection = (sectionId) => {
+        setRemovedSections(prev => prev.filter(id => id !== sectionId));
+        // Find where to insert - default to end
+        setLocalOrder(prev => [...prev, sectionId]);
+    };
+    
+    const handleSave = () => {
+        setSectionOrder(localOrder);
+        onReorder(localOrder);
+        onClose();
     };
     
     if (!isOpen) return null;
@@ -566,53 +561,60 @@ const SectionReorderModal = ({ isOpen, onClose, sections, onReorder, sectionOrde
     
     return (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.85)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 2000 }}>
-            <div style={{ background: 'white', borderRadius: '12px', width: '500px', maxWidth: '90%', maxHeight: '80vh', overflow: 'auto', padding: '24px' }}>
+            <div style={{ background: 'white', borderRadius: '12px', width: '600px', maxWidth: '90%', maxHeight: '80vh', overflow: 'auto', padding: '24px' }}>
                 <h3 style={{ marginBottom: '16px', color: '#c9a84c' }}>📋 Reorder Resume Sections</h3>
-                <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '20px' }}>Drag and drop to reorder. Click 👁️ to hide/show sections.</p>
+                <p style={{ fontSize: '12px', color: '#6b7280', marginBottom: '20px' }}>Drag and drop sections to reorder. Personal Information is fixed at the top.</p>
                 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {localOrder.map((sectionId, index) => {
-                        const info = sectionLabels[sectionId] || { label: sectionId, icon: '📌' };
-                        const isHidden = hiddenSections.includes(sectionId);
-                        return (
-                            <div
-                                key={sectionId}
-                                draggable
-                                onDragStart={() => handleDragStart(index)}
-                                onDragOver={handleDragOver}
-                                onDrop={() => handleDrop(index)}
-                                style={{
-                                    padding: '12px 16px',
-                                    background: dragIndex === index ? '#e6e4dd' : '#f8f7f4',
-                                    border: '1px solid #e6e4dd',
-                                    borderRadius: '8px',
-                                    cursor: 'grab',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '12px',
-                                    opacity: isHidden ? 0.5 : 1
-                                }}
-                            >
-                                <span style={{ cursor: 'grab', color: '#6b7280' }}>⋮⋮</span>
-                                <span style={{ fontSize: '18px' }}>{info.icon}</span>
-                                <span style={{ flex: 1 }}>{info.label}</span>
-                                <button
-                                    onClick={() => handleToggleSection(sectionId)}
+                <div style={{ marginBottom: '20px' }}>
+                    <div style={{ fontWeight: 600, marginBottom: '8px', fontSize: '12px' }}>Active Sections</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {localOrder.map((sectionId, index) => {
+                            const info = sectionLabels[sectionId] || { label: sectionId, icon: '📌' };
+                            return (
+                                <div
+                                    key={sectionId}
+                                    draggable
+                                    onDragStart={() => handleDragStart(index)}
+                                    onDragOver={handleDragOver}
+                                    onDrop={() => handleDrop(index)}
                                     style={{
-                                        background: 'none',
-                                        border: 'none',
-                                        cursor: 'pointer',
-                                        fontSize: '14px',
-                                        color: isHidden ? '#10b981' : '#ef4444'
+                                        padding: '12px 16px',
+                                        background: dragIndex === index ? '#e6e4dd' : '#f8f7f4',
+                                        border: '1px solid #e6e4dd',
+                                        borderRadius: '8px',
+                                        cursor: 'grab',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '12px'
                                     }}
-                                    title={isHidden ? 'Show section' : 'Hide section'}
                                 >
-                                    {isHidden ? '👁️ Show' : '👁️‍🗨️ Hide'}
-                                </button>
-                            </div>
-                        );
-                    })}
+                                    <span style={{ cursor: 'grab', color: '#6b7280' }}>⋮⋮</span>
+                                    <span style={{ fontSize: '18px' }}>{info.icon}</span>
+                                    <span style={{ flex: 1 }}>{info.label}</span>
+                                    <button onClick={() => handleRemoveSection(sectionId)} style={{ padding: '4px 8px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>Remove</button>
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
+                
+                {removedSections.length > 0 && (
+                    <div>
+                        <div style={{ fontWeight: 600, marginBottom: '8px', fontSize: '12px' }}>Removed Sections (Undo available)</div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                            {removedSections.map((sectionId) => {
+                                const info = sectionLabels[sectionId] || { label: sectionId, icon: '📌' };
+                                return (
+                                    <div key={sectionId} style={{ padding: '12px 16px', background: '#fef3c7', border: '1px solid #f59e0b', borderRadius: '8px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <span style={{ fontSize: '18px' }}>{info.icon}</span>
+                                        <span style={{ flex: 1 }}>{info.label}</span>
+                                        <button onClick={() => handleRestoreSection(sectionId)} style={{ padding: '4px 8px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>Restore</button>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                )}
                 
                 <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '24px' }}>
                     <button onClick={onClose} style={{ padding: '8px 16px', background: 'transparent', border: '1px solid #e6e4dd', borderRadius: '6px', cursor: 'pointer' }}>Cancel</button>
@@ -624,7 +626,7 @@ const SectionReorderModal = ({ isOpen, onClose, sections, onReorder, sectionOrde
 };
 
 // ============================================================
-// FLOATING TEXT FORMATTING TOOLBAR
+// FLOATING TEXT FORMATTING TOOLBAR - FIXED (#5)
 // ============================================================
 const FloatingToolbar = ({ position, onFormat, onClose }) => {
     const toolbarRef = useRef(null);
@@ -812,6 +814,7 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
                             {aiParsedData.projects?.length > 0 && <div><strong>{aiParsedData.projects.length}</strong> projects</div>}
                             {aiParsedData.certifications?.length > 0 && <div><strong>{aiParsedData.certifications.length}</strong> certifications</div>}
                             {aiParsedData.publications?.length > 0 && <div><strong>{aiParsedData.publications.length}</strong> publications</div>}
+                            
                             {aiParsedData.roles?.slice(0, 3).map((role, i) => (
                                 <div key={i} style={{ marginTop: '12px', padding: '8px', background: '#f8f7f4', borderRadius: '4px', fontSize: '12px' }}>
                                     <strong>{role?.title || 'Untitled'}</strong> @ {role?.company || 'Unknown'}<br />
@@ -832,7 +835,7 @@ const AIParseComparisonModal = ({ isOpen, onClose, deterministicRoles, determini
 };
 
 // ============================================================
-// SKILLS ADVANCED EDITOR
+// SKILLS ADVANCED EDITOR - FIXED (#4: Drag & Drop from master bucket)
 // ============================================================
 const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setSkillsSeparator, skillsColumns, setSkillsColumns }) => {
     const [subcategories, setSubcategories] = useState([
@@ -870,25 +873,24 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
             const updated = [...subcategories];
             updated[catIdx].skills.push(skill);
             setSubcategories(updated);
+            // Remove from master bucket
+            setSkills(prev => prev.filter(s => s !== skill));
         }
     };
     
     const removeSkillFromSubcategory = (catIdx, skillIdx) => {
         const updated = [...subcategories];
+        const removedSkill = updated[catIdx].skills[skillIdx];
         updated[catIdx].skills.splice(skillIdx, 1);
         setSubcategories(updated);
+        // Add back to master bucket
+        setSkills(prev => [...prev, removedSkill]);
     };
     
-    const handleDragStart = (source, categoryIndex, skillIndex) => {
-        if (source === 'master') {
-            setDragSourceIsMaster(true);
-            setDragCategoryIndex(null);
-            setDragIndex(skillIndex);
-        } else {
-            setDragSourceIsMaster(false);
-            setDragCategoryIndex(categoryIndex);
-            setDragIndex(skillIndex);
-        }
+    const handleDragStart = (categoryIndex, skillIndex, isMaster = false) => {
+        setDragCategoryIndex(categoryIndex);
+        setDragIndex(skillIndex);
+        setDragSourceIsMaster(isMaster);
     };
     
     const handleDragOver = (e) => {
@@ -896,20 +898,21 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
     };
     
     const handleDrop = (targetCategoryIndex, targetSkillIndex) => {
-        if (dragIndex === null) return;
+        if (dragIndex === null || dragCategoryIndex === null) return;
         
         const newSubcategories = [...subcategories];
         
         if (dragSourceIsMaster) {
+            // Dragging from master bucket to category
             const draggedSkill = skills[dragIndex];
             if (draggedSkill && !newSubcategories[targetCategoryIndex].skills.includes(draggedSkill)) {
                 newSubcategories[targetCategoryIndex].skills.splice(targetSkillIndex, 0, draggedSkill);
                 setSubcategories(newSubcategories);
+                setSkills(prev => prev.filter((_, i) => i !== dragIndex));
             }
         } else {
-            if (dragCategoryIndex === null) return;
+            // Dragging from category to category
             const draggedSkill = newSubcategories[dragCategoryIndex].skills[dragIndex];
-            if (!draggedSkill) return;
             newSubcategories[dragCategoryIndex].skills.splice(dragIndex, 1);
             newSubcategories[targetCategoryIndex].skills.splice(targetSkillIndex, 0, draggedSkill);
             setSubcategories(newSubcategories);
@@ -948,10 +951,10 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
                     <>
                         <label style={{ fontSize: '11px', color: '#6b7280' }}>Columns:</label>
                         <select value={skillsColumns} onChange={(e) => setSkillsColumns(parseInt(e.target.value))} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px' }}>
-                            <option value={1}>1 Column</option>
-                            <option value={2}>2 Columns</option>
-                            <option value={3}>3 Columns</option>
-                            <option value={4}>4 Columns</option>
+                            <option value={1}>1 column</option>
+                            <option value={2}>2 columns</option>
+                            <option value={3}>3 columns</option>
+                            <option value={4}>4 columns</option>
                         </select>
                     </>
                 )}
@@ -967,12 +970,12 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
                 <div style={{ marginTop: '12px' }}>
                     <div style={{ marginBottom: '12px', padding: '8px', background: '#f8f7f4', borderRadius: '6px' }}>
                         <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '8px' }}>Master Skills Bucket (drag from here to categories):</div>
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', minHeight: '50px' }}>
                             {skills && skills.map((skill, idx) => (
                                 <span
                                     key={idx}
                                     draggable
-                                    onDragStart={() => handleDragStart('master', null, idx)}
+                                    onDragStart={() => handleDragStart(-1, idx, true)}
                                     onDragEnd={() => {
                                         setDragIndex(null);
                                         setDragCategoryIndex(null);
@@ -996,12 +999,12 @@ const SkillsAdvancedEditor = ({ skills, setSkills, onSave, skillsSeparator, setS
                     {subcategories.map((cat, catIdx) => (
                         <div key={catIdx} style={{ marginBottom: '20px', padding: '12px', background: '#f8f7f4', borderRadius: '8px' }}>
                             <input type="text" value={cat.name} onChange={(e) => updateSubcategoryName(catIdx, e.target.value)} style={{ fontWeight: 600, marginBottom: '8px', background: 'transparent', border: 'none', fontSize: '12px', width: '100%' }} />
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px', minHeight: '40px' }}>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '8px', minHeight: '50px' }}>
                                 {cat.skills.map((skill, skillIdx) => (
                                     <span
                                         key={skillIdx}
                                         draggable
-                                        onDragStart={() => handleDragStart('category', catIdx, skillIdx)}
+                                        onDragStart={() => handleDragStart(catIdx, skillIdx, false)}
                                         onDragOver={handleDragOver}
                                         onDrop={() => handleDrop(catIdx, skillIdx)}
                                         style={{
@@ -1077,11 +1080,6 @@ const Toast = ({ message, type, onClose }) => {
 };
 
 // ============================================================
-// SAVED STATE KEY
-// ============================================================
-const EDITOR_STATE_KEY = 'veritas_editor_saved_state';
-
-// ============================================================
 // MAIN COMPONENT
 // ============================================================
 export default function ResumeEditor({ result, jdText, resumeText, setResumeText, hiddenBriefAnalysis, onClose }) {
@@ -1114,12 +1112,15 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
     const [summaryVersion, setSummaryVersion] = useState('original');
     const [skillsSeparator, setSkillsSeparator] = useState('comma');
     const [skillsColumns, setSkillsColumns] = useState(2);
+    const [certificationsFormat, setCertificationsFormat] = useState('bulleted');
     const [sectionOrder, setSectionOrder] = useState(['target-title', 'summary', 'experience', 'skills', 'projects', 'certifications', 'education', 'publications']);
-    const [hiddenSections, setHiddenSections] = useState([]);
+    const [removedSections, setRemovedSections] = useState([]);
     const [showReorderModal, setShowReorderModal] = useState(false);
     const [floatingToolbar, setFloatingToolbar] = useState(null);
     const [activeTextarea, setActiveTextarea] = useState(null);
+    const [hasSavedState, setHasSavedState] = useState(false);
     
+    // Initialize personalInfo with empty strings
     const [personalInfo, setPersonalInfo] = useState({ 
         name: '', 
         email: '', 
@@ -1172,98 +1173,83 @@ export default function ResumeEditor({ result, jdText, resumeText, setResumeText
         setToast({ message, type });
     };
     
-// ============================================================
-// FIX #7: Manual State Save (No automatic saves)
-// ============================================================
-
-// Save function - only called manually
-const saveEditorStateImmediate = useCallback(() => {
-    const stateToSave = {
-        roles,
-        summary,
-        skills,
-        personalInfo: safePersonalInfo,
-        education,
-        certifications,
-        projects,
-        publications,
-        customSections,
-        selectedTemplate,
-        targetTitle,
-        sectionOrder,
-        hiddenSections,
-        summaryVersion,
-        summaryVersions: summaryVersionsRef.current,
-        skillsSeparator,
-        skillsColumns,
-        timestamp: Date.now()
-    };
-    localStorage.setItem(EDITOR_STATE_KEY, JSON.stringify(stateToSave));
-    console.log('💾 Editor state saved to localStorage (manual)');
-}, [roles, summary, skills, safePersonalInfo, education, certifications, projects, publications, 
-    customSections, selectedTemplate, targetTitle, sectionOrder, hiddenSections, summaryVersion, 
-    skillsSeparator, skillsColumns]);
-
-// Save on unmount only
-useEffect(() => {
-    return () => {
-        saveEditorStateImmediate();
-        console.log('💾 Editor state saved on unmount');
-    };
-}, [saveEditorStateImmediate]);
-
-// Save on page hide (user navigates away)
-useEffect(() => {
-    const handlePageHide = () => {
-        saveEditorStateImmediate();
-    };
-    window.addEventListener('pagehide', handlePageHide);
-    return () => window.removeEventListener('pagehide', handlePageHide);
-}, [saveEditorStateImmediate]);
-
-// Save when user clicks the "Save Draft" button (already exists in saveDraft)
-// No automatic saves on state changes - user controls when to save
+    // Save state to localStorage when going back to analysis
+    const saveEditorState = useCallback(() => {
+        const editorState = {
+            roles, summary, targetTitle, skills, education, certifications,
+            projects, publications, customSections, selectedTemplate,
+            sectionOrder, removedSections, personalInfo: safePersonalInfo,
+            skillsSeparator, skillsColumns, certificationsFormat,
+            timestamp: Date.now()
+        };
+        localStorage.setItem('veritas_editor_state', JSON.stringify(editorState));
+        setHasSavedState(true);
+        console.log('💾 Editor state saved to localStorage');
+    }, [roles, summary, targetTitle, skills, education, certifications, projects, publications, customSections, selectedTemplate, sectionOrder, removedSections, safePersonalInfo, skillsSeparator, skillsColumns, certificationsFormat]);
     
-    // Trigger debounced save when relevant state changes
-    useEffect(() => {
-        if (hasUnsavedChanges) {
-            debouncedSaveEditorState();
+    // Load saved state from localStorage when component mounts
+    const loadEditorState = useCallback(() => {
+        const savedStateJson = localStorage.getItem('veritas_editor_state');
+        if (savedStateJson) {
+            try {
+                const savedState = JSON.parse(savedStateJson);
+                setRoles(savedState.roles || []);
+                setSummary(savedState.summary || '');
+                setTargetTitle(savedState.targetTitle || '');
+                setSkills(savedState.skills || []);
+                setEducation(savedState.education || []);
+                setCertifications(savedState.certifications || []);
+                setProjects(savedState.projects || []);
+                setPublications(savedState.publications || []);
+                setCustomSections(savedState.customSections || []);
+                setSelectedTemplate(savedState.selectedTemplate || 'veritas_signature');
+                setSectionOrder(savedState.sectionOrder || ['target-title', 'summary', 'experience', 'skills', 'projects', 'certifications', 'education', 'publications']);
+                setRemovedSections(savedState.removedSections || []);
+                if (savedState.personalInfo) setPersonalInfo(savedState.personalInfo);
+                if (savedState.skillsSeparator) setSkillsSeparator(savedState.skillsSeparator);
+                if (savedState.skillsColumns) setSkillsColumns(savedState.skillsColumns);
+                if (savedState.certificationsFormat) setCertificationsFormat(savedState.certificationsFormat);
+                saveSnapshot();
+                setHasSavedState(false);
+                console.log('📂 Editor state loaded from localStorage');
+                return true;
+            } catch (e) {
+                console.warn('Failed to load saved state:', e);
+                localStorage.removeItem('veritas_editor_state');
+            }
         }
-    }, [roles, summary, skills, safePersonalInfo, education, certifications, projects, publications, 
-        customSections, targetTitle, sectionOrder, hiddenSections, skillsSeparator, skillsColumns, 
-        hasUnsavedChanges, debouncedSaveEditorState]);
+        return false;
+    }, []);
     
-    // Load saved state on mount
-    useEffect(() => {
-        try {
-            const saved = localStorage.getItem(EDITOR_STATE_KEY);
-            if (!saved) return;
-            
-            const state = JSON.parse(saved);
-            if (state.roles) setRoles(state.roles);
-            if (state.summary !== undefined) setSummary(state.summary);
-            if (state.skills) setSkills(state.skills);
-            if (state.personalInfo) setPersonalInfo(state.personalInfo);
-            if (state.education) setEducation(state.education);
-            if (state.certifications) setCertifications(state.certifications);
-            if (state.projects) setProjects(state.projects);
-            if (state.publications) setPublications(state.publications);
-            if (state.customSections) setCustomSections(state.customSections);
-            if (state.selectedTemplate) setSelectedTemplate(state.selectedTemplate);
-            if (state.targetTitle !== undefined) setTargetTitle(state.targetTitle);
-            if (state.sectionOrder) setSectionOrder(state.sectionOrder);
-            if (state.hiddenSections) setHiddenSections(state.hiddenSections);
-            if (state.summaryVersion) setSummaryVersion(state.summaryVersion);
-            if (state.summaryVersions) summaryVersionsRef.current = state.summaryVersions;
-            if (state.skillsSeparator) setSkillsSeparator(state.skillsSeparator);
-            if (state.skillsColumns) setSkillsColumns(state.skillsColumns);
-            
-            setHasUnsavedChanges(true);
-            showToast('Loaded previous session', 'success');
-        } catch (err) {
-            console.warn('Failed to load editor state:', err);
+    // Handle back button - save state before closing
+    const handleBackToAnalysis = useCallback(() => {
+        if (hasUnsavedChanges || roles.length > 0) {
+            saveEditorState();
+            showToast('Progress saved. Returning to analysis.', 'success');
         }
-    }, [showToast]);
+        if (onClose) onClose();
+    }, [hasUnsavedChanges, roles, saveEditorState, onClose, showToast]);
+    
+    // Before unload warning
+    useEffect(() => {
+        const handleBeforeUnload = (e) => {
+            if (hasUnsavedChanges) {
+                e.preventDefault();
+                e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+            }
+        };
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, [hasUnsavedChanges]);
+    
+    // Try to load saved state on mount (if coming back from analysis)
+    useEffect(() => {
+        const loaded = loadEditorState();
+        if (!loaded && resumeText && resumeText.trim().length > 100 && !isInitialAILoadRef.current && !isAIParsing && roles.length === 0) {
+            isInitialAILoadRef.current = true;
+            runAIParser(false);
+        }
+    }, []);
     
     // Update state ref
     useEffect(() => {
@@ -1306,7 +1292,7 @@ useEffect(() => {
             setHasUnsavedChanges(true);
             showToast('Undo successful', 'success');
         }
-    }, [historyIndex, stateHistory]);
+    }, [historyIndex, stateHistory, showToast]);
 
     const redo = useCallback(() => {
         if (historyIndex < stateHistory.length - 1) {
@@ -1325,107 +1311,7 @@ useEffect(() => {
             setHasUnsavedChanges(true);
             showToast('Redo successful', 'success');
         }
-    }, [historyIndex, stateHistory]);
-
-    // Autosave (separate from editor state - for draft recovery)
-    useEffect(() => {
-        if (autosaveTimer.current) clearInterval(autosaveTimer.current);
-        autosaveTimer.current = setInterval(() => {
-            if (hasUnsavedChanges && roles && roles.length > 0) {
-                try {
-                    const draft = {
-                        roles, summary, skills, personalInfo: safePersonalInfo, education, certifications,
-                        projects, publications, customSections, selectedTemplate, targetTitle,
-                        sectionOrder, timestamp: Date.now()
-                    };
-                    localStorage.setItem('veritas_resume_autosave', JSON.stringify(draft));
-                    console.log('💾 Autosaved draft');
-                } catch (e) {
-                    console.warn('Autosave failed:', e);
-                }
-            }
-        }, 30000);
-        return () => { if (autosaveTimer.current) clearInterval(autosaveTimer.current); };
-    }, [roles, summary, skills, safePersonalInfo, education, certifications, projects, publications, customSections, selectedTemplate, targetTitle, sectionOrder, hasUnsavedChanges]);
-
-    // beforeunload event
-    useEffect(() => {
-        const handleBeforeUnload = (e) => {
-            if (hasUnsavedChanges) {
-                e.preventDefault();
-                e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
-            }
-        };
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, [hasUnsavedChanges]);
-
-    // Auto-collapse right sidebar in preview mode
-    useEffect(() => {
-        if (previewMode && showRightSidebar) setShowRightSidebar(false);
-    }, [previewMode]);
-
-    // Load saved sidebar states
-    useEffect(() => {
-        const savedLeft = localStorage.getItem('veritas_left_sidebar_open');
-        if (savedLeft !== null) setIsLeftSidebarOpen(savedLeft === 'true');
-        const savedRight = localStorage.getItem('veritas_right_sidebar_open');
-        if (savedRight !== null) setShowRightSidebar(savedRight === 'true');
-    }, []);
-
-    const toggleLeftSidebar = () => {
-        const newState = !isLeftSidebarOpen;
-        setIsLeftSidebarOpen(newState);
-        localStorage.setItem('veritas_left_sidebar_open', newState);
-    };
-    
-    const toggleRightSidebar = () => {
-        const newState = !showRightSidebar;
-        setShowRightSidebar(newState);
-        localStorage.setItem('veritas_right_sidebar_open', newState);
-    };
-
-    // Keyboard shortcuts with refs
-    const saveDraftFn = useCallback(() => {
-        try {
-            const draft = {
-                roles, summary, skills, personalInfo: safePersonalInfo, education, certifications,
-                projects, publications, customSections, selectedTemplate, targetTitle,
-                sectionOrder, timestamp: Date.now()
-            };
-            localStorage.setItem('veritas_resume_draft', JSON.stringify(draft));
-            setHasUnsavedChanges(false);
-            showToast('Draft saved!', 'success');
-        } catch (e) {
-            console.warn('Save draft failed:', e);
-            showToast('Failed to save draft', 'error');
-        }
-    }, [roles, summary, skills, safePersonalInfo, education, certifications, projects, publications, customSections, selectedTemplate, targetTitle, sectionOrder]);
-    
-    const handleExportClickFn = useCallback(() => setShowExportChecklist(true), []);
-    
-    saveDraftRef.current = saveDraftFn;
-    handleExportClickRef.current = handleExportClickFn;
-    
-    useEffect(() => {
-        const handleKeyDown = (e) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-                e.preventDefault();
-                if (e.shiftKey) redo();
-                else undo();
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                e.preventDefault();
-                saveDraftRef.current();
-            }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
-                e.preventDefault();
-                handleExportClickRef.current();
-            }
-        };
-        window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
-    }, [undo, redo]);
+    }, [historyIndex, stateHistory, showToast]);
 
     // PDF Extraction
     const extractPDFText = useCallback(async (file) => {
@@ -1469,10 +1355,10 @@ useEffect(() => {
         } finally {
             setIsExtractingPDF(false);
         }
-    }, [extractPDFText, setResumeText]);
+    }, [extractPDFText, setResumeText, showToast]);
 
     // ============================================================
-    // AI Parser as Primary (auto-run on mount)
+    // AI Parser as Primary
     // ============================================================
     const runAIParser = async (showComparison = false) => {
         if (!resumeText || resumeText.trim().length < 100) {
@@ -1585,16 +1471,7 @@ useEffect(() => {
         }
     };
 
-    // Auto-run AI parser on initial load (only once if no saved state)
-    useEffect(() => {
-        const hasSavedState = localStorage.getItem(EDITOR_STATE_KEY);
-        if (resumeText && resumeText.trim().length > 100 && !isInitialAILoadRef.current && !isAIParsing && roles.length === 0 && !hasSavedState) {
-            isInitialAILoadRef.current = true;
-            runAIParser(false);
-        }
-    }, [resumeText]);
-
-    // Fallback deterministic parser (used when AI fails or user has no resume)
+    // Fallback deterministic parser
     const loadDeterministicFallback = useCallback(() => {
         if (!resumeText) return;
         console.log('🔍 Using deterministic fallback parser');
@@ -1639,18 +1516,8 @@ useEffect(() => {
             });
         }
         
-        if (summaryAnalysis && summaryVersionsRef.current.original === '') {
-            const originalText = summaryAnalysis.original_text || '';
-            setSummary(originalText);
-            summaryVersionsRef.current = {
-                original: originalText,
-                veritas: summaryAnalysis.veritas_transformed_summary || '',
-                hiddenBrief: summaryAnalysis.hb_transformed_summary || ''
-            };
-        }
-        
         saveSnapshot();
-    }, [resumeText, summaryAnalysis]);
+    }, [resumeText]);
 
     // ENRICH with Veritas and Hidden Brief versions
     useEffect(() => {
@@ -1704,55 +1571,6 @@ useEffect(() => {
             });
         }
     }, [bulletAnalysis, roles?.length]);
-
-    // Summary versions from LLM
-    useEffect(() => {
-        if (summaryAnalysis && summaryVersionsRef.current.original === '') {
-            const originalText = summaryAnalysis.original_text || '';
-            const veritasText = summaryAnalysis.veritas_transformed_summary || '';
-            const hbText = summaryAnalysis.hb_transformed_summary || '';
-            
-            console.log('📄 Loading summary versions:', {
-                hasOriginal: !!originalText,
-                hasVeritas: !!veritasText,
-                hasHiddenBrief: !!hbText
-            });
-            
-            setSummary(originalText);
-            summaryVersionsRef.current = {
-                original: originalText,
-                veritas: veritasText,
-                hiddenBrief: hbText
-            };
-            
-            if (veritasText || hbText) {
-                console.log('✅ Alternative summary versions available');
-            }
-        }
-    }, [summaryAnalysis]);
-
-    // Summary version switching handler
-    const switchSummaryVersion = (version) => {
-        const versions = summaryVersionsRef.current;
-        let newSummary = '';
-        
-        if (version === 'original') {
-            newSummary = versions.original || '';
-        } else if (version === 'veritas') {
-            newSummary = versions.veritas || '';
-        } else if (version === 'hiddenBrief') {
-            newSummary = versions.hiddenBrief || '';
-        }
-        
-        if (newSummary) {
-            setSummary(newSummary);
-            setSummaryVersion(version);
-            saveSnapshot();
-            showToast(`Switched to ${version} summary version`, 'info');
-        } else {
-            showToast(`${version} version not available`, 'warning');
-        }
-    };
 
     // JD Features
     useEffect(() => {
@@ -1994,7 +1812,7 @@ useEffect(() => {
         setPersonalInfo(prev => ({ ...prev, [field]: value }));
     };
     
-    // Floating toolbar for text formatting
+    // Floating toolbar for text formatting - FIXED (#5)
     const handleTextSelection = (e, textareaId) => {
         const selection = window.getSelection();
         const selectedText = selection?.toString();
@@ -2156,6 +1974,7 @@ useEffect(() => {
                     formatDate={formatDate}
                     skillsSeparator={skillsSeparator}
                     skillsColumns={skillsColumns}
+                    certificationsFormat={certificationsFormat}
                 />
             ).toBlob();
             const url = URL.createObjectURL(blob);
@@ -2178,7 +1997,8 @@ useEffect(() => {
             const draft = {
                 roles, summary, skills, personalInfo: safePersonalInfo, education, certifications,
                 projects, publications, customSections, selectedTemplate, targetTitle,
-                sectionOrder, timestamp: Date.now()
+                sectionOrder, removedSections, skillsSeparator, skillsColumns, certificationsFormat,
+                timestamp: Date.now()
             };
             localStorage.setItem('veritas_resume_draft', JSON.stringify(draft));
             setHasUnsavedChanges(false);
@@ -2207,6 +2027,10 @@ useEffect(() => {
             setSelectedTemplate(draft.selectedTemplate || 'veritas_signature');
             setTargetTitle(draft.targetTitle || '');
             if (draft.sectionOrder) setSectionOrder(draft.sectionOrder);
+            if (draft.removedSections) setRemovedSections(draft.removedSections);
+            if (draft.skillsSeparator) setSkillsSeparator(draft.skillsSeparator);
+            if (draft.skillsColumns) setSkillsColumns(draft.skillsColumns);
+            if (draft.certificationsFormat) setCertificationsFormat(draft.certificationsFormat);
             saveSnapshot();
             setHasUnsavedChanges(false);
             showToast('Draft loaded!', 'success');
@@ -2232,14 +2056,15 @@ useEffect(() => {
     const currentTemplate = TEMPLATES[selectedTemplate];
     const exportChecklist = getExportChecklist();
     
-    // Helper to render sections in order (filtering hidden sections)
-    const renderVisibleSections = () => {
-        const visibleOrder = sectionOrder.filter(s => !hiddenSections.includes(s));
-        return visibleOrder.map(sectionId => renderSection(sectionId));
+    // Helper to check if a section should be rendered
+    const shouldRenderSection = (sectionId) => {
+        return !removedSections.includes(sectionId);
     };
     
-    // Helper to render a single section
+    // Helper to render sections in order
     const renderSection = (sectionId) => {
+        if (!shouldRenderSection(sectionId)) return null;
+        
         switch (sectionId) {
             case 'target-title':
                 return (
@@ -2267,13 +2092,6 @@ useEffect(() => {
                     <div key="summary" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', marginBottom: '20px', overflow: 'hidden' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', background: '#f8f7f4', borderBottom: '1px solid #e6e4dd' }}>
                             <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>📄 Professional Summary</h3>
-                            {(summaryVersionsRef.current.veritas || summaryVersionsRef.current.hiddenBrief) && (
-                                <div style={{ display: 'flex', gap: '6px' }}>
-                                    <button onClick={() => switchSummaryVersion('original')} style={{ padding: '4px 10px', fontSize: '10px', borderRadius: '20px', border: '1px solid #e6e4dd', background: summaryVersion === 'original' ? '#10b981' : 'transparent', color: summaryVersion === 'original' ? 'white' : '#6b7280', cursor: 'pointer' }}>📄 Original</button>
-                                    {summaryVersionsRef.current.veritas && <button onClick={() => switchSummaryVersion('veritas')} style={{ padding: '4px 10px', fontSize: '10px', borderRadius: '20px', border: '1px solid #e6e4dd', background: summaryVersion === 'veritas' ? '#2563eb' : 'transparent', color: summaryVersion === 'veritas' ? 'white' : '#6b7280', cursor: 'pointer' }}>✨ Veritas</button>}
-                                    {summaryVersionsRef.current.hiddenBrief && <button onClick={() => switchSummaryVersion('hiddenBrief')} style={{ padding: '4px 10px', fontSize: '10px', borderRadius: '20px', border: '1px solid #e6e4dd', background: summaryVersion === 'hiddenBrief' ? '#c9a84c' : 'transparent', color: summaryVersion === 'hiddenBrief' ? '#1a1f2e' : '#6b7280', cursor: 'pointer' }}>🕵️ Hidden Brief</button>}
-                                </div>
-                            )}
                         </div>
                         <div style={{ padding: '20px' }}>
                             <textarea
@@ -2284,7 +2102,7 @@ useEffect(() => {
                                 onMouseUp={(e) => handleTextSelection(e, 'summary-textarea')}
                                 disabled={!editMode}
                                 rows={4}
-                                style={{ width: '100%', padding: '12px', border: `1px solid ${summaryVersion === 'hiddenBrief' ? '#c9a84c' : summaryVersion === 'veritas' ? '#2563eb' : '#e6e4dd'}`, borderRadius: '8px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit' }}
+                                style={{ width: '100%', padding: '12px', border: `1px solid #e6e4dd`, borderRadius: '8px', fontSize: '13px', lineHeight: '1.5', resize: 'vertical', fontFamily: 'inherit' }}
                                 placeholder="Professional summary goes here..."
                             />
                         </div>
@@ -2402,9 +2220,49 @@ useEffect(() => {
                             </button>
                         </div>
                         {advancedSkills ? (
-                            <SkillsAdvancedEditor skills={skills || []} setSkills={setSkills} onSave={saveSnapshot} skillsSeparator={skillsSeparator} setSkillsSeparator={setSkillsSeparator} skillsColumns={skillsColumns} setSkillsColumns={setSkillsColumns} />
+                            <SkillsAdvancedEditor 
+                                skills={skills || []} 
+                                setSkills={setSkills} 
+                                onSave={saveSnapshot} 
+                                skillsSeparator={skillsSeparator} 
+                                setSkillsSeparator={setSkillsSeparator}
+                                skillsColumns={skillsColumns}
+                                setSkillsColumns={setSkillsColumns}
+                            />
                         ) : (
                             <>
+                                <div style={{ marginBottom: '12px', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                    <label style={{ fontSize: '11px', color: '#6b7280' }}>Separator:</label>
+                                    <select value={skillsSeparator} onChange={(e) => setSkillsSeparator(e.target.value)} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px' }}>
+                                        <option value="comma">Comma-separated</option>
+                                        <option value="pipe">Pipe-separated (|)</option>
+                                        <option value="bulleted">Bulleted list</option>
+                                    </select>
+                                    {skillsSeparator === 'bulleted' && (
+                                        <>
+                                            <label style={{ fontSize: '11px', color: '#6b7280' }}>Columns:</label>
+                                            <select value={skillsColumns} onChange={(e) => setSkillsColumns(parseInt(e.target.value))} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px' }}>
+                                                <option value={1}>1 column</option>
+                                                <option value={2}>2 columns</option>
+                                                <option value={3}>3 columns</option>
+                                                <option value={4}>4 columns</option>
+                                            </select>
+                                        </>
+                                    )}
+                                </div>
+                                <div style={{ marginBottom: '12px', padding: '10px', background: '#f8f7f4', borderRadius: '6px' }}>
+                                    <div style={{ fontSize: '10px', color: '#6b7280', marginBottom: '4px' }}>Preview:</div>
+                                    <div style={{ fontSize: '11px' }}>
+                                        {skillsSeparator === 'bulleted' ? (
+                                            skills.slice(0, 15).map((s, i) => <div key={i}>• {s}</div>)
+                                        ) : skillsSeparator === 'pipe' ? (
+                                            skills.slice(0, 15).join(' | ')
+                                        ) : (
+                                            skills.slice(0, 15).join(', ')
+                                        )}
+                                        {skills.length > 15 && <span> +{skills.length - 15} more</span>}
+                                    </div>
+                                </div>
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginBottom: '12px' }}>
                                     {(skills || []).map((skill, idx) => (
                                         <span key={idx} style={{ padding: '6px 12px', background: 'rgba(201,168,76,0.1)', borderRadius: '20px', fontSize: '12px', color: '#c9a84c', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
@@ -2462,7 +2320,14 @@ useEffect(() => {
                     <div key="certifications" style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', padding: '20px', marginBottom: '20px' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
                             <h3 style={{ fontSize: '13px', margin: 0, color: '#c9a84c' }}>🏆 Certifications</h3>
-                            {editMode && <button onClick={addCertification} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Certification</button>}
+                            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                <label style={{ fontSize: '11px', color: '#6b7280' }}>Format:</label>
+                                <select value={certificationsFormat} onChange={(e) => setCertificationsFormat(e.target.value)} style={{ padding: '4px 8px', borderRadius: '4px', fontSize: '11px' }}>
+                                    <option value="line">Line separated</option>
+                                    <option value="bulleted">Bulleted list</option>
+                                </select>
+                                {editMode && <button onClick={addCertification} style={{ padding: '4px 10px', fontSize: '11px', background: '#c9a84c', border: 'none', borderRadius: '4px', cursor: 'pointer', color: '#1a1f2e' }}>+ Add Certification</button>}
+                            </div>
                         </div>
                         {(certifications || []).map((cert, idx) => (
                             <div key={idx} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'center' }}>
@@ -2572,12 +2437,10 @@ useEffect(() => {
             <div style={{ width: isLeftSidebarOpen ? '280px' : '0px', overflow: isLeftSidebarOpen ? 'auto' : 'hidden', background: 'white', borderRight: '1px solid #e6e4dd', display: 'flex', flexDirection: 'column', position: 'sticky', top: 0, height: '100vh', transition: 'width 0.3s ease' }}>
                 {isLeftSidebarOpen && (
                     <>
-                        {/* Logo */}
                         <div style={{ padding: '20px', borderBottom: '1px solid #e6e4dd', display: 'flex', justifyContent: 'center' }}>
                             <img src="https://raw.githubusercontent.com/keron62-spec/VeritasResumeIntelligence/refs/heads/main/public/images/veritaslogo.jpeg?raw=true" alt="Veritas Logo" style={{ maxWidth: '120px', height: 'auto' }} />
                         </div>
                         
-                        {/* Template Selector */}
                         <div style={{ padding: '20px', borderBottom: '1px solid #e6e4dd' }}>
                             <h3 style={{ fontSize: '11px', fontWeight: 600, color: '#c9a84c', marginBottom: '12px', textTransform: 'uppercase' }}>🎨 Templates</h3>
                             <select value={selectedTemplate} onChange={(e) => setSelectedTemplate(e.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #e6e4dd', fontSize: '12px' }}>
@@ -2585,7 +2448,6 @@ useEffect(() => {
                             </select>
                         </div>
                         
-                        {/* PDF Upload Button */}
                         <div style={{ padding: '16px 20px', borderBottom: '1px solid #e6e4dd' }}>
                             <input type="file" accept=".pdf" ref={fileInputRef} style={{ display: 'none' }} onChange={(e) => { if (e.target.files && e.target.files[0]) { handlePDFUpload(e.target.files[0]); e.target.value = ''; } }} />
                             <button onClick={() => fileInputRef.current?.click()} disabled={isExtractingPDF} style={{ width: '100%', padding: '10px', background: isExtractingPDF ? '#6b21a5' : '#10b981', color: 'white', border: 'none', borderRadius: '6px', cursor: isExtractingPDF ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 500, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}>
@@ -2598,7 +2460,6 @@ useEffect(() => {
                             )}
                         </div>
                         
-                        {/* AI Parser Button */}
                         <div style={{ padding: '16px 20px', borderBottom: '1px solid #e6e4dd' }}>
                             <button onClick={() => runAIParser(true)} disabled={isAIParsing} style={{ width: '100%', padding: '10px', background: isAIParsing ? '#6b21a5' : '#8b5cf6', color: 'white', border: 'none', borderRadius: '6px', cursor: isAIParsing ? 'not-allowed' : 'pointer', fontSize: '12px', fontWeight: 500 }}>
                                 {isAIParsing ? '⏳ AI Parsing...' : '🤖 AI Parser (Gemma 4 31B)'}
@@ -2610,7 +2471,6 @@ useEffect(() => {
                             )}
                         </div>
                         
-                        {/* Mode Controls */}
                         <div style={{ padding: '16px 20px', borderBottom: '1px solid #e6e4dd', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             <button onClick={() => setEditMode(!editMode)} style={{ padding: '8px', fontSize: '12px', width: '100%', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>
                                 {editMode ? '👁️ Preview Mode' : '✏️ Edit Mode'}
@@ -2626,29 +2486,25 @@ useEffect(() => {
                             </button>
                         </div>
                         
-                        {/* Draft Controls */}
                         <div style={{ padding: '16px 20px', borderBottom: '1px solid #e6e4dd', display: 'flex', gap: '8px' }}>
                             <button onClick={saveDraft} style={{ flex: 1, padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>💾 Save</button>
                             <button onClick={loadDraft} style={{ flex: 1, padding: '6px', fontSize: '11px', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>📂 Load</button>
                         </div>
                         
-                        {/* Undo/Redo */}
                         <div style={{ padding: '16px 20px', borderBottom: '1px solid #e6e4dd', display: 'flex', gap: '8px' }}>
                             <button onClick={undo} disabled={historyIndex <= 0} style={{ flex: 1, padding: '6px', fontSize: '11px', background: historyIndex <= 0 ? '#f5f3f0' : 'white', border: '1px solid #e6e4dd', borderRadius: '6px', cursor: historyIndex <= 0 ? 'not-allowed' : 'pointer' }}>↩️ Undo</button>
                             <button onClick={redo} disabled={historyIndex >= stateHistory.length - 1} style={{ flex: 1, padding: '6px', fontSize: '11px', background: historyIndex >= stateHistory.length - 1 ? '#f5f3f0' : 'white', border: '1px solid #e6e4dd', borderRadius: '6px', cursor: historyIndex >= stateHistory.length - 1 ? 'not-allowed' : 'pointer' }}>↪️ Redo</button>
                         </div>
                         
-                        {/* Export & Back */}
                         <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '8px', marginTop: 'auto' }}>
                             <button onClick={handleExportConfirm} disabled={isGeneratingPDF} style={{ padding: '10px', fontSize: '12px', fontWeight: 600, width: '100%', background: '#c9a84c', border: 'none', borderRadius: '6px', cursor: 'pointer', color: '#1a1f2e' }}>
                                 {isGeneratingPDF ? '⏳ Generating...' : '📥 Export PDF'}
                             </button>
-                            <button onClick={() => onClose && onClose()} style={{ padding: '10px', fontSize: '12px', width: '100%', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>
+                            <button onClick={handleBackToAnalysis} style={{ padding: '10px', fontSize: '12px', width: '100%', borderRadius: '6px', border: '1px solid #e6e4dd', background: 'white', cursor: 'pointer' }}>
                                 ← Back to Analysis
                             </button>
                         </div>
                         
-                        {/* Change Summary */}
                         <div style={{ padding: '16px 20px', borderTop: '1px solid #e6e4dd' }}>
                             <h3 style={{ fontSize: '10px', fontWeight: 600, color: '#c9a84c', marginBottom: '8px', textTransform: 'uppercase' }}>Changes ({stateHistory.length})</h3>
                             <div style={{ fontSize: '10px', color: stateHistory.length ? '#10b981' : '#6b7280' }}>
@@ -2667,15 +2523,14 @@ useEffect(() => {
                 
                 {previewMode ? (
                     <div style={{ fontFamily: currentTemplate.fontFamily, maxWidth: '8.5in', margin: '0 auto', background: 'white', padding: '40px', borderRadius: '12px', boxShadow: '0 4px 20px rgba(0,0,0,0.1)' }}>
-                        {/* Preview content - uses safePersonalInfo and same structure as before */}
                         <div style={{ textAlign: 'center', marginBottom: '24px', ...currentTemplate.headerStyle }}>
                             <div style={{ fontSize: currentTemplate.nameStyle?.fontSize || '28px', fontWeight: currentTemplate.nameStyle?.fontWeight || 700, color: currentTemplate.nameStyle?.color || '#1a1f2e', ...currentTemplate.nameStyle }}>
                                 {safePersonalInfo.name || 'Your Name'}
                             </div>
-                            {targetTitle && <div style={{ fontSize: '12px', color: '#c9a84c', marginTop: '4px', marginBottom: '8px' }}>{targetTitle}</div>}
                             <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '8px' }}>
                                 {[safePersonalInfo.email, safePersonalInfo.phone, safePersonalInfo.linkedin, safePersonalInfo.location].filter(Boolean).join(' | ')}
                             </div>
+                            {targetTitle && <div style={{ fontSize: '12px', color: '#c9a84c', marginTop: '4px', marginBottom: '8px' }}>{targetTitle}</div>}
                         </div>
                         {summary && (
                             <div style={{ marginBottom: '20px' }}>
@@ -2717,11 +2572,25 @@ useEffect(() => {
                             <div style={{ marginTop: '20px' }}>
                                 <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>Skills</div>
                                 {advancedSkills ? (
-                                    <SkillsAdvancedEditor skills={skills || []} setSkills={setSkills} onSave={saveSnapshot} skillsSeparator={skillsSeparator} setSkillsSeparator={setSkillsSeparator} skillsColumns={skillsColumns} setSkillsColumns={setSkillsColumns} />
+                                    <SkillsAdvancedEditor 
+                                        skills={skills || []} 
+                                        setSkills={setSkills} 
+                                        onSave={saveSnapshot} 
+                                        skillsSeparator={skillsSeparator} 
+                                        setSkillsSeparator={setSkillsSeparator}
+                                        skillsColumns={skillsColumns}
+                                        setSkillsColumns={setSkillsColumns}
+                                    />
                                 ) : (
-                                    <div style={{ fontSize: '11px', display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                        {(skills || []).slice(0, 15).map(skill => (<span key={skill} style={{ padding: '2px 8px', background: '#f0f0f0', borderRadius: '4px' }}>{skill}</span>))}
-                                        {(skills?.length || 0) > 15 && <span style={{ fontSize: '10px', color: '#6b7280' }}>+{(skills?.length || 0) - 15} more</span>}
+                                    <div style={{ fontSize: '11px' }}>
+                                        {skillsSeparator === 'bulleted' ? (
+                                            skills.slice(0, 15).map((s, i) => <div key={i}>• {s}</div>)
+                                        ) : skillsSeparator === 'pipe' ? (
+                                            skills.slice(0, 15).join(' | ')
+                                        ) : (
+                                            skills.slice(0, 15).join(', ')
+                                        )}
+                                        {skills.length > 15 && <span style={{ fontSize: '10px', color: '#6b7280' }}> +{skills.length - 15} more</span>}
                                     </div>
                                 )}
                             </div>
@@ -2739,7 +2608,11 @@ useEffect(() => {
                         {(certifications?.length || 0) > 0 && (
                             <div style={{ marginTop: '20px' }}>
                                 <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>Certifications</div>
-                                <div style={{ fontSize: '11px' }}>{certifications.map(c => `• ${c}`).join('\n')}</div>
+                                {certificationsFormat === 'bulleted' ? (
+                                    certifications.map((cert, i) => <div key={i} style={{ fontSize: '11px' }}>• {cert}</div>)
+                                ) : (
+                                    certifications.map((cert, i) => <div key={i} style={{ fontSize: '11px', marginBottom: '4px' }}>{cert}</div>)
+                                )}
                             </div>
                         )}
                         {(projects?.length || 0) > 0 && (
@@ -2758,7 +2631,9 @@ useEffect(() => {
                         {(publications?.length || 0) > 0 && (
                             <div style={{ marginTop: '20px' }}>
                                 <div style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', ...currentTemplate.sectionStyle }}>Publications</div>
-                                <div style={{ fontSize: '11px' }}>{publications.map(p => `• ${p}`).join('\n')}</div>
+                                {publications.map((pub, idx) => (
+                                    <div key={idx} style={{ fontSize: '11px', marginBottom: '4px' }}>• {pub}</div>
+                                ))}
                             </div>
                         )}
                         {(customSections || []).length > 0 && customSections.map((section, idx) => (
@@ -2775,13 +2650,12 @@ useEffect(() => {
                         ))}
                     </div>
                 ) : (
-                    // Edit Mode - Render sections in user-defined order (filtering hidden sections)
                     <>
                         {/* Personal Info - Always at top */}
                         <div style={{ background: 'white', borderRadius: '12px', border: '1px solid #e6e4dd', marginBottom: '20px', padding: '20px' }}>
                             <h3 style={{ fontSize: '13px', marginBottom: '16px', color: '#c9a84c' }}>👤 Personal Information</h3>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                                <input type="text" placeholder= "Full Name" value={safePersonalInfo.name} onChange={(e) => updatePersonalInfo('name', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
+                                <input type="text" placeholder="Full Name" value={safePersonalInfo.name} onChange={(e) => updatePersonalInfo('name', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
                                 <input type="email" placeholder="Email" value={safePersonalInfo.email} onChange={(e) => updatePersonalInfo('email', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
                                 <input type="tel" placeholder="Phone" value={safePersonalInfo.phone} onChange={(e) => updatePersonalInfo('phone', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
                                 <input type="text" placeholder="LinkedIn URL" value={safePersonalInfo.linkedin} onChange={(e) => updatePersonalInfo('linkedin', e.target.value)} onBlur={saveSnapshot} disabled={!editMode} style={{ padding: '8px 12px', border: '1px solid #e6e4dd', borderRadius: '6px', fontSize: '13px' }} />
@@ -2789,10 +2663,13 @@ useEffect(() => {
                             </div>
                         </div>
                         
-                        {renderVisibleSections()}
+                        {/* Render all other sections in user-defined order */}
+                        {sectionOrder.map(sectionId => renderSection(sectionId))}
                         
+                        {/* Custom sections that aren't in the order list */}
                         {customSections.filter(s => !sectionOrder.includes(s.id)).map(section => renderSection(s.id))}
                         
+                        {/* Add Section Button */}
                         {editMode && (
                             <button onClick={() => setShowAddSectionModal(true)} style={{ width: '100%', padding: '12px', background: 'transparent', border: '2px dashed #c9a84c', borderRadius: '12px', cursor: 'pointer', color: '#c9a84c', fontSize: '13px', marginBottom: '20px' }}>
                                 + Add Custom Section
@@ -2911,8 +2788,8 @@ useEffect(() => {
                 onReorder={(newOrder) => setSectionOrder(newOrder)}
                 sectionOrder={sectionOrder}
                 setSectionOrder={setSectionOrder}
-                hiddenSections={hiddenSections}
-                setHiddenSections={setHiddenSections}
+                removedSections={removedSections}
+                setRemovedSections={setRemovedSections}
             />
             {floatingToolbar && (
                 <FloatingToolbar 

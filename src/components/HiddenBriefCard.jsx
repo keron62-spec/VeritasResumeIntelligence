@@ -102,6 +102,42 @@ export default function HiddenBriefCard({
     }
   };
 
+  // Helper: Get iceberg color based on hidden percentage
+const getIcebergColor = (hiddenPercentage) => {
+  if (hiddenPercentage >= 80) return '#ef4444'; // Critical - red
+  if (hiddenPercentage >= 60) return '#f97316'; // Deep - orange
+  if (hiddenPercentage >= 40) return '#f59e0b'; // Moderate - yellow
+  if (hiddenPercentage >= 20) return '#3b82f6'; // Shallow - blue
+  return '#10b981'; // None - green
+};
+
+// Helper: Get iceberg grade label
+const getIcebergGrade = (hiddenPercentage) => {
+  if (hiddenPercentage >= 80) return 'Critical Iceberg';
+  if (hiddenPercentage >= 60) return 'Deep Iceberg';
+  if (hiddenPercentage >= 40) return 'Moderate Iceberg';
+  if (hiddenPercentage >= 20) return 'Shallow Iceberg';
+  return 'No Iceberg';
+};
+
+// Helper: Get human-readable headline
+const getIcebergHeadline = (hiddenPercentage) => {
+  if (hiddenPercentage >= 80) return '⚠️ CRITICAL: The JD hides most of the real complexity';
+  if (hiddenPercentage >= 60) return '🗻 Deep Iceberg: Most of the role is hidden from view';
+  if (hiddenPercentage >= 40) return '🌊 Moderate Iceberg: Half the story is missing';
+  if (hiddenPercentage >= 20) return '📋 Shallow Iceberg: Some hidden complexity exists';
+  return '✅ No Iceberg: The JD accurately describes the role';
+};
+
+// Helper: Get actionable advice
+const getIcebergAdvice = (hiddenPercentage) => {
+  if (hiddenPercentage >= 80) return 'Ask in the interview: "What aspects of this role are not captured in the job description?" and "What happened to the previous person in this position?"';
+  if (hiddenPercentage >= 60) return 'Prepare questions about decision-making authority, stakeholder coordination, and unstated expectations. The real complexity is off-paper.';
+  if (hiddenPercentage >= 40) return 'The JD gives you a foundation, but significant complexity is hidden. Ask about team dynamics, approval processes, and past challenges.';
+  if (hiddenPercentage >= 20) return 'Most of the role is visible. Ask a few clarifying questions about coordination and reporting lines.';
+  return 'The role is well-defined. Standard interview preparation should suffice.';
+};
+
   // Determine unicorn placement
   const isCritical = unicorn_detection?.detected && unicorn_detection.severity === 'critical';
   const isWarning = unicorn_detection?.detected && unicorn_detection.severity === 'warning';
@@ -1069,146 +1105,116 @@ export default function HiddenBriefCard({
         {/* ============================================================
             COMPLEXITY ANALYSIS (Iceberg Ratio - Existing Section)
             ============================================================ */}
-        {complexity_analysis && (
-          <div style={{ marginBottom: '24px' }}>
-            <div 
-              onClick={() => toggleSection('complexity')}
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                cursor: 'pointer',
-                padding: '10px 0',
-                borderBottom: '1px solid var(--border-light)'
-              }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <span>🗻</span>
-                <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0 }}>Role Complexity Analysis</h3>
-                <span style={{
-                  fontSize: '10px',
-                  padding: '2px 10px',
-                  borderRadius: '20px',
-                  backgroundColor: complexity_analysis.priority === 'Critical' ? '#ef4444' :
-                                   complexity_analysis.priority === 'High' ? '#f97316' :
-                                   complexity_analysis.priority === 'Medium' ? '#f59e0b' : '#10b981',
-                  color: '#fff'
-                }}>
-                  {complexity_analysis.iceberg_grade}
-                </span>
-              </div>
-              <span>{expandedSections.complexity ? '▼' : '▶'}</span>
+      {complexity_analysis && (
+  <div style={{ marginBottom: '24px' }}>
+    <div 
+      onClick={() => toggleSection('complexity')}
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        cursor: 'pointer',
+        padding: '10px 0',
+        borderBottom: '1px solid var(--border-light)'
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span>🗻</span>
+        <h3 style={{ fontSize: '14px', fontWeight: '600', margin: 0 }}>The Iceberg Factor</h3>
+        <span style={{
+          fontSize: '10px',
+          padding: '2px 10px',
+          borderRadius: '20px',
+          backgroundColor: getIcebergColor(complexity_analysis.hidden_score),
+          color: '#fff'
+        }}>
+          {getIcebergGrade(complexity_analysis.hidden_score)}
+        </span>
+      </div>
+      <span>{expandedSections.complexity ? '▼' : '▶'}</span>
+    </div>
+    
+    {expandedSections.complexity && (
+      <div style={{ padding: '16px 0' }}>
+        
+        {/* Main Iceberg Message */}
+        <div style={{
+          backgroundColor: 'rgba(198, 164, 63, 0.08)',
+          borderLeft: `4px solid ${getIcebergColor(complexity_analysis.hidden_score)}`,
+          padding: '16px',
+          borderRadius: '8px',
+          marginBottom: '16px'
+        }}>
+          <div style={{ fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>
+            {getIcebergHeadline(complexity_analysis.hidden_score)}
+          </div>
+          <p style={{ fontSize: '13px', marginBottom: '8px' }}>
+            {complexity_analysis.hidden_score}% of what this role actually demands is <strong>not captured</strong> in the job description.
+            Only {100 - complexity_analysis.hidden_score}% of the true requirements are visible on paper.
+          </p>
+          <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: 0 }}>
+            {getIcebergAdvice(complexity_analysis.hidden_score)}
+          </p>
+        </div>
+        
+        {/* Visual Iceberg Bar - Green (visible) on left, Color (hidden) on right */}
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+            What the JD covers vs. What's hidden
+          </div>
+          <div style={{
+            height: '8px',
+            backgroundColor: 'var(--bg-tertiary)',
+            borderRadius: '4px',
+            overflow: 'hidden',
+            display: 'flex'
+          }}>
+            {/* Visible portion (green) */}
+            <div style={{
+              width: `${100 - complexity_analysis.hidden_score}%`,
+              height: '100%',
+              backgroundColor: '#10b981',
+              borderRadius: '4px 0 0 4px'
+            }} />
+            {/* Hidden portion (color based on severity) */}
+            <div style={{
+              width: `${complexity_analysis.hidden_score}%`,
+              height: '100%',
+              backgroundColor: getIcebergColor(complexity_analysis.hidden_score),
+              borderRadius: '0 4px 4px 0'
+            }} />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '4px' }}>
+            <span style={{ fontSize: '10px', color: '#10b981' }}>✓ Visible ({100 - complexity_analysis.hidden_score}%)</span>
+            <span style={{ fontSize: '10px', color: getIcebergColor(complexity_analysis.hidden_score) }}>
+              ⚠️ Hidden ({complexity_analysis.hidden_score}%)
+            </span>
+          </div>
+        </div>
+        
+        {/* Hidden Signals (what the JD doesn't say) */}
+        {complexity_analysis.hidden_signals && complexity_analysis.hidden_signals.length > 0 && (
+          <div style={{ marginTop: '12px' }}>
+            <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '8px', color: 'var(--text-muted)' }}>
+              What the JD isn't telling you:
             </div>
-            
-            {expandedSections.complexity && (
-              <div style={{ padding: '16px 0' }}>
-                {/* Iceberg Interpretation */}
-                <div style={{
-                  backgroundColor: 'rgba(198, 164, 63, 0.08)',
-                  borderLeft: '3px solid #c9a84c',
-                  padding: '14px 16px',
-                  borderRadius: '8px',
-                  marginBottom: '16px'
-                }}>
-                  <p style={{ fontSize: '14px', marginBottom: '8px' }}>
-                    <strong>{complexity_analysis.iceberg_interpretation}</strong>
-                  </p>
-                  <p style={{ fontSize: '13px', margin: 0 }}>
-                    {complexity_analysis.candidate_implication}
-                  </p>
-                </div>
-                
-                {/* Score Grid */}
-                <div style={{ 
-                  display: 'grid', 
-                  gridTemplateColumns: '1fr 1fr', 
-                  gap: '16px',
-                  marginBottom: '16px'
-                }}>
-                  <div style={{ textAlign: 'center', padding: '12px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Surface Complexity</div>
-                    <div style={{ fontSize: '28px', fontWeight: '700', color: '#3b82f6' }}>
-                      {complexity_analysis.surface_score}
-                    </div>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>What the JD says</div>
-                  </div>
-                  <div style={{ textAlign: 'center', padding: '12px', backgroundColor: 'var(--bg-tertiary)', borderRadius: '8px' }}>
-                    <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Hidden Complexity</div>
-                    <div style={{ fontSize: '28px', fontWeight: '700', color: '#c9a84c' }}>
-                      {complexity_analysis.hidden_score}
-                    </div>
-                    <div style={{ fontSize: '10px', color: 'var(--text-muted)' }}>What the role actually demands</div>
-                  </div>
-                </div>
-                
-                {/* Ratio and Delta */}
-                <div style={{ 
-                  display: 'flex', 
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '12px',
-                  backgroundColor: 'var(--bg-tertiary)',
-                  borderRadius: '8px',
-                  marginBottom: '16px',
-                  flexWrap: 'wrap',
-                  gap: '12px'
-                }}>
-                  <div>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Complexity Ratio</span>
-                    <div style={{ fontWeight: '600' }}>{complexity_analysis.ratio}</div>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Hidden Delta</span>
-                    <div style={{ fontWeight: '600', color: complexity_analysis.delta > 0 ? '#ef4444' : '#10b981' }}>
-                      {complexity_analysis.delta > 0 ? '+' : ''}{complexity_analysis.delta}
-                    </div>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Invisible Complexity</span>
-                    <div style={{ fontWeight: '600' }}>{complexity_analysis.invisible_complexity_percentage}%</div>
-                  </div>
-                  <div>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Analysis Confidence</span>
-                    <div style={{ fontWeight: '600', color: complexity_analysis.confidence === 'High' ? '#10b981' : '#f59e0b' }}>
-                      {complexity_analysis.confidence}
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Surface Components (Collapsible) */}
-                {complexity_analysis.surface_components && (
-                  <details style={{ marginTop: '8px' }}>
-                    <summary style={{ fontSize: '11px', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                      Surface complexity breakdown
-                    </summary>
-                    <div style={{ marginTop: '12px', fontSize: '12px' }}>
-                      {Object.entries(complexity_analysis.surface_components).map(([key, value]) => (
-                        <div key={key} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                          <span style={{ textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}</span>
-                          <span style={{ fontWeight: '500' }}>{value}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </details>
-                )}
-                
-                {/* Hidden Signals (Collapsible) */}
-                {complexity_analysis.hidden_signals && complexity_analysis.hidden_signals.length > 0 && (
-                  <details style={{ marginTop: '12px' }}>
-                    <summary style={{ fontSize: '11px', cursor: 'pointer', color: 'var(--text-muted)' }}>
-                      Hidden complexity signals ({complexity_analysis.hidden_signals.length})
-                    </summary>
-                    <ul style={{ marginTop: '12px', paddingLeft: '20px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-                      {complexity_analysis.hidden_signals.map((signal, idx) => (
-                        <li key={idx} style={{ marginBottom: '6px' }}>{signal}</li>
-                      ))}
-                    </ul>
-                  </details>
-                )}
-              </div>
-            )}
+            <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '11px', color: 'var(--text-secondary)' }}>
+              {complexity_analysis.hidden_signals.slice(0, 4).map((signal, idx) => (
+                <li key={idx} style={{ marginBottom: '6px' }}>{signal}</li>
+              ))}
+              {complexity_analysis.hidden_signals.length > 4 && (
+                <li style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  + {complexity_analysis.hidden_signals.length - 4} more signals
+                </li>
+              )}
+            </ul>
           </div>
         )}
+        
+      </div>
+    )}
+  </div>
+)}
 
         {/* ============================================================
             OPERATIONAL REALITY (5D MATRIX) - NEW SECTION

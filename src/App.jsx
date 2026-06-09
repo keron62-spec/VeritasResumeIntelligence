@@ -20,7 +20,13 @@ import BulletAnalyzer from './components/BulletAnalyzer.jsx';
 import ExecutiveEvaluation from './components/ExecutiveEvaluation.jsx';
 import SkillExtractor from './components/SkillExtractor.jsx';
 import HiddenBriefCard from './components/HiddenBriefCard.jsx';
-import ResumeEditor from './components/ResumeEditor.jsx';  // <-- ADDED: Import ResumeEditor
+import ResumeEditor from './components/ResumeEditor.jsx';
+// ============================================================
+// ADDED: Import Organizational Theory components
+// ============================================================
+import OrganizationalTheoryCard from './components/OrganizationalTheoryCard.jsx';
+import { useOrganizationalTheory } from './hooks/useOrganizationalTheory.js';
+// ============================================================
 import { useLeniencyMode } from './hooks/useLeniencyMode.js';
 import { useHiddenBrief } from './hooks/useHiddenBrief.js';
 import { extractDocx } from './utils/parseHelpers.js';
@@ -87,6 +93,11 @@ const [extractedFeatures, setExtractedFeatures] = useState(null);
     // ============================================================
     const [showResumeEditor, setShowResumeEditor] = useState(false);
     
+    // ============================================================
+    // ADDED: Organizational Theory State
+    // ============================================================
+    const [otTriggered, setOtTriggered] = useState(false);
+    
     // Recruiter Leniency Mode
     const { 
         mode: leniencyMode,
@@ -111,12 +122,23 @@ const [extractedFeatures, setExtractedFeatures] = useState(null);
         error: hiddenBriefError,
         transformingBullets: hbTransformingBullets,
         transformingSummary: hbTransformingSummary,
-        generatingReport: hbGeneratingReport,  // ADDED
+        generatingReport: hbGeneratingReport,
         analyze: analyzeHiddenBrief,
         transformBullets: transformBulletsWithHB,
         transformSummary: transformSummaryWithHB,
-        generateReport: generateHBReport       // ADDED
+        generateReport: generateHBReport
     } = useHiddenBrief();
+
+    // ============================================================
+    // ADDED: Organizational Theory Hook
+    // ============================================================
+    const {
+        analysis: otAnalysis,
+        loading: otLoading,
+        error: otError,
+        analyze: analyzeOT,
+        reset: resetOT
+    } = useOrganizationalTheory();
 
     // Track whether hidden brief has been triggered for this JD/resume
     const [hiddenBriefTriggered, setHiddenBriefTriggered] = useState(false);
@@ -161,6 +183,27 @@ const [extractedFeatures, setExtractedFeatures] = useState(null);
             analyzeHiddenBrief(jobDescriptionText, resumeText);
         }
     }, [result, isComparisonMode, jobDescriptionText, resumeText, hiddenBriefAnalysis, hiddenBriefLoading, hiddenBriefTriggered, analyzeHiddenBrief]);
+
+    // ============================================================
+    // ADDED: Trigger Organizational Theory analysis after HB completes
+    // ============================================================
+    useEffect(() => {
+        if (hiddenBriefAnalysis && jobDescriptionText && !otAnalysis && !otLoading && !hiddenBriefLoading && !otTriggered) {
+            console.log('✅ TRIGGERING organizational theory analysis NOW');
+            setOtTriggered(true);
+            analyzeOT(jobDescriptionText, hiddenBriefAnalysis);
+        }
+    }, [hiddenBriefAnalysis, jobDescriptionText, otAnalysis, otLoading, hiddenBriefLoading, analyzeOT, otTriggered]);
+
+    // ============================================================
+    // ADDED: Reset OT trigger when component unmounts or new analysis starts
+    // ============================================================
+    useEffect(() => {
+        if (!result) {
+            setOtTriggered(false);
+            resetOT();
+        }
+    }, [result, resetOT]);
 
     // Handler for applying hidden brief transformations to bullets
     const handleApplyHiddenBriefToBullets = useCallback(async () => {
@@ -457,6 +500,10 @@ const analyzeResume = async () => {
     
     // Reset hidden brief trigger for new analysis
     setHiddenBriefTriggered(false);
+    // ============================================================
+    // ADDED: Reset OT trigger for new analysis
+    // ============================================================
+    setOtTriggered(false);
     
     setIsAnalyzing(true);
     setLoading(true);
@@ -825,6 +872,11 @@ const calculateInterviewLikelihood = ({ ats, fit, credibility, alignment, bloomM
         // ADDED: Reset resume editor visibility when resetting app
         // ============================================================
         setShowResumeEditor(false);
+        // ============================================================
+        // ADDED: Reset OT trigger when resetting app
+        // ============================================================
+        setOtTriggered(false);
+        resetOT();
     };
 
     // Helper to check if data exists in raw response
@@ -1039,6 +1091,44 @@ const calculateInterviewLikelihood = ({ ats, fit, credibility, alignment, bloomM
                                             isGeneratingReport={hbGeneratingReport}
                                         />
                                     )}
+                                    
+                                    {/* ============================================================ */}
+                                    {/* ADDED: Organizational Theory Card - Displays after Hidden Brief */}
+                                    {/* ============================================================ */}
+                                    {otAnalysis && (
+                                        <OrganizationalTheoryCard otData={otAnalysis} />
+                                    )}
+                                    {otLoading && (
+                                        <div style={{
+                                            backgroundColor: 'var(--bg-secondary)',
+                                            borderRadius: '12px',
+                                            padding: '20px',
+                                            marginBottom: '20px',
+                                            textAlign: 'center',
+                                            border: '1px solid var(--border-light)'
+                                        }}>
+                                            <div className="spinner" style={{ width: '24px', height: '24px', margin: '0 auto 12px' }}></div>
+                                            <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                                                🏛️ Analyzing organizational theory...
+                                            </p>
+                                        </div>
+                                    )}
+                                    {otError && (
+                                        <div style={{
+                                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                            borderRadius: '12px',
+                                            padding: '12px 16px',
+                                            marginBottom: '20px',
+                                            borderLeft: '3px solid #f59e0b'
+                                        }}>
+                                            <p style={{ fontSize: '12px', margin: 0, color: 'var(--text-secondary)' }}>
+                                                ⚠️ Organizational theory analysis note: {otError}
+                                            </p>
+                                        </div>
+                                    )}
+                                    {/* ============================================================ */}
+                                    {/* END ORGANIZATIONAL THEORY SECTION */}
+                                    {/* ============================================================ */}
                                 </>
                             )}
                             

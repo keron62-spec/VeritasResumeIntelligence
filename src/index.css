@@ -926,3 +926,260 @@ body {
   .riasec-compare-grid { grid-template-columns: 1fr; }
   .header { flex-direction: column; text-align: center; }
 }
+
+/* ============================================================ */
+/* ORGANIZATIONAL THEORY CARD STYLES - ADDED FOR OT V4.2.3     */
+/* ============================================================ */
+
+/* Cards */
+.ot-card {
+  margin-bottom: 24px;
+}
+
+.result-card {
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  border-left: 4px solid;
+}
+
+/* Risk Cards */
+.risk-card {
+  background: var(--bg-tertiary);
+  border-radius: 12px;
+  margin-bottom: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+}
+
+.risk-critical-border { border-left: 4px solid #dc2626; }
+.risk-high-border { border-left: 4px solid #f97316; }
+.risk-info-border { border-left: 4px solid #64748b; }
+
+.risk-critical { background: #dc2626; color: white; }
+.risk-high { background: #f97316; color: white; }
+.risk-info { background: #64748b; color: white; }
+
+/* Interview Questions */
+.interview-question {
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+}
+
+.critical-question { border-left: 4px solid #dc2626; }
+.high-question { border-left: 4px solid #f97316; }
+
+/* Answer Flags */
+.answer-flags {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-light);
+  font-size: 12px;
+}
+
+.red-flag-answer { color: #f87171; margin: 4px 0; padding-left: 16px; }
+.green-flag-answer { color: #4ade80; margin: 4px 0; padding-left: 16px; }
+
+/* Resume Tips */
+.resume-tip-box {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: rgba(139, 92, 246, 0.1);
+  border-radius: 8px;
+  border-left: 3px solid #8b5cf6;
+  font-size: 13px;
+}
+
+/* Action Items */
+.action-item {
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border-radius: 8px;
+  border-left: 3px solid #c9a84c;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+/* Boxes */
+.consensus-box {
+  background: linear-gradient(135deg, rgba(201,168,76,0.08), rgba(139,92,246,0.04));
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  border-left: 4px solid #c9a84c;
+}
+
+.warning-box {
+  background: rgba(239, 68, 68, 0.08);
+  border-radius: 10px;
+  padding: 12px;
+  margin: 16px 0;
+  border-left: 3px solid #ef4444;
+}
+
+.survival-box {
+  background: rgba(16, 185, 129, 0.08);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+  border-left: 3px solid #10b981;
+}
+
+/* Metric Rows & Score Bars */
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 8px 0;
+  font-size: 13px;
+}
+
+.score-bar {
+  height: 8px;
+  background: var(--border-light);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 12px 0;
+}
+
+.score-fill {
+  height: 100%;
+  border-radius: 4px;
+}
+
+/* Badges */
+.badge {
+  display: inline-block;
+  padding: 3px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.badge-cynefin { background: #8b5cf6; color: white; }
+.badge-mintzberg { background: #3b82f6; color: white; }
+.badge-weber { background: #64748b; color: white; }
+.badge-garbage { background: #f59e0b; color: #1e293b; }
+.badge-pe { background: #06b6d4; color: white; }
+
+/* Chips & Source Badges */
+.chip {
+  display: inline-block;
+  padding: 3px 10px;
+  background: var(--bg-tertiary);
+  border-radius: 14px;
+  font-size: 11px;
+  margin: 3px;
+  border: 1px solid var(--border-light);
+}
+
+.source-badge {
+  background: #334155;
+  color: #94a3b8;
+  font-size: 9px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  margin-left: 8px;
+}
+
+.llm-override-badge {
+  background: #f59e0b;
+  color: #1e293b;
+  font-size: 9px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  margin-left: 8px;
+}
+
+/* Ownership Badges */
+.ownership-badge {
+  display: inline-block;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.ownership-full { background: #10b981; color: white; }
+.ownership-shared_high { background: #3b82f6; color: white; }
+.ownership-shared_medium { background: #f59e0b; color: #1e293b; }
+.ownership-shared_low { background: #f97316; color: white; }
+.ownership-review_only { background: #ef4444; color: white; }
+.ownership-not_detected { background: #64748b; color: white; }
+
+/* Priority Badges */
+.priority-critical { background: #dc2626; color: white; }
+.priority-high { background: #f97316; color: white; }
+.priority-medium { background: #f59e0b; color: #1e293b; }
+.priority-low { background: #10b981; color: white; }
+
+/* Role Badges */
+.role-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  background: #8b5cf6;
+  color: white;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  margin: 4px;
+}
+
+.secondary-role { background: #3b82f6; }
+
+/* Tables */
+.function-table {
+  width: 100%;
+  font-size: 11px;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+
+.function-table th, .function-table td {
+  padding: 8px 6px;
+  border-bottom: 1px solid var(--border-light);
+  text-align: left;
+}
+
+/* Gap Items */
+.gap-item {
+  margin-bottom: 10px;
+  padding: 12px;
+  background: rgba(245, 158, 11, 0.08);
+  border-radius: 8px;
+  border-left: 3px solid #f59e0b;
+}
+
+/* Tabs */
+.tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid var(--border-light);
+  padding-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 8px 16px;
+  border-radius: 24px;
+  cursor: pointer;
+  background: var(--bg-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+  transition: all 0.2s;
+  border: 1px solid var(--border-light);
+}
+
+.tab.active {
+  background: #c9a84c;
+  color: #1e293b;
+  border-color: #c9a84c;
+}
+
+.tab:hover:not(.active) {
+  background: var(--border-light);
+}

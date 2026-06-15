@@ -1,7 +1,7 @@
 // src/hooks/useOrganizationalTheory.js
 import { useState, useCallback } from 'react';
 
-const OT_WORKER_URL = 'https://organizational-theory.keron62.workers.dev/analyze';
+const OT_WORKER_URL = 'https://ot-advanced.keron62.workers.dev/analyze';
 
 export function useOrganizationalTheory() {
   const [analysis, setAnalysis] = useState(null);

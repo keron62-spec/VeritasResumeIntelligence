@@ -39,9 +39,10 @@ const createPDFStyles = (templateKey) => {
     return StyleSheet.create({
         page: {
             padding: t.pagePadding || 50,
-            fontSize: t.fontSize || 10.5,
-            fontFamily: fontFamily,
-            lineHeight: t.lineHeight || 1.5
+    paddingBottom: (t.pagePadding || 50) + 20,  // ADD EXTRA BOTTOM BUFFER
+    fontSize: t.fontSize || 10.5,
+    fontFamily: fontFamily,
+    lineHeight: t.lineHeight || 1.5
         },
         header: {
             textAlign: t.headerStyle?.textAlign || 'center',
@@ -110,7 +111,10 @@ const createPDFStyles = (templateKey) => {
             fontSize: 10,
             color: '#666',
             marginBottom: 4,
-            fontStyle: 'italic'
+            fontStyle: 'italic',
+            wordBreak: 'keep-all',
+            overflowWrap: 'normal'
+
         },
         dateText: {
             fontSize: t.dateText?.fontSize || 9,
@@ -121,12 +125,17 @@ const createPDFStyles = (templateKey) => {
             marginLeft: 12,
             marginBottom: 4,
             fontSize: 10,
-            lineHeight: 1.4
+            lineHeight: 1.4,
+            wordBreak: 'keep-all',        // Prevents breaking words
+            overflowWrap: 'normal',       // Don't wrap mid-word
+            whiteSpace: 'pre-wrap'
         },
         skillsText: {
             fontSize: 9,
             marginBottom: 8,
-            lineHeight: 1.4
+            lineHeight: 1.4,
+            wordBreak: 'keep-all',
+            overflowWrap: 'normal'
         },
         multiColumnContainer: {
             display: 'flex',
@@ -223,8 +232,10 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                     </>
                 )}
                 {role?.bullets?.map((bullet, bidx) => (
-                    <Text key={bidx} style={styles.bullet}>• {bullet?.text || ''}</Text>
-                ))}
+    <View key={bidx} wrap={false}>  {/* ADD THIS WRAPPER */}
+        <Text style={styles.bullet}>• {bullet?.text || ''}</Text>
+    </View>
+))}
             </View>
         ));
     };
@@ -240,13 +251,13 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
                         <Text style={styles.targetTitle}>{targetTitle}</Text>
                     </View>
                 );
-            case 'summary':
-                return summary && (
-                    <View key="summary">
-                        <Text style={styles.sectionTitle}>Professional Summary</Text>
-                        <Text style={{ fontSize: 10, marginBottom: 12 }}>{summary}</Text>
-                    </View>
-                );
+                case 'summary':
+                    return summary && (
+                        <View key="summary" wrap={false}>  {/* ADD wrap={false} */}
+                            <Text style={styles.sectionTitle}>Professional Summary</Text>
+                            <Text style={{ fontSize: 10, marginBottom: 12 }}>{summary}</Text>
+                        </View>
+                    );
             case 'experience':
                 return roles && roles.length > 0 && (
                     <View key="experience">
@@ -329,7 +340,7 @@ const ResumePDF = ({ personalInfo, targetTitle, summary, roles, skills, educatio
     
     return (
         <Document>
-            <Page size="LETTER" style={styles.page}>
+            <Page size="LETTER" style={styles.page} minPresenceAhead={20}>
                 {/* Header */}
                 <View style={styles.header} wrap={false}>
                     <Text style={styles.name}>{safePersonalInfo.name || 'Your Name'}</Text>
@@ -514,20 +525,29 @@ function calculateKeywordMatchRate(resumeText, jdKeywords) {
 // ============================================================
 // FORMAT DATE
 // ============================================================
-function formatDate(dateStr, dateFormatPreference) {
+function formatDate(dateStr, dateFormatPreference = 'MM/YYYY') {
     if (!dateStr) return '';
-    if (dateFormatPreference === 'MM/YYYY' && dateStr.match(/^\d{1,2}\/\d{4}$/)) return dateStr;
-    if (dateFormatPreference === 'Month YYYY') {
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        const match = dateStr.match(/^(\d{1,2})\/(\d{4})$/);
+    
+    // Normalize already-correct formats
+    if (dateStr.match(/^\d{1,2}\/\d{4}$/)) return dateStr;
+    
+    // Convert "Month YYYY" → "MM/YYYY"
+    if (dateFormatPreference === 'MM/YYYY') {
+        const monthMap = {
+            'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
+            'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12',
+            'january': '01', 'february': '02', 'march': '03', 'april': '04', 
+            'june': '06', 'july': '07', 'august': '08', 'september': '09',
+            'october': '10', 'november': '11', 'december': '12'
+        };
+        
+        const match = dateStr.match(/^([a-zA-Z]+)\s+(\d{4})$/);
         if (match) {
-            const monthNum = parseInt(match[1], 10);
-            if (monthNum >= 1 && monthNum <= 12) {
-                return `${months[monthNum - 1]} ${match[2]}`;
-            }
-            return match[0];
+            const month = monthMap[match[1].toLowerCase()];
+            if (month) return `${month}/${match[2]}`;
         }
     }
+    
     return dateStr;
 }
 
